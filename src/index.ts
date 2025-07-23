@@ -1,4 +1,8 @@
 import type { BrowserExplorerConfig } from './config/ConfigManager';
+import { ConfigManager } from './config/ConfigManager';
+import { CrawlerService } from './crawler/CrawlerService';
+import { TestGenerator } from './generation/TestGenerator';
+import { TestFileWriter } from './generation/TestFileWriter';
 
 // Main exports for programmatic usage
 export { BrowserAgent } from './agents/BrowserAgent';
@@ -84,7 +88,7 @@ export class BrowserExplorer {
     this.config = await this.configManager.loadConfig(configPath);
   }
 
-  async explore(url?: string): Promise<CrawlResult> {
+  async explore(url?: string): Promise<any> {
     if (!this.config) {
       throw new Error('BrowserExplorer not initialized. Call initialize() first.');
     }

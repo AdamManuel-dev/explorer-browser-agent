@@ -101,7 +101,7 @@ export declare class MastraOrchestrator {
         totalSessions: number;
         averageSessionDuration: number;
         systemHealth: 'healthy' | 'degraded' | 'unhealthy';
-        agentMetrics: any;
+        agentMetrics: Record<string, AgentMetrics>;
     };
     /**
      * Generate exploration recommendations
@@ -149,7 +149,7 @@ export declare class MastraOrchestrator {
             mastraEngine: boolean;
             workflowEngine: boolean;
             activeSessions: number;
-            systemMetrics: any;
+            systemMetrics: ReturnType<typeof this.getSystemMetrics>;
         };
     }>;
     /**

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DragDropStrategy = void 0;
 class DragDropStrategy {
+    type = 'drag-drop';
     async execute(context) {
         const { element } = context;
         try {

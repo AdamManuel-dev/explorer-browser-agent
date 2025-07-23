@@ -401,7 +401,16 @@ class UserPathRecorder {
         const pageTransitions = path.steps.filter((step) => step.type === 'navigation' || step.stateChanges.some((change) => change.type === 'url')).length;
         const networkRequests = path.steps.reduce((sum, step) => sum + step.networkActivity.length, 0);
         const interactionCount = path.steps.filter((step) => ['click', 'type', 'select', 'check'].includes(step.type)).length;
-        const complexity = interactionCount < 5 ? 'simple' : interactionCount < 15 ? 'moderate' : 'complex';
+        let complexity;
+        if (interactionCount < 5) {
+            complexity = 'simple';
+        }
+        else if (interactionCount < 15) {
+            complexity = 'moderate';
+        }
+        else {
+            complexity = 'complex';
+        }
         return {
             complexity,
             estimatedDuration: path.duration,

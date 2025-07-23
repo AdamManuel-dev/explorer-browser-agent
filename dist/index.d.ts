@@ -1,3 +1,4 @@
+import type { BrowserExplorerConfig } from './config/ConfigManager';
 export { BrowserAgent } from './agents/BrowserAgent';
 export { BreadthFirstCrawler, CrawlerService, DistributedCrawler } from './crawler';
 export { AIElementDetector } from './detectors';
@@ -32,6 +33,6 @@ export declare class BrowserExplorer {
     initialize(configPath?: string): Promise<void>;
     explore(url?: string): Promise<any>;
     cleanup(): Promise<void>;
-    getConfig(): any;
+    getConfig(): BrowserExplorerConfig | null;
 }
 //# sourceMappingURL=index.d.ts.map

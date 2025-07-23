@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CarouselStrategy = void 0;
 class CarouselStrategy {
+    type = 'carousel';
     async execute(context) {
         const { element } = context;
         try {

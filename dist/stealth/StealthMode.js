@@ -176,6 +176,12 @@ class StealthMode {
             userAgentRotations: 0,
         };
     }
+    getConfig() {
+        return { ...this.config };
+    }
+    generateRandomUserAgent() {
+        return this.getRandomUserAgent();
+    }
     // Private methods
     async injectStealthScripts(context) {
         await context.addInitScript(this.getStealthScript());

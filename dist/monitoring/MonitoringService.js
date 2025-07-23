@@ -372,6 +372,8 @@ class MonitoringService extends events_1.EventEmitter {
             case 'console':
                 this.exportConsoleMetrics(allMetrics);
                 break;
+            default:
+                logger_1.logger.warn('Unknown metrics export format');
         }
         // Clear metrics after flush
         this.metrics.clear();
@@ -393,7 +395,7 @@ class MonitoringService extends events_1.EventEmitter {
         for (const [name, metricList] of Object.entries(metrics)) {
             const latest = metricList[metricList.length - 1];
             if (latest) {
-                console.log(`${name}: ${latest.value} (${latest.type})`);
+                logger_1.logger.info(`${name}: ${latest.value} (${latest.type})`);
             }
         }
     }

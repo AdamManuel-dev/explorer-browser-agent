@@ -31,6 +31,7 @@ export interface StoredSession {
     metadata: {
         userAgent: string;
         fingerprint: string;
+        [key: string]: string | number | boolean;
     };
 }
 export declare class SessionManager {
@@ -40,7 +41,7 @@ export declare class SessionManager {
     constructor(config?: Partial<SessionManagerConfig>);
     saveSession(sessionId: string, session: AuthSession, domain: string, options?: {
         ttl?: number;
-        metadata?: Record<string, any>;
+        metadata?: Record<string, string | number | boolean>;
     }): Promise<void>;
     loadSession(sessionId: string, domain: string): Promise<AuthSession | null>;
     deleteSession(sessionId: string, domain: string): Promise<void>;

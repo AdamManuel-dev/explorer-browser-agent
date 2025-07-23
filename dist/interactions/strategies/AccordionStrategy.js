@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AccordionStrategy = void 0;
 class AccordionStrategy {
+    type = 'accordion';
     async execute(context) {
         const { element } = context;
         try {

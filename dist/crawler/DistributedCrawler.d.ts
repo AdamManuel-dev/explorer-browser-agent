@@ -1,13 +1,6 @@
 import { Browser } from 'playwright';
 import { CrawlOptions } from './BreadthFirstCrawler';
-import { CrawlResult } from '../types/crawler';
-export interface RedisConfig {
-    host: string;
-    port: number;
-    password?: string;
-    db?: number;
-    keyPrefix?: string;
-}
+import { CrawlResult, RedisConfig } from '../types/crawler';
 export interface DistributedCrawlConfig extends CrawlOptions {
     redis: RedisConfig;
     workerId: string;
@@ -41,7 +34,7 @@ export interface CrawlJob {
     retries: number;
     createdAt: Date;
     assignedTo?: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
 export interface DistributedCrawlResult extends CrawlResult {
     workerId: string;
@@ -64,7 +57,7 @@ export declare class DistributedCrawler {
     constructor(browser: Browser, config: DistributedCrawlConfig);
     startWorker(): Promise<void>;
     stopWorker(): Promise<void>;
-    enqueueCrawlJob(url: string, depth?: number, priority?: number, metadata?: Record<string, any>): Promise<string>;
+    enqueueCrawlJob(url: string, depth?: number, priority?: number, metadata?: Record<string, unknown>): Promise<string>;
     getWorkerStatuses(): Promise<WorkerStatus[]>;
     getQueueStatistics(): Promise<{
         totalJobs: number;

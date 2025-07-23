@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TabStrategy = void 0;
 class TabStrategy {
+    type = 'tab';
     async execute(context) {
         const { element } = context;
         try {

@@ -79,18 +79,23 @@ class BrowserExplorerCLI {
             // Setup authentication if needed
             if (options.auth && options.username && options.password) {
                 await this.setupAuthentication(crawlerService, {
-                    username: options.username,
-                    password: options.password,
+                    enabled: true,
+                    strategy: 'basic',
                     loginUrl: options.authUrl,
+                    credentials: {
+                        username: options.username,
+                        password: options.password,
+                    },
+                    sessionPersistence: false,
                 });
             }
             // Start crawling
             await crawlerService.initialize();
-            console.log(`🚀 Starting crawl of ${url}`);
-            console.log(`📊 Max depth: ${options.maxDepth}, Max pages: ${options.maxPages}`);
-            console.log(`📁 Output directory: ${options.output}`);
+            logger_1.logger.info(`🚀 Starting crawl of ${url}`);
+            logger_1.logger.info(`📊 Max depth: ${options.maxDepth}, Max pages: ${options.maxPages}`);
+            logger_1.logger.info(`📁 Output directory: ${options.output}`);
             const crawlResult = await crawlerService.crawl();
-            console.log(`✅ Crawl completed: ${crawlResult.pagesVisited} pages visited`);
+            logger_1.logger.info(`✅ Crawl completed: ${crawlResult.pagesVisited} pages visited`);
             // Generate tests
             const generationOptions = {
                 framework: options.framework,
@@ -113,15 +118,15 @@ class BrowserExplorerCLI {
             const writer = new generation_1.TestFileWriter(options.output);
             await writer.createProjectStructure();
             await writer.writeFiles(generationResult);
-            console.log(`🎉 Test generation completed!`);
-            console.log(`📝 Generated ${generationResult.summary.totalFiles} files`);
-            console.log(`🧪 Created ${generationResult.summary.totalTests} tests`);
-            console.log(`📂 Files saved to: ${options.output}`);
+            logger_1.logger.info(`🎉 Test generation completed!`);
+            logger_1.logger.info(`📝 Generated ${generationResult.summary.totalFiles} files`);
+            logger_1.logger.info(`🧪 Created ${generationResult.summary.totalTests} tests`);
+            logger_1.logger.info(`📂 Files saved to: ${options.output}`);
             await crawlerService.cleanup();
         }
         catch (error) {
             logger_1.logger.error('Crawl command failed', error);
-            console.error('❌ Crawl failed:', error instanceof Error ? error.message : error);
+            logger_1.logger.error('❌ Crawl failed:', error instanceof Error ? error.message : error);
             process.exit(1);
         }
     }
@@ -131,7 +136,7 @@ class BrowserExplorerCLI {
             logger_1.logger.info('Starting Browser Explorer test', { url, options });
             // Load configuration
             const config = await this.loadConfig(options.config);
-            console.log(`🧪 Testing page: ${url}`);
+            logger_1.logger.info(`🧪 Testing page: ${url}`);
             // Test basic functionality
             const crawlerService = new CrawlerService_1.CrawlerService({
                 startUrl: url,
@@ -146,40 +151,40 @@ class BrowserExplorerCLI {
             await crawlerService.initialize();
             const result = await crawlerService.crawl();
             await crawlerService.cleanup();
-            console.log(`✅ Test completed successfully`);
-            console.log(`📊 Pages visited: ${result.pagesVisited}`);
-            console.log(`⏱️  Duration: ${Math.round(result.duration / 1000)}s`);
+            logger_1.logger.info(`✅ Test completed successfully`);
+            logger_1.logger.info(`📊 Pages visited: ${result.pagesVisited}`);
+            logger_1.logger.info(`⏱️  Duration: ${Math.round(result.duration / 1000)}s`);
             if (result.errors.length > 0) {
-                console.log(`⚠️  Errors encountered: ${result.errors.length}`);
+                logger_1.logger.warn(`⚠️  Errors encountered: ${result.errors.length}`);
                 result.errors.forEach((error) => {
-                    console.log(`   - ${error.url}: ${error.error}`);
+                    logger_1.logger.warn(`   - ${error.url}: ${error.error}`);
                 });
             }
         }
         catch (error) {
             logger_1.logger.error('Test command failed', error);
-            console.error('❌ Test failed:', error instanceof Error ? error.message : error);
+            logger_1.logger.error('❌ Test failed:', error instanceof Error ? error.message : error);
             process.exit(1);
         }
     }
     async init(options) {
         try {
-            console.log('🚀 Initializing Browser Explorer project...');
+            logger_1.logger.info('🚀 Initializing Browser Explorer project...');
             // Create directory structure
             const directories = ['config', 'generated-tests', 'screenshots', 'reports'];
             for (const dir of directories) {
                 await fs.mkdir(dir, { recursive: true });
-                console.log(`📁 Created directory: ${dir}`);
+                logger_1.logger.info(`📁 Created directory: ${dir}`);
             }
             // Create configuration file
             const configPath = 'browser-explorer.config.yaml';
             const configExists = await this.fileExists(configPath);
             if (!configExists || options.force) {
                 await this.configManager.createSampleConfig(configPath);
-                console.log(`⚙️  Created configuration file: ${configPath}`);
+                logger_1.logger.info(`⚙️  Created configuration file: ${configPath}`);
             }
             else {
-                console.log(`⚠️  Configuration file already exists: ${configPath}`);
+                logger_1.logger.warn(`⚠️  Configuration file already exists: ${configPath}`);
             }
             if (!options.configOnly) {
                 // Create .gitignore
@@ -192,7 +197,7 @@ reports/
 browser-explorer.config.local.*
 `;
                 await fs.writeFile('.gitignore', gitignoreContent);
-                console.log('📝 Created .gitignore');
+                logger_1.logger.info('📝 Created .gitignore');
                 // Create README
                 const readmeContent = `# Browser Explorer Project
 
@@ -223,17 +228,17 @@ npm test
 \`\`\`
 `;
                 await fs.writeFile('README.md', readmeContent);
-                console.log('📚 Created README.md');
+                logger_1.logger.info('📚 Created README.md');
             }
-            console.log('✅ Project initialized successfully!');
-            console.log('');
-            console.log('Next steps:');
-            console.log('1. Edit browser-explorer.config.yaml to configure your settings');
-            console.log('2. Run: browser-explorer crawl https://your-website.com');
+            logger_1.logger.info('✅ Project initialized successfully!');
+            logger_1.logger.info('');
+            logger_1.logger.info('Next steps:');
+            logger_1.logger.info('1. Edit browser-explorer.config.yaml to configure your settings');
+            logger_1.logger.info('2. Run: browser-explorer crawl https://your-website.com');
         }
         catch (error) {
             logger_1.logger.error('Init command failed', error);
-            console.error('❌ Initialization failed:', error instanceof Error ? error.message : error);
+            logger_1.logger.error('❌ Initialization failed:', error instanceof Error ? error.message : error);
             process.exit(1);
         }
     }
@@ -242,51 +247,51 @@ npm test
             const configPath = options.file || 'browser-explorer.config.yaml';
             const exists = await this.fileExists(configPath);
             if (exists && !options.force) {
-                console.error(`❌ Configuration file already exists: ${configPath}`);
-                console.log('Use --force to overwrite');
+                logger_1.logger.error(`❌ Configuration file already exists: ${configPath}`);
+                logger_1.logger.info('Use --force to overwrite');
                 process.exit(1);
             }
             await this.configManager.createSampleConfig(configPath);
-            console.log(`✅ Sample configuration created: ${configPath}`);
+            logger_1.logger.info(`✅ Sample configuration created: ${configPath}`);
         }
         catch (error) {
             logger_1.logger.error('Create config command failed', error);
-            console.error('❌ Failed to create configuration:', error instanceof Error ? error.message : error);
+            logger_1.logger.error('❌ Failed to create configuration:', error instanceof Error ? error.message : error);
             process.exit(1);
         }
     }
     async validateConfig(options) {
         try {
             const config = await this.loadConfig(options.config);
-            console.log('✅ Configuration is valid');
-            console.log(`📁 Start URL: ${config.crawling.startUrl || 'Not set'}`);
-            console.log(`🔧 Framework: ${config.generation.framework}`);
-            console.log(`💾 Output: ${config.generation.outputDirectory}`);
+            logger_1.logger.info('✅ Configuration is valid');
+            logger_1.logger.info(`📁 Start URL: ${config.crawling.startUrl || 'Not set'}`);
+            logger_1.logger.info(`🔧 Framework: ${config.generation.framework}`);
+            logger_1.logger.info(`💾 Output: ${config.generation.outputDirectory}`);
         }
         catch (error) {
             logger_1.logger.error('Validate config command failed', error);
-            console.error('❌ Configuration validation failed:', error instanceof Error ? error.message : error);
+            logger_1.logger.error('❌ Configuration validation failed:', error instanceof Error ? error.message : error);
             process.exit(1);
         }
     }
     async serve(options) {
         try {
-            console.log(`🚀 Starting Browser Explorer server on port ${options.port}...`);
-            console.log('❌ Server mode not yet implemented');
-            console.log('This feature will provide a REST API for Browser Explorer functionality');
+            logger_1.logger.info(`🚀 Starting Browser Explorer server on port ${options.port}...`);
+            logger_1.logger.info('❌ Server mode not yet implemented');
+            logger_1.logger.info('This feature will provide a REST API for Browser Explorer functionality');
             // TODO: Implement server mode
             process.exit(1);
         }
         catch (error) {
             logger_1.logger.error('Serve command failed', error);
-            console.error('❌ Server failed to start:', error instanceof Error ? error.message : error);
+            logger_1.logger.error('❌ Server failed to start:', error instanceof Error ? error.message : error);
             process.exit(1);
         }
     }
     async debug(component, url, options) {
         try {
             this.setupLogging(true); // Always verbose in debug mode
-            console.log(`🔍 Debugging ${component} with URL: ${url}`);
+            logger_1.logger.info(`🔍 Debugging ${component} with URL: ${url}`);
             switch (component) {
                 case 'crawler':
                     await this.debugCrawler(url, options);
@@ -298,14 +303,14 @@ npm test
                     await this.debugGenerator(url, options);
                     break;
                 default:
-                    console.error(`❌ Unknown component: ${component}`);
-                    console.log('Available components: crawler, detector, generator');
+                    logger_1.logger.error(`❌ Unknown component: ${component}`);
+                    logger_1.logger.info('Available components: crawler, detector, generator');
                     process.exit(1);
             }
         }
         catch (error) {
             logger_1.logger.error('Debug command failed', error);
-            console.error('❌ Debug failed:', error instanceof Error ? error.message : error);
+            logger_1.logger.error('❌ Debug failed:', error instanceof Error ? error.message : error);
             process.exit(1);
         }
     }
@@ -344,7 +349,7 @@ npm test
     }
     async setupAuthentication(_crawlerService, _auth) {
         // TODO: Implement authentication setup
-        console.log('🔐 Authentication setup (not yet implemented)');
+        logger_1.logger.info('🔐 Authentication setup (not yet implemented)');
     }
     createSampleUserPath(url, _crawlResult) {
         // Create a basic user path for demonstration
@@ -392,15 +397,15 @@ npm test
         }
     }
     async debugCrawler(_url, _options) {
-        console.log('🕷️  Running crawler debug...');
+        logger_1.logger.info('🕷️  Running crawler debug...');
         // TODO: Implement crawler debugging
     }
     async debugDetector(_url, _options) {
-        console.log('🔍 Running detector debug...');
+        logger_1.logger.info('🔍 Running detector debug...');
         // TODO: Implement detector debugging
     }
     async debugGenerator(_url, _options) {
-        console.log('⚙️  Running generator debug...');
+        logger_1.logger.info('⚙️  Running generator debug...');
         // TODO: Implement generator debugging
     }
 }

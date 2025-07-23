@@ -69,6 +69,11 @@ export declare class CaptchaHandler {
     private initializeDetectionPatterns;
     private hasEnabledService;
     private getPreferredSolvingMethod;
+    /**
+     * Get the detection patterns for all CAPTCHA types
+     * @returns A map of CAPTCHA types to their detection selectors
+     */
+    getDetectionPatterns(): Map<CaptchaType, string[]>;
     private mergeWithDefaults;
 }
 //# sourceMappingURL=CaptchaHandler.d.ts.map

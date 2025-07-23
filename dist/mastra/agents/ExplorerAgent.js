@@ -196,7 +196,7 @@ class ExplorerAgent extends core_1.Agent {
                 url: page.url(),
             });
             // Take screenshot before interaction
-            const beforeScreenshot = await this.takeScreenshot(page);
+            await this.takeScreenshot(page);
             // Use Stagehand to perform the interaction
             const result = await this.stagehand.act({
                 action: instruction,
@@ -627,7 +627,6 @@ class ExplorerAgent extends core_1.Agent {
     async cleanupSession(sessionId) {
         try {
             if (this.sessions.has(sessionId)) {
-                const session = this.sessions.get(sessionId);
                 // The Browserbase SDK should handle session cleanup automatically
                 this.sessions.delete(sessionId);
                 logger_1.logger.debug('Cleaned up browser session', { sessionId });

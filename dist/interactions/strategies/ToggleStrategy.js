@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ToggleStrategy = void 0;
 class ToggleStrategy {
+    type = 'toggle';
     async execute(context) {
         const { element } = context;
         try {

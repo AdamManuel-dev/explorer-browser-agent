@@ -77,7 +77,7 @@ export interface TestStep {
 export interface TestAssertion {
     type: string;
     target: string;
-    expected: any;
+    expected: string | number | boolean | Record<string, unknown>;
     message?: string;
     soft?: boolean;
 }
@@ -109,7 +109,7 @@ export interface ActionParameter {
     name: string;
     type: string;
     required: boolean;
-    default?: any;
+    default?: string | number | boolean;
 }
 export interface PageAssertion {
     name: string;

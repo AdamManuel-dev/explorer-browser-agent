@@ -240,7 +240,7 @@ class PlannerAgent extends core_1.Agent {
         const totalPages = targets.reduce((sum, target) => sum + target.maxPages, 0);
         const maxDepth = Math.max(...targets.map((t) => t.maxDepth));
         const hasTimeConstraints = !!context.constraints.timeLimit;
-        const hasResourceConstraints = !!context.constraints.resourceLimit;
+        // const hasResourceConstraints = !!context.constraints.resourceLimit;
         // Decision logic based on constraints and objectives
         if (totalPages > 1000 || targets.length > 50) {
             return 'distributed'; // Large scale requires distribution
@@ -644,8 +644,8 @@ class PlannerAgent extends core_1.Agent {
      * Clean up old plans to prevent memory leaks
      */
     cleanupOldPlans() {
-        const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours ago
-        for (const [planId, plan] of this.activePlans.entries()) {
+        // const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours ago
+        for (const [planId] of this.activePlans.entries()) {
             // Remove plans older than 24 hours (would need timestamp tracking)
             // This is simplified - in reality, you'd track plan creation time
             if (this.activePlans.size > 100) {

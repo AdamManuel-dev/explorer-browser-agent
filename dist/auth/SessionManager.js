@@ -57,7 +57,7 @@ class SessionManager {
             lastAccessed: new Date(),
             expiresAt: options?.ttl ? new Date(Date.now() + options.ttl * 1000) : session.expiresAt,
             metadata: {
-                userAgent: session.metadata?.userAgent || 'browser-explorer',
+                userAgent: String(session.metadata?.userAgent || 'browser-explorer'),
                 fingerprint: this.generateFingerprint(session),
                 ...options?.metadata,
             },
@@ -173,7 +173,7 @@ class SessionManager {
                         window.localStorage.setItem(key, value);
                     }
                     catch (error) {
-                        console.warn('Failed to restore localStorage item:', key, error);
+                        logger_1.logger.warn('Failed to restore localStorage item:', { key, error });
                     }
                 });
                 // Restore sessionStorage
@@ -182,7 +182,7 @@ class SessionManager {
                         window.sessionStorage.setItem(key, value);
                     }
                     catch (error) {
-                        console.warn('Failed to restore sessionStorage item:', key, error);
+                        logger_1.logger.warn('Failed to restore sessionStorage item:', { key, error });
                     }
                 });
             }, {

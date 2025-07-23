@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 "use strict";
+/* eslint-disable no-console */
 Object.defineProperty(exports, "__esModule", { value: true });
 const commander_1 = require("commander");
 const fs_1 = require("fs");
@@ -7,6 +8,18 @@ const path_1 = require("path");
 const SelfTestRunner_1 = require("./SelfTestRunner");
 const logger_1 = require("../utils/logger");
 const program = new commander_1.Command();
+function getHealthEmoji(health) {
+    switch (health) {
+        case 'healthy':
+            return '💚';
+        case 'degraded':
+            return '💛';
+        case 'unhealthy':
+            return '❤️';
+        default:
+            return '❓';
+    }
+}
 program
     .name('browser-explorer-self-test')
     .description('Browser Explorer Self-Test Runner')
@@ -274,18 +287,6 @@ program
     }
     process.exit(allPassed ? 0 : 1);
 });
-function getHealthEmoji(health) {
-    switch (health) {
-        case 'healthy':
-            return '💚';
-        case 'degraded':
-            return '💛';
-        case 'unhealthy':
-            return '❤️';
-        default:
-            return '❓';
-    }
-}
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);

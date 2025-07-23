@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DistributedCrawler = void 0;
 const BreadthFirstCrawler_1 = require("./BreadthFirstCrawler");
 const logger_1 = require("../utils/logger");
+const MockRedisClient_1 = require("./MockRedisClient");
 class DistributedCrawler {
     config;
     baseCrawler;
@@ -27,7 +28,7 @@ class DistributedCrawler {
             parallelWorkers: config.parallelWorkers,
         };
         this.baseCrawler = new BreadthFirstCrawler_1.BreadthFirstCrawler(crawlConfig);
-        this.redis = new MockRedisClient(config.redis);
+        this.redis = new MockRedisClient_1.MockRedisClient(config.redis);
         this.workerStats = {
             workerId: config.workerId,
             status: 'idle',
@@ -135,7 +136,6 @@ class DistributedCrawler {
     }
     async distributedCrawl(startUrl) {
         logger_1.logger.info('Starting distributed crawl', { startUrl, workerId: this.config.workerId });
-        const startTime = Date.now();
         let redisOperations = 0;
         try {
             // Enqueue initial job
@@ -146,7 +146,6 @@ class DistributedCrawler {
             // Collect results from all workers
             const results = await this.collectDistributedResults();
             redisOperations += results.length;
-            const totalTime = Date.now() - startTime;
             const queueStats = await this.getQueueStatistics();
             redisOperations += 4; // For queue statistics calls
             return {
@@ -400,28 +399,36 @@ class DistributedCrawler {
     }
     aggregateResults(results) {
         // Aggregate all worker results into a single result
-        const aggregated = {
-            crawledUrls: [],
-            errors: [],
-            statistics: {
-                totalPages: 0,
-                totalTime: 0,
-                averageLoadTime: 0,
-                maxDepthReached: 0,
-                errorCount: 0,
-            },
-        };
+        const allUrls = [];
+        const allErrors = [];
+        const crawlTree = new Map();
+        let totalTime = 0;
         results.forEach((result) => {
             if (result.pageInfo) {
-                aggregated.crawledUrls.push(result.pageInfo);
+                allUrls.push(result.pageInfo.url);
+            }
+            if (result.crawledUrls) {
+                result.crawledUrls.forEach((urlInfo) => {
+                    allUrls.push(urlInfo.url);
+                });
             }
             if (result.error) {
-                aggregated.errors.push(result.error);
+                allErrors.push(result.error);
+            }
+            if (result.errors) {
+                allErrors.push(...result.errors);
+            }
+            if (result.statistics) {
+                totalTime += result.statistics.totalTime;
             }
         });
-        aggregated.statistics.totalPages = aggregated.crawledUrls.length;
-        aggregated.statistics.errorCount = aggregated.errors.length;
-        return aggregated;
+        return {
+            pagesVisited: allUrls.length,
+            urls: [...new Set(allUrls)], // Remove duplicates
+            errors: allErrors,
+            duration: totalTime,
+            crawlTree,
+        };
     }
     getQueueKey(priority) {
         return `${this.config.redis.keyPrefix}:queue:${priority}`;
@@ -434,67 +441,4 @@ class DistributedCrawler {
     }
 }
 exports.DistributedCrawler = DistributedCrawler;
-// Mock Redis client for demonstration (would use actual Redis client in production)
-class MockRedisClient {
-    config;
-    store = new Map();
-    lists = new Map();
-    sets = new Map();
-    constructor(config) {
-        this.config = config;
-    }
-    async connect() {
-        logger_1.logger.debug('Mock Redis connected');
-    }
-    async disconnect() {
-        logger_1.logger.debug('Mock Redis disconnected');
-    }
-    async get(key) {
-        return this.store.get(key) || null;
-    }
-    async set(key, value) {
-        this.store.set(key, value);
-    }
-    async setex(key, seconds, value) {
-        this.store.set(key, value);
-        // In real implementation, would set expiration
-    }
-    async del(key) {
-        this.store.delete(key);
-        this.lists.delete(key);
-        this.sets.delete(key);
-    }
-    async keys(pattern) {
-        const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-        return Array.from(this.store.keys()).filter((key) => regex.test(key));
-    }
-    async lpush(key, value) {
-        if (!this.lists.has(key)) {
-            this.lists.set(key, []);
-        }
-        this.lists.get(key).unshift(value);
-    }
-    async rpop(key) {
-        const list = this.lists.get(key);
-        return list && list.length > 0 ? list.pop() || null : null;
-    }
-    async llen(key) {
-        const list = this.lists.get(key);
-        return list ? list.length : 0;
-    }
-    async sadd(key, value) {
-        if (!this.sets.has(key)) {
-            this.sets.set(key, new Set());
-        }
-        this.sets.get(key).add(value);
-    }
-    async sismember(key, value) {
-        const set = this.sets.get(key);
-        return set ? set.has(value) : false;
-    }
-    async scard(key) {
-        const set = this.sets.get(key);
-        return set ? set.size : 0;
-    }
-}
 //# sourceMappingURL=DistributedCrawler.js.map

@@ -7,7 +7,7 @@ export declare class TestDataGenerator {
     private detectInputType;
     private initializeGenerators;
     private generateSecurePassword;
-    generateMultipleValues(count: number, type: string): any[];
+    generateMultipleValues(count: number, type: string): Array<string | number | boolean>;
     generateOptionsSelection(options: Array<{
         value: string;
         text: string;

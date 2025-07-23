@@ -1,3 +1,4 @@
+import { Page } from 'playwright';
 import { BrowserAgentConfig } from '../types';
 export declare class BrowserAgent {
     private browser;
@@ -9,6 +10,7 @@ export declare class BrowserAgent {
     navigate(url: string): Promise<void>;
     extractContent(): Promise<string>;
     screenshot(path: string): Promise<void>;
+    getPage(): Page | null;
     close(): Promise<void>;
 }
 //# sourceMappingURL=BrowserAgent.d.ts.map

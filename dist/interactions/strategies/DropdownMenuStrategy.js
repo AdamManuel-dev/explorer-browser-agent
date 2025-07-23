@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DropdownMenuStrategy = void 0;
 class DropdownMenuStrategy {
+    type = 'dropdown-menu';
     async execute(context) {
         const { element } = context;
         try {

@@ -2,6 +2,8 @@ import { InteractionStrategy } from '../InteractionStrategy.js';
 import { InteractionContext, InteractionResult } from '../types.js';
 
 export class RichTextEditorStrategy implements InteractionStrategy {
+  type = 'rich-text-editor';
+
   async execute(context: InteractionContext): Promise<InteractionResult> {
     const { element } = context;
 

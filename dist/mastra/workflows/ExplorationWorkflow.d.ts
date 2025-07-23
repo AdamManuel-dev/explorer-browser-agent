@@ -1,28 +1,5 @@
-interface WorkflowConfig {
-    name: string;
-    description: string;
-    version: string;
-}
-interface WorkflowMetadata {
-    startTime: Date;
-    currentStep: string;
-    errors: string[];
-}
-interface WorkflowContext {
-    sessionId: string;
-    input: any;
-    output: any;
-    metadata: WorkflowMetadata;
-}
-declare abstract class Workflow<TInput, TOutput> {
-    protected config: WorkflowConfig;
-    private steps;
-    constructor(config: WorkflowConfig);
-    protected addStep(name: string, handler: (context: WorkflowContext) => Promise<void>): void;
-    protected executeStep(stepName: string, context: WorkflowContext): Promise<void>;
-    abstract execute(input: TInput): Promise<TOutput>;
-}
 import { MonitoringService } from '../../monitoring';
+import { Workflow } from './WorkflowBase';
 import { ExplorationTarget, ExplorationResult, CrawlPlan, TestGenerationResult, BrowserbaseConfig, StagehandConfig } from '../types';
 export interface ExplorationWorkflowConfig {
     browserbase: BrowserbaseConfig;
@@ -140,14 +117,13 @@ export declare class ExplorationWorkflow extends Workflow<ExplorationWorkflowInp
      * Get agent metrics
      */
     getAgentMetrics(): {
-        explorer: any;
-        planner: any;
-        generator: any;
+        explorer: ReturnType<typeof this.explorerAgent.getMetrics>;
+        planner: ReturnType<typeof this.plannerAgent.getMetrics>;
+        generator: ReturnType<typeof this.generatorAgent.getMetrics>;
     };
     /**
      * Shutdown the workflow engine
      */
     shutdown(): Promise<void>;
 }
-export {};
 //# sourceMappingURL=ExplorationWorkflow.d.ts.map

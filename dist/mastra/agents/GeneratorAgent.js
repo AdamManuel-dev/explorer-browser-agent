@@ -235,7 +235,7 @@ class GeneratorAgent extends core_1.Agent {
         const spanId = this.monitoring?.startSpan('generator_optimize');
         try {
             logger_1.logger.debug('Analyzing user paths for optimization opportunities');
-            const analysis = await this.analyzeUserPaths(userPaths);
+            await this.analyzeUserPaths(userPaths);
             const recommendations = [];
             const pageObjectConsolidation = [];
             const duplicateTestElimination = [];
@@ -310,22 +310,22 @@ class GeneratorAgent extends core_1.Agent {
         const commonElements = new Map();
         const patternMap = new Map();
         const pageGroups = new Map();
-        for (const path of userPaths) {
+        for (const userPath of userPaths) {
             // Group by domain/page
-            const domain = new URL(path.url).hostname;
+            const domain = new URL(userPath.url).hostname;
             if (!pageGroups.has(domain)) {
                 pageGroups.set(domain, []);
             }
-            pageGroups.get(domain).push(path);
+            pageGroups.get(domain).push(userPath);
             // Analyze steps for common elements and patterns
-            for (const step of path.steps) {
+            for (const step of userPath.steps) {
                 if (step.selector) {
                     const count = commonElements.get(step.selector) || 0;
                     commonElements.set(step.selector, count + 1);
                 }
                 // Create pattern signature
                 const pattern = `${step.type}:${step.selector
-                    ?.split(/[#\.\s]/)
+                    ?.split(/[#.\s]/)
                     .slice(0, 2)
                     .join('|') || 'no-selector'}`;
                 const patternCount = patternMap.get(pattern) || 0;
@@ -337,7 +337,7 @@ class GeneratorAgent extends core_1.Agent {
             .filter((p) => p.frequency > 1)
             .sort((a, b) => b.frequency - a.frequency);
         // Calculate complexity score
-        const avgStepsPerPath = userPaths.reduce((sum, path) => sum + path.steps.length, 0) / userPaths.length;
+        const avgStepsPerPath = userPaths.reduce((sum, userPath) => sum + userPath.steps.length, 0) / userPaths.length;
         const uniquePages = pageGroups.size;
         const complexityScore = Math.min(1, (avgStepsPerPath * uniquePages) / 100);
         return {
@@ -359,8 +359,8 @@ class GeneratorAgent extends core_1.Agent {
                     name: this.generatePageObjectName(domain),
                     domain,
                     userPaths: paths,
-                    framework: framework,
-                    language: language,
+                    framework,
+                    language,
                 });
                 pageObjects.push({
                     path: `pages/${this.generatePageObjectName(domain)}.${this.getFileExtension(language)}`,
@@ -609,13 +609,13 @@ class GeneratorAgent extends core_1.Agent {
      */
     groupPathsByDomain(userPaths) {
         const groups = new Map();
-        for (const path of userPaths) {
+        for (const userPath of userPaths) {
             try {
-                const domain = new URL(path.url).hostname;
+                const domain = new URL(userPath.url).hostname;
                 if (!groups.has(domain)) {
                     groups.set(domain, []);
                 }
-                groups.get(domain).push(path);
+                groups.get(domain).push(path_1.default);
             }
             catch (error) {
                 // Skip invalid URLs
@@ -651,8 +651,8 @@ class GeneratorAgent extends core_1.Agent {
             forms: [],
             navigation: [],
         };
-        for (const path of userPaths) {
-            for (const step of path.steps) {
+        for (const userPath of userPaths) {
+            for (const step of userPath.steps) {
                 if (step.type === 'fill' && step.value) {
                     if (step.selector?.includes('email') || step.selector?.includes('username')) {
                         testData.users.push({
@@ -680,7 +680,7 @@ class GeneratorAgent extends core_1.Agent {
     /**
      * Generate user fixtures
      */
-    generateUserFixtures(userPaths, language) {
+    generateUserFixtures(_userPaths, _language) {
         // Implementation would generate user-specific fixture files
         return [];
     }
@@ -689,10 +689,10 @@ class GeneratorAgent extends core_1.Agent {
      */
     findCommonOperations(userPaths) {
         const operations = new Map();
-        for (const path of userPaths) {
-            for (const step of path.steps) {
+        for (const userPath of userPaths) {
+            for (const step of userPath.steps) {
                 const operation = `${step.type}:${step.selector
-                    ?.split(/[#\.\s]/)
+                    ?.split(/[#.\s]/)
                     .slice(0, 2)
                     .join('|') || 'generic'}`;
                 operations.set(operation, (operations.get(operation) || 0) + 1);
@@ -711,7 +711,7 @@ class GeneratorAgent extends core_1.Agent {
      * Check if authentication helper is needed
      */
     needsAuthHelper(userPaths) {
-        return userPaths.some((path) => path.steps.some((step) => step.selector?.includes('login') ||
+        return userPaths.some((userPath) => userPath.steps.some((step) => step.selector?.includes('login') ||
             step.selector?.includes('password') ||
             step.selector?.includes('auth')));
     }
@@ -747,7 +747,7 @@ class GeneratorAgent extends core_1.Agent {
      * Check if form helper is needed
      */
     needsFormHelper(userPaths) {
-        return userPaths.some((path) => path.steps.some((step) => step.type === 'fill' || step.type === 'select' || step.selector?.includes('form')));
+        return userPaths.some((userPath) => userPath.steps.some((step) => step.type === 'fill' || step.type === 'select' || step.selector?.includes('form')));
     }
     /**
      * Generate form helper
@@ -787,7 +787,7 @@ class GeneratorAgent extends core_1.Agent {
     /**
      * Generate custom helper content
      */
-    generateCustomHelperContent(operation, framework, language) {
+    generateCustomHelperContent(operation, _framework, _language) {
         return `// Custom helper for ${operation.name} (used ${operation.frequency} times)\n// Implementation would go here`;
     }
     /**
@@ -809,9 +809,9 @@ class GeneratorAgent extends core_1.Agent {
      */
     findDuplicatePatterns(userPaths) {
         const patterns = new Map();
-        for (const path of userPaths) {
-            const signature = path.steps
-                .map((s) => `${s.type}:${s.selector?.split(/[#\.\s]/)[0] || 'none'}`)
+        for (const userPath of userPaths) {
+            const signature = userPath.steps
+                .map((s) => `${s.type}:${s.selector?.split(/[#.\s]/)[0] || 'none'}`)
                 .join('->');
             patterns.set(signature, (patterns.get(signature) || 0) + 1);
         }

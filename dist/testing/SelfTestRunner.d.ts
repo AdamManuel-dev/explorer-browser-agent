@@ -31,7 +31,7 @@ export interface TestResult {
     success: boolean;
     duration: number;
     error?: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
     metrics?: Record<string, number>;
 }
 export interface SelfTestReport {

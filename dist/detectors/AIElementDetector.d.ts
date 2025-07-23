@@ -1,5 +1,5 @@
 import { Page } from 'playwright';
-import { ElementDetectionResult } from '../types/elements';
+import { ElementType, ElementDetectionResult } from '../types/elements';
 export declare class AIElementDetector {
     private stagehand;
     private selectorPatterns;
@@ -16,6 +16,7 @@ export declare class AIElementDetector {
     private mergeAndDeduplicate;
     private generateElementKey;
     private initializeSelectorPatterns;
+    classifyElementType(element: Element): ElementType;
     cleanup(): Promise<void>;
 }
 //# sourceMappingURL=AIElementDetector.d.ts.map

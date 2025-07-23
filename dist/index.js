@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BrowserExplorer = exports.SelfTestRunner = exports.MonitoringService = exports.CaptchaHandler = exports.StealthMode = exports.SessionManager = exports.MultiStrategyAuthManager = exports.ConfigManager = exports.TestFileWriter = exports.PageObjectGenerator = exports.TestGenerator = exports.PathOptimizer = exports.UserPathRecorder = exports.TestDataGenerator = exports.InteractionExecutor = exports.AIElementDetector = exports.DistributedCrawler = exports.CrawlerService = exports.BreadthFirstCrawler = exports.BrowserAgent = void 0;
+const ConfigManager_1 = require("./config/ConfigManager");
+const CrawlerService_1 = require("./crawler/CrawlerService");
+const TestGenerator_1 = require("./generation/TestGenerator");
+const TestFileWriter_1 = require("./generation/TestFileWriter");
 // Main exports for programmatic usage
 var BrowserAgent_1 = require("./agents/BrowserAgent");
 Object.defineProperty(exports, "BrowserAgent", { enumerable: true, get: function () { return BrowserAgent_1.BrowserAgent; } });
@@ -41,7 +45,7 @@ class BrowserExplorer {
     crawlerService = null;
     config = null;
     constructor(_configPath) {
-        this.configManager = new ConfigManager();
+        this.configManager = new ConfigManager_1.ConfigManager();
     }
     async initialize(configPath) {
         this.config = await this.configManager.loadConfig(configPath);
@@ -55,7 +59,7 @@ class BrowserExplorer {
             throw new Error('No URL provided. Set startUrl in config or pass as parameter.');
         }
         // Initialize crawler
-        this.crawlerService = new CrawlerService({
+        this.crawlerService = new CrawlerService_1.CrawlerService({
             startUrl,
             maxDepth: this.config.crawling.maxDepth,
             maxPages: this.config.crawling.maxPages,
@@ -69,7 +73,7 @@ class BrowserExplorer {
         await this.crawlerService.initialize();
         const crawlResult = await this.crawlerService.crawl();
         // Generate tests
-        const generator = new TestGenerator({
+        const generator = new TestGenerator_1.TestGenerator({
             framework: this.config.generation.framework,
             language: this.config.generation.language,
             outputDirectory: this.config.generation.outputDirectory,
@@ -99,7 +103,7 @@ class BrowserExplorer {
         };
         const generationResult = await generator.generate(samplePath);
         // Write files
-        const writer = new TestFileWriter(this.config.generation.outputDirectory);
+        const writer = new TestFileWriter_1.TestFileWriter(this.config.generation.outputDirectory);
         await writer.createProjectStructure();
         await writer.writeFiles(generationResult);
         return {

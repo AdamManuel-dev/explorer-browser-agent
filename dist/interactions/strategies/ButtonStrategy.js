@@ -4,6 +4,9 @@ exports.ButtonStrategy = void 0;
 const logger_1 = require("../../utils/logger");
 class ButtonStrategy {
     type = 'button';
+    canHandle(element) {
+        return element.type === 'button';
+    }
     async execute(element, context) {
         const { page, options } = context;
         const startTime = Date.now();

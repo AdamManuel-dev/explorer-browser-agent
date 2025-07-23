@@ -144,6 +144,7 @@ class TestReporter {
                     return this.exportToXml(report);
                 default:
                     logger_1.logger.warn('Unsupported report format', { format });
+                    return Promise.resolve();
             }
         });
         await Promise.all(promises);
@@ -246,8 +247,8 @@ class TestReporter {
             const selectors = this.extractSelectors(file.content);
             selectors.forEach((selector) => allSelectors.add(selector));
         });
-        userPaths.forEach((path) => {
-            path.steps.forEach((step) => {
+        userPaths.forEach((userPath) => {
+            userPath.steps.forEach((step) => {
                 if (step.selector) {
                     coveredSelectors.add(step.selector);
                 }
@@ -257,8 +258,8 @@ class TestReporter {
         // Analyze interaction coverage
         const allInteractions = new Set(['click', 'fill', 'select', 'check', 'hover', 'upload']);
         const coveredInteractions = new Set();
-        userPaths.forEach((path) => {
-            path.steps.forEach((step) => {
+        userPaths.forEach((userPath) => {
+            userPath.steps.forEach((step) => {
                 coveredInteractions.add(step.type);
             });
         });
@@ -266,9 +267,9 @@ class TestReporter {
         // Analyze page coverage
         const allPages = new Set();
         const coveredPages = new Set();
-        userPaths.forEach((path) => {
+        userPaths.forEach((userPath) => {
             allPages.add(path.startUrl);
-            path.steps.forEach((step) => {
+            userPath.steps.forEach((step) => {
                 if (step.url) {
                     allPages.add(step.url);
                     coveredPages.add(step.url);
@@ -324,8 +325,8 @@ class TestReporter {
     async generateScreenshotSummary(userPaths) {
         const screenshots = [];
         let totalSize = 0;
-        for (const path of userPaths) {
-            for (const step of path.steps) {
+        for (const userPath of userPaths) {
+            for (const step of userPath.steps) {
                 if (step.screenshotPath) {
                     try {
                         const stats = await fs.stat(step.screenshotPath);
@@ -648,7 +649,7 @@ ${report.recommendations.map((rec) => `- ${rec}`).join('\n')}
         if (!selectorMatches)
             return [];
         return selectorMatches
-            .map((match) => match.replace(/['"`\)]/g, ''))
+            .map((match) => match.replace(/['"`)]$/g, ''))
             .filter((selector) => selector.includes('#') || selector.includes('.') || selector.includes('['));
     }
     getReportFileName(extension) {

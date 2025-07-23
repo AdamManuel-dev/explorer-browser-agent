@@ -1,4 +1,4 @@
-import { Page } from 'playwright';
+import { Page, Cookie } from 'playwright';
 export type AuthStrategy = 'basic' | 'oauth' | 'mfa' | 'api' | 'custom';
 export interface AuthCredentials {
     username?: string;
@@ -38,10 +38,10 @@ export interface AuthSession {
     userId?: string;
     sessionToken?: string;
     expiresAt?: Date;
-    cookies: any[];
+    cookies: Cookie[];
     localStorage: Record<string, string>;
     sessionStorage: Record<string, string>;
-    metadata: Record<string, any>;
+    metadata: Record<string, string | number | boolean>;
 }
 export interface AuthResult {
     success: boolean;
@@ -73,6 +73,7 @@ export declare class MultiStrategyAuthManager {
     private extractSessionToken;
     private initializeDefaultSelectors;
     getCurrentSession(): AuthSession | null;
+    getAvailableStrategies(): AuthStrategy[];
     isAuthenticated(): boolean;
 }
 //# sourceMappingURL=MultiStrategyAuthManager.d.ts.map

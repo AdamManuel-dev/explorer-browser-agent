@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideoPlayerStrategy = void 0;
 class VideoPlayerStrategy {
+    type = 'video-player';
     async execute(context) {
         const { element } = context;
         try {

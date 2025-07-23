@@ -103,9 +103,9 @@ class AIElementDetector {
                 element.evaluate((el) => el.tagName.toLowerCase()),
                 element.evaluate((el) => {
                     const attrs = {};
-                    const element = el;
-                    for (let i = 0; i < element.attributes.length; i++) {
-                        const attr = element.attributes[i];
+                    const elem = el;
+                    for (let i = 0; i < elem.attributes.length; i++) {
+                        const attr = elem.attributes[i];
                         if (attr) {
                             attrs[attr.name] = attr.value;
                         }
@@ -211,14 +211,14 @@ class AIElementDetector {
             const metadata = {};
             // Extract label
             const label = await element.evaluate((el) => {
-                const element = el;
-                const id = element.getAttribute('id');
+                const elem = el;
+                const id = elem.getAttribute('id');
                 if (id) {
                     const labelEl = document.querySelector(`label[for="${id}"]`);
                     if (labelEl)
                         return labelEl.textContent?.trim();
                 }
-                const closestLabel = element.closest('label');
+                const closestLabel = elem.closest('label');
                 return closestLabel?.textContent?.trim();
             });
             if (label)
@@ -326,6 +326,17 @@ class AIElementDetector {
         patterns.set('textarea', ['textarea']);
         patterns.set('file-upload', ['input[type="file"]']);
         return patterns;
+    }
+    classifyElementType(element) {
+        const tagName = element.tagName.toLowerCase();
+        const attributes = {};
+        for (let i = 0; i < element.attributes.length; i++) {
+            const attr = element.attributes[i];
+            if (attr) {
+                attributes[attr.name] = attr.value;
+            }
+        }
+        return this.inferElementType(tagName, attributes);
     }
     async cleanup() {
         if (this.stagehand) {

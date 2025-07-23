@@ -14,6 +14,8 @@ export declare class InteractionExecutor {
     private captureState;
     private compareStates;
     private takeScreenshot;
+    getAvailableStrategies(): string[];
+    validateInteraction(element: InteractiveElement): boolean;
     cleanup(): Promise<void>;
 }
 //# sourceMappingURL=InteractionExecutor.d.ts.map

@@ -37,7 +37,7 @@ export interface BrowserExplorerConfig {
         customSelectors?: Record<string, string[]>;
     };
     generation: {
-        framework: 'playwright' | 'cypress' | 'puppeteer';
+        framework: 'playwright' | 'cypress' | 'puppeteer' | 'selenium';
         language: 'typescript' | 'javascript';
         outputDirectory: string;
         generatePageObjects: boolean;
@@ -109,8 +109,8 @@ export declare class ConfigManager {
     private findConfigFile;
     private loadFromFile;
     private applyEnvironmentOverrides;
-    private validateConfig;
-    private getDefaultConfig;
+    validateConfig(config: BrowserExplorerConfig): void;
+    getDefaultConfig(): BrowserExplorerConfig;
     private deepMerge;
     private isObject;
     createSampleConfig(filePath?: string): Promise<void>;

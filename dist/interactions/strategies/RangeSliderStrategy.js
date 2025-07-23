@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RangeSliderStrategy = void 0;
 class RangeSliderStrategy {
+    type = 'range-slider';
     async execute(context) {
         const { element } = context;
         try {

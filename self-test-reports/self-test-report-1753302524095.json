@@ -1,0 +1,327 @@
+{
+  "timestamp": "2025-07-23T20:28:44.095Z",
+  "environment": {
+    "nodeVersion": "v24.2.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "memoryTotal": 25769803776,
+    "memoryUsed": 53446936
+  },
+  "configuration": {
+    "testTimeout": 30000,
+    "retryAttempts": 2,
+    "skipBrowserTests": false,
+    "outputDirectory": "./self-test-reports",
+    "testEndpoints": {
+      "enabled": true,
+      "urls": [
+        "https://httpbin.org",
+        "https://example.com"
+      ]
+    },
+    "componentTests": {
+      "crawler": true,
+      "detector": true,
+      "executor": true,
+      "recorder": true,
+      "generator": true,
+      "monitoring": true,
+      "auth": true,
+      "stealth": true,
+      "captcha": true,
+      "config": true
+    },
+    "performanceThresholds": {
+      "maxCrawlTime": 30000,
+      "maxGenerationTime": 10000,
+      "maxMemoryUsage": 524288000,
+      "minSuccessRate": 0.8
+    }
+  },
+  "results": [
+    {
+      "name": "Config Manager",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "configStructure": [
+          "app",
+          "crawling",
+          "browser",
+          "detection",
+          "generation",
+          "authentication"
+        ]
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Monitoring Service",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "metricsRecorded": 3,
+        "tracesRecorded": 1
+      },
+      "metrics": {
+        "metricsRecorded": 3,
+        "tracesRecorded": 1
+      }
+    },
+    {
+      "name": "Element Detector",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "elementsClassified": 3
+      },
+      "metrics": {
+        "elementsClassified": 3
+      }
+    },
+    {
+      "name": "Interaction Executor",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "availableStrategies": [
+          "text-input",
+          "password-input",
+          "email-input",
+          "number-input",
+          "tel-input",
+          "textarea",
+          "checkbox",
+          "radio",
+          "select",
+          "multi-select",
+          "date-picker",
+          "time-picker",
+          "color-picker",
+          "range-slider",
+          "file-upload",
+          "button",
+          "link",
+          "toggle",
+          "tab",
+          "accordion",
+          "modal-trigger",
+          "dropdown-menu",
+          "carousel",
+          "drag-drop",
+          "canvas",
+          "video-player",
+          "audio-player",
+          "rich-text-editor",
+          "unknown"
+        ]
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Authentication Manager",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "availableStrategies": [
+          "basic",
+          "oauth",
+          "mfa",
+          "api",
+          "custom"
+        ]
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Session Manager",
+      "success": true,
+      "duration": 2,
+      "details": {
+        "sessionSaved": true
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Stealth Mode",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "userAgentGenerated": true
+      },
+      "metrics": {}
+    },
+    {
+      "name": "CAPTCHA Handler",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "detectionPatterns": [
+          "recaptcha",
+          "hcaptcha",
+          "funcaptcha",
+          "cloudflare",
+          "custom"
+        ]
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Basic Crawling",
+      "success": true,
+      "duration": 202,
+      "details": {
+        "urlsCrawled": 1,
+        "duration": 1
+      },
+      "metrics": {
+        "urlsCrawled": 1,
+        "duration": 1
+      }
+    },
+    {
+      "name": "Element Detection",
+      "success": false,
+      "duration": 2273,
+      "error": "Expected at least 4 elements, found 0"
+    },
+    {
+      "name": "User Path Recording",
+      "success": true,
+      "duration": 641,
+      "details": {
+        "stepsRecorded": 2,
+        "duration": 104
+      },
+      "metrics": {
+        "stepsRecorded": 2,
+        "duration": 104
+      }
+    },
+    {
+      "name": "Test Generation",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "filesGenerated": 1,
+        "totalTests": 1
+      },
+      "metrics": {
+        "filesGenerated": 1,
+        "totalTests": 1
+      }
+    },
+    {
+      "name": "Complete Exploration Workflow",
+      "success": true,
+      "duration": 2665,
+      "details": {
+        "urlsCrawled": 1,
+        "testsGenerated": 0,
+        "filesCreated": 1
+      },
+      "metrics": {
+        "urlsCrawled": 1,
+        "testsGenerated": 0,
+        "filesCreated": 1
+      }
+    },
+    {
+      "name": "Authentication Workflow",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "strategiesAvailable": 5
+      },
+      "metrics": {
+        "strategiesAvailable": 5
+      }
+    },
+    {
+      "name": "Error Recovery",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "errorHandled": true,
+        "errorType": "network_error"
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Memory Usage",
+      "success": true,
+      "duration": 101,
+      "details": {
+        "initialMemoryMB": 49.466217041015625,
+        "peakMemoryMB": 50.232215881347656,
+        "finalMemoryMB": 50.237998962402344,
+        "memoryIncreaseMB": 0.7659988403320312,
+        "memoryRecoveredMB": -0.0057830810546875
+      },
+      "metrics": {
+        "initialMemoryMB": 49.466217041015625,
+        "peakMemoryMB": 50.232215881347656,
+        "finalMemoryMB": 50.237998962402344,
+        "memoryIncreaseMB": 0.7659988403320312,
+        "memoryRecoveredMB": -0.0057830810546875
+      }
+    },
+    {
+      "name": "Crawl Performance",
+      "success": true,
+      "duration": 104,
+      "details": {
+        "duration": 2,
+        "urlsCrawled": 1,
+        "avgTimePerUrl": 2
+      },
+      "metrics": {
+        "duration": 2,
+        "urlsCrawled": 1,
+        "avgTimePerUrl": 2
+      }
+    },
+    {
+      "name": "Generation Performance",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "duration": 0,
+        "filesGenerated": 1,
+        "stepsProcessed": 20
+      },
+      "metrics": {
+        "duration": 0,
+        "filesGenerated": 1,
+        "stepsProcessed": 20
+      }
+    },
+    {
+      "name": "Concurrent Operations",
+      "success": true,
+      "duration": 90,
+      "details": {
+        "duration": 89,
+        "operationsCompleted": 10,
+        "avgOperationTime": 8.9
+      },
+      "metrics": {
+        "duration": 89,
+        "operationsCompleted": 10,
+        "avgOperationTime": 8.9
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 19,
+    "passedTests": 18,
+    "failedTests": 1,
+    "skippedTests": 0,
+    "totalDuration": 6362,
+    "successRate": 0.9473684210526315,
+    "overallHealth": "healthy"
+  },
+  "recommendations": [
+    "Browser-dependent tests failed. Verify Playwright installation and browser availability."
+  ]
+}

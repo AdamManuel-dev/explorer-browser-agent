@@ -139,7 +139,7 @@ class BreadthFirstCrawler {
                 this.robotsCache.set(robotsUrl, robots);
             }
             const robots = this.robotsCache.get(robotsUrl);
-            return robots.isAllowed(url, this.config.userAgent);
+            return robots ? (robots.isAllowed(url, this.config.userAgent) ?? true) : true;
         }
         catch (error) {
             logger_1.logger.warn('Failed to check robots.txt', { url, error });
@@ -163,7 +163,14 @@ class BreadthFirstCrawler {
             const anchors = Array.from(document.querySelectorAll('a[href]'));
             return anchors
                 .map((anchor) => anchor.href)
-                .filter((href) => href && !href.startsWith('javascript:') && !href.startsWith('#'));
+                .filter((href) => {
+                if (!href || href.startsWith('#'))
+                    return false;
+                // Filter out JavaScript protocol URLs
+                const lowerHref = href.toLowerCase();
+                // eslint-disable-next-line no-script-url
+                return !lowerHref.startsWith('javascript:') && !lowerHref.startsWith('vbscript:');
+            });
         });
         return urls
             .map((url) => this.normalizeUrl(url))
@@ -172,8 +179,8 @@ class BreadthFirstCrawler {
     }
     isValidUrl(url) {
         try {
-            new url_1.URL(url);
-            return true;
+            const parsedUrl = new url_1.URL(url);
+            return !!parsedUrl;
         }
         catch {
             return false;

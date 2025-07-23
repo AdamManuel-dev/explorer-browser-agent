@@ -120,44 +120,53 @@ class InteractionExecutor {
     }
     initializeStrategies() {
         const strategyMap = new Map();
-        // Text input strategies
-        strategyMap.set('text-input', new strategies.TextInputStrategy());
-        strategyMap.set('password-input', new strategies.TextInputStrategy());
-        strategyMap.set('email-input', new strategies.TextInputStrategy());
-        strategyMap.set('number-input', new strategies.TextInputStrategy());
-        strategyMap.set('tel-input', new strategies.TextInputStrategy());
-        strategyMap.set('textarea', new strategies.TextInputStrategy());
-        // Selection strategies
-        strategyMap.set('checkbox', new strategies.CheckboxStrategy());
-        strategyMap.set('radio', new strategies.RadioStrategy());
-        strategyMap.set('select', new strategies.SelectStrategy());
-        strategyMap.set('multi-select', new strategies.MultiSelectStrategy());
-        // Date/Time strategies
-        strategyMap.set('date-picker', new strategies.DatePickerStrategy());
-        strategyMap.set('time-picker', new strategies.TimePickerStrategy());
-        // Special input strategies
-        strategyMap.set('color-picker', new strategies.ColorPickerStrategy());
-        strategyMap.set('range-slider', new strategies.RangeSliderStrategy());
-        strategyMap.set('file-upload', new strategies.FileUploadStrategy());
-        // Interactive element strategies
-        strategyMap.set('button', new strategies.ButtonStrategy());
-        strategyMap.set('link', new strategies.LinkStrategy());
-        strategyMap.set('toggle', new strategies.ToggleStrategy());
-        // Complex component strategies
-        strategyMap.set('tab', new strategies.TabStrategy());
-        strategyMap.set('accordion', new strategies.AccordionStrategy());
-        strategyMap.set('modal-trigger', new strategies.ModalTriggerStrategy());
-        strategyMap.set('dropdown-menu', new strategies.DropdownMenuStrategy());
-        strategyMap.set('carousel', new strategies.CarouselStrategy());
-        // Advanced interaction strategies
-        strategyMap.set('drag-drop', new strategies.DragDropStrategy());
-        strategyMap.set('canvas', new strategies.CanvasStrategy());
-        strategyMap.set('video-player', new strategies.VideoPlayerStrategy());
-        strategyMap.set('audio-player', new strategies.AudioPlayerStrategy());
-        strategyMap.set('rich-text-editor', new strategies.RichTextEditorStrategy());
-        // Default strategy for unknown elements
-        strategyMap.set('unknown', new strategies.DefaultStrategy());
-        return strategyMap;
+        try {
+            // Text input strategies
+            strategyMap.set('text-input', new strategies.TextInputStrategy());
+            strategyMap.set('password-input', new strategies.TextInputStrategy());
+            strategyMap.set('email-input', new strategies.TextInputStrategy());
+            strategyMap.set('number-input', new strategies.TextInputStrategy());
+            strategyMap.set('tel-input', new strategies.TextInputStrategy());
+            strategyMap.set('textarea', new strategies.TextInputStrategy());
+            // Selection strategies
+            strategyMap.set('checkbox', new strategies.CheckboxStrategy());
+            strategyMap.set('radio', new strategies.RadioStrategy());
+            strategyMap.set('select', new strategies.SelectStrategy());
+            strategyMap.set('multi-select', new strategies.MultiSelectStrategy());
+            // Date/Time strategies
+            strategyMap.set('date-picker', new strategies.DatePickerStrategy());
+            strategyMap.set('time-picker', new strategies.TimePickerStrategy());
+            // Special input strategies
+            strategyMap.set('color-picker', new strategies.ColorPickerStrategy());
+            strategyMap.set('range-slider', new strategies.RangeSliderStrategy());
+            strategyMap.set('file-upload', new strategies.FileUploadStrategy());
+            // Interactive element strategies
+            strategyMap.set('button', new strategies.ButtonStrategy());
+            strategyMap.set('link', new strategies.LinkStrategy());
+            strategyMap.set('toggle', new strategies.ToggleStrategy());
+            // Complex component strategies
+            strategyMap.set('tab', new strategies.TabStrategy());
+            strategyMap.set('accordion', new strategies.AccordionStrategy());
+            strategyMap.set('modal-trigger', new strategies.ModalTriggerStrategy());
+            strategyMap.set('dropdown-menu', new strategies.DropdownMenuStrategy());
+            strategyMap.set('carousel', new strategies.CarouselStrategy());
+            // Advanced interaction strategies
+            strategyMap.set('drag-drop', new strategies.DragDropStrategy());
+            strategyMap.set('canvas', new strategies.CanvasStrategy());
+            strategyMap.set('video-player', new strategies.VideoPlayerStrategy());
+            strategyMap.set('audio-player', new strategies.AudioPlayerStrategy());
+            strategyMap.set('rich-text-editor', new strategies.RichTextEditorStrategy());
+            // Default strategy for unknown elements
+            strategyMap.set('unknown', new strategies.DefaultStrategy());
+            return strategyMap;
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to initialize interaction strategies', error);
+            // Return a minimal strategy map with just the default strategy
+            const fallbackMap = new Map();
+            fallbackMap.set('unknown', new strategies.DefaultStrategy());
+            return fallbackMap;
+        }
     }
     async monitorNetwork(networkActivity) {
         if (!this.page)
@@ -187,8 +196,14 @@ class InteractionExecutor {
         }
     }
     async captureState() {
-        if (!this.page)
-            return {};
+        if (!this.page) {
+            return {
+                url: '',
+                localStorage: {},
+                sessionStorage: {},
+                cookies: [],
+            };
+        }
         return {
             url: this.page.url(),
             localStorage: await this.page.evaluate(() => {
@@ -261,6 +276,17 @@ class InteractionExecutor {
             logger_1.logger.error('Failed to take screenshot', { error });
             return '';
         }
+    }
+    getAvailableStrategies() {
+        return Array.from(this.strategies.keys());
+    }
+    validateInteraction(element) {
+        const strategy = this.strategies.get(element.type);
+        if (!strategy) {
+            return false;
+        }
+        // Basic validation - element must have selector and be of known type
+        return Boolean(element.selector && element.type !== 'unknown');
     }
     async cleanup() {
         this.page = null;

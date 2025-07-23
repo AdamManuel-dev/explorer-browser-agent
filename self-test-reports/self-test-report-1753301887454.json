@@ -1,0 +1,266 @@
+{
+  "timestamp": "2025-07-23T20:18:07.454Z",
+  "environment": {
+    "nodeVersion": "v24.2.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "memoryTotal": 25769803776,
+    "memoryUsed": 45873928
+  },
+  "configuration": {
+    "testTimeout": 30000,
+    "retryAttempts": 2,
+    "skipBrowserTests": false,
+    "outputDirectory": "./self-test-reports",
+    "testEndpoints": {
+      "enabled": true,
+      "urls": [
+        "https://httpbin.org",
+        "https://example.com"
+      ]
+    },
+    "componentTests": {
+      "crawler": true,
+      "detector": true,
+      "executor": true,
+      "recorder": true,
+      "generator": true,
+      "monitoring": true,
+      "auth": true,
+      "stealth": true,
+      "captcha": true,
+      "config": true
+    },
+    "performanceThresholds": {
+      "maxCrawlTime": 30000,
+      "maxGenerationTime": 10000,
+      "maxMemoryUsage": 524288000,
+      "minSuccessRate": 0.8
+    }
+  },
+  "results": [
+    {
+      "name": "Config Manager",
+      "success": false,
+      "duration": 2005,
+      "error": "Configuration validation failed: Error: Configuration validation failed:\ncrawling.startUrl is required\nAPI key required when AI detection is enabled"
+    },
+    {
+      "name": "Monitoring Service",
+      "success": true,
+      "duration": 2,
+      "details": {
+        "metricsRecorded": 3,
+        "tracesRecorded": 1
+      },
+      "metrics": {
+        "metricsRecorded": 3,
+        "tracesRecorded": 1
+      }
+    },
+    {
+      "name": "Element Detector",
+      "success": false,
+      "duration": 2004,
+      "error": "Cannot read properties of undefined (reading 'length')"
+    },
+    {
+      "name": "Interaction Executor",
+      "success": false,
+      "duration": 2007,
+      "error": "Valid interaction failed validation"
+    },
+    {
+      "name": "Authentication Manager",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "availableStrategies": [
+          "basic",
+          "oauth",
+          "mfa",
+          "api",
+          "custom"
+        ]
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Session Manager",
+      "success": true,
+      "duration": 2,
+      "details": {
+        "sessionSaved": true
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Stealth Mode",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "userAgentGenerated": true
+      },
+      "metrics": {}
+    },
+    {
+      "name": "CAPTCHA Handler",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "detectionPatterns": [
+          "recaptcha",
+          "hcaptcha",
+          "funcaptcha",
+          "cloudflare",
+          "custom"
+        ]
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Basic Crawling",
+      "success": true,
+      "duration": 153,
+      "details": {
+        "urlsCrawled": 1,
+        "duration": 2
+      },
+      "metrics": {
+        "urlsCrawled": 1,
+        "duration": 2
+      }
+    },
+    {
+      "name": "Element Detection",
+      "success": true,
+      "duration": 103,
+      "details": {
+        "totalElements": 4,
+        "buttonElements": 2,
+        "inputElements": 0,
+        "linkElements": 1
+      },
+      "metrics": {
+        "totalElements": 4,
+        "buttonElements": 2,
+        "inputElements": 0,
+        "linkElements": 1
+      }
+    },
+    {
+      "name": "User Path Recording",
+      "success": false,
+      "duration": 2311,
+      "error": "Expected at least 2 steps, got 0"
+    },
+    {
+      "name": "Test Generation",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "filesGenerated": 1,
+        "totalTests": 1
+      },
+      "metrics": {
+        "filesGenerated": 1,
+        "totalTests": 1
+      }
+    },
+    {
+      "name": "Complete Exploration Workflow",
+      "success": false,
+      "duration": 2003,
+      "error": "BrowserExplorer is not defined"
+    },
+    {
+      "name": "Authentication Workflow",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "strategiesAvailable": 5
+      },
+      "metrics": {
+        "strategiesAvailable": 5
+      }
+    },
+    {
+      "name": "Error Recovery",
+      "success": true,
+      "duration": 1,
+      "details": {
+        "errorHandled": true,
+        "errorType": "network_error"
+      },
+      "metrics": {}
+    },
+    {
+      "name": "Memory Usage",
+      "success": true,
+      "duration": 104,
+      "details": {
+        "initialMemoryMB": 42.05133056640625,
+        "peakMemoryMB": 42.81732940673828,
+        "finalMemoryMB": 42.82295227050781,
+        "memoryIncreaseMB": 0.7659988403320312,
+        "memoryRecoveredMB": -0.00562286376953125
+      },
+      "metrics": {
+        "initialMemoryMB": 42.05133056640625,
+        "peakMemoryMB": 42.81732940673828,
+        "finalMemoryMB": 42.82295227050781,
+        "memoryIncreaseMB": 0.7659988403320312,
+        "memoryRecoveredMB": -0.00562286376953125
+      }
+    },
+    {
+      "name": "Crawl Performance",
+      "success": false,
+      "duration": 2315,
+      "error": "Cannot read properties of undefined (reading 'length')"
+    },
+    {
+      "name": "Generation Performance",
+      "success": true,
+      "duration": 0,
+      "details": {
+        "duration": 0,
+        "filesGenerated": 1,
+        "stepsProcessed": 20
+      },
+      "metrics": {
+        "duration": 0,
+        "filesGenerated": 1,
+        "stepsProcessed": 20
+      }
+    },
+    {
+      "name": "Concurrent Operations",
+      "success": true,
+      "duration": 88,
+      "details": {
+        "duration": 88,
+        "operationsCompleted": 10,
+        "avgOperationTime": 8.8
+      },
+      "metrics": {
+        "duration": 88,
+        "operationsCompleted": 10,
+        "avgOperationTime": 8.8
+      }
+    }
+  ],
+  "summary": {
+    "totalTests": 19,
+    "passedTests": 13,
+    "failedTests": 6,
+    "skippedTests": 0,
+    "totalDuration": 13188,
+    "successRate": 0.6842105263157895,
+    "overallHealth": "degraded"
+  },
+  "recommendations": [
+    "Success rate (68.4%) is below threshold (80.0%). Review failed tests and system configuration.",
+    "Performance tests failed. System may be under load or configuration thresholds may need adjustment."
+  ]
+}

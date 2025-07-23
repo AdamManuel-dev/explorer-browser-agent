@@ -17,7 +17,7 @@ export interface InteractionStep {
     type: StepType;
     element?: InteractiveElement;
     action: string;
-    value?: any;
+    value?: string | number | boolean | Record<string, unknown>;
     timestamp: number;
     duration: number;
     screenshot?: string;
@@ -31,7 +31,7 @@ export interface Assertion {
     id: string;
     type: AssertionType;
     target: string;
-    expected: any;
+    expected: string | number | boolean | Record<string, unknown>;
     operator: AssertionOperator;
     message?: string;
     screenshot?: string;
@@ -51,6 +51,7 @@ export interface PathMetadata {
     tags?: string[];
     purpose?: string;
     critical?: boolean;
+    totalSteps?: number;
 }
 export interface RecordingSession {
     id: string;

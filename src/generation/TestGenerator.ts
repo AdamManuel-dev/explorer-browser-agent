@@ -3,6 +3,7 @@ import {
   TestFile,
   GenerationOptions,
   GenerationResult,
+  GenerationSummary,
   TestStructure,
   TestCase,
   TestStep,
@@ -213,7 +214,7 @@ export class TestGenerator {
         description: step.action,
         code,
         screenshot: !!step.screenshot,
-        waitBefore: step.type === 'wait' ? step.value : undefined,
+        waitBefore: step.type === 'wait' ? Number(step.value) || 0 : undefined,
       };
     });
   }
@@ -234,16 +235,16 @@ export class TestGenerator {
   private generatePlaywrightStep(step: InteractionStep): string {
     switch (step.type) {
       case 'navigation':
-        return `await page.goto('${step.value}');`;
+        return `await page.goto('${String(step.value)}');`;
 
       case 'click':
         return `await page.click('${step.element?.selector}');`;
 
       case 'type':
-        return `await page.fill('${step.element?.selector}', '${step.value}');`;
+        return `await page.fill('${step.element?.selector}', '${String(step.value)}');`;
 
       case 'select':
-        return `await page.selectOption('${step.element?.selector}', '${step.value}');`;
+        return `await page.selectOption('${step.element?.selector}', '${String(step.value)}');`;
 
       case 'check':
         return step.value
@@ -251,7 +252,7 @@ export class TestGenerator {
           : `await page.uncheck('${step.element?.selector}');`;
 
       case 'wait':
-        return `await page.waitForTimeout(${step.value});`;
+        return `await page.waitForTimeout(${Number(step.value) || 0});`;
 
       case 'screenshot':
         return `await page.screenshot({ path: '${step.screenshot}' });`;
@@ -264,16 +265,16 @@ export class TestGenerator {
   private generateCypressStep(step: InteractionStep): string {
     switch (step.type) {
       case 'navigation':
-        return `cy.visit('${step.value}');`;
+        return `cy.visit('${String(step.value)}');`;
 
       case 'click':
         return `cy.get('${step.element?.selector}').click();`;
 
       case 'type':
-        return `cy.get('${step.element?.selector}').type('${step.value}');`;
+        return `cy.get('${step.element?.selector}').type('${String(step.value)}');`;
 
       case 'select':
-        return `cy.get('${step.element?.selector}').select('${step.value}');`;
+        return `cy.get('${step.element?.selector}').select('${String(step.value)}');`;
 
       case 'check':
         return step.value
@@ -281,7 +282,7 @@ export class TestGenerator {
           : `cy.get('${step.element?.selector}').uncheck();`;
 
       case 'wait':
-        return `cy.wait(${step.value});`;
+        return `cy.wait(${Number(step.value) || 0});`;
 
       case 'screenshot':
         return `cy.screenshot('${step.screenshot}');`;
@@ -294,19 +295,19 @@ export class TestGenerator {
   private generatePuppeteerStep(step: InteractionStep): string {
     switch (step.type) {
       case 'navigation':
-        return `await page.goto('${step.value}');`;
+        return `await page.goto('${String(step.value)}');`;
 
       case 'click':
         return `await page.click('${step.element?.selector}');`;
 
       case 'type':
-        return `await page.type('${step.element?.selector}', '${step.value}');`;
+        return `await page.type('${step.element?.selector}', '${String(step.value)}');`;
 
       case 'select':
-        return `await page.select('${step.element?.selector}', '${step.value}');`;
+        return `await page.select('${step.element?.selector}', '${String(step.value)}');`;
 
       case 'wait':
-        return `await page.waitForTimeout(${step.value});`;
+        return `await page.waitForTimeout(${Number(step.value) || 0});`;
 
       default:
         return `// TODO: ${step.action}`;
@@ -506,7 +507,7 @@ export class TestGenerator {
     return [];
   }
 
-  private calculateSummary(files: TestFile[], _path: UserPath): unknown {
+  private calculateSummary(files: TestFile[], userPath: UserPath): GenerationSummary {
     const testFiles = files.filter((f) => f.type === 'test');
     const pageObjects = files.filter((f) => f.type === 'page-object');
     const fixtures = files.filter((f) => f.type === 'fixture');
@@ -518,9 +519,9 @@ export class TestGenerator {
       pageObjects: pageObjects.length,
       fixtures: fixtures.length,
       helpers: helpers.length,
-      totalTests: this.optimizer.groupSteps(path).length,
-      totalAssertions: path.assertions.length,
-      estimatedDuration: path.duration,
+      totalTests: this.optimizer.groupSteps(userPath).length,
+      totalAssertions: userPath.assertions.length,
+      estimatedDuration: userPath.duration,
     };
   }
 

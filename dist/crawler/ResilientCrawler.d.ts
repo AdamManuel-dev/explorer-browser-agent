@@ -51,6 +51,7 @@ export declare class ResilientCrawler {
     private options;
     private circuitBreakerState;
     private failureCount;
+    private lastFailure?;
     private healthCheckInterval?;
     private problematicDomains;
     private crawlAttempts;

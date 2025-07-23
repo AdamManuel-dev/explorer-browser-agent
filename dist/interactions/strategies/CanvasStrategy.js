@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CanvasStrategy = void 0;
 class CanvasStrategy {
+    type = 'canvas';
     async execute(context) {
         const { element } = context;
         try {

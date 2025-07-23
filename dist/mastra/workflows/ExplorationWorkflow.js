@@ -1,30 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExplorationWorkflow = void 0;
-class Workflow {
-    config;
-    steps = new Map();
-    constructor(config) {
-        this.config = config;
-    }
-    addStep(name, handler) {
-        this.steps.set(name, handler);
-    }
-    async executeStep(stepName, context) {
-        const step = this.steps.get(stepName);
-        if (!step) {
-            throw new Error(`Step '${stepName}' not found`);
-        }
-        context.metadata.currentStep = stepName;
-        await step(context);
-    }
-}
+// Custom workflow base classes since @mastra/workflows doesn't exist
 const uuid_1 = require("uuid");
 const logger_1 = require("../../utils/logger");
 const ExplorerAgent_1 = require("../agents/ExplorerAgent");
 const PlannerAgent_1 = require("../agents/PlannerAgent");
 const GeneratorAgent_1 = require("../agents/GeneratorAgent");
-class ExplorationWorkflow extends Workflow {
+const WorkflowBase_1 = require("./WorkflowBase");
+class ExplorationWorkflow extends WorkflowBase_1.Workflow {
     explorerAgent;
     plannerAgent;
     generatorAgent;

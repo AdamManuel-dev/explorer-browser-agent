@@ -220,7 +220,10 @@ class ConfigManager {
         if (config.crawling.maxPages < 1) {
             errors.push('crawling.maxPages must be at least 1');
         }
-        if (config.browser.viewport.width < 100 || config.browser.viewport.height < 100) {
+        if (!config.browser?.viewport) {
+            errors.push('browser.viewport configuration is required');
+        }
+        else if (config.browser.viewport.width < 100 || config.browser.viewport.height < 100) {
             errors.push('browser.viewport dimensions must be at least 100x100');
         }
         // Validate authentication
@@ -251,6 +254,7 @@ class ConfigManager {
                 logLevel: 'info',
             },
             crawling: {
+                startUrl: 'https://example.com',
                 maxDepth: 3,
                 maxPages: 100,
                 crawlDelay: 1000,
@@ -269,7 +273,7 @@ class ConfigManager {
                 timeout: 30000,
             },
             detection: {
-                enableAI: true,
+                enableAI: false,
                 enableTraditional: true,
                 timeout: 30000,
                 retryAttempts: 3,

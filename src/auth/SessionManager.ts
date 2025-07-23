@@ -75,7 +75,7 @@ export class SessionManager {
       lastAccessed: new Date(),
       expiresAt: options?.ttl ? new Date(Date.now() + options.ttl * 1000) : session.expiresAt,
       metadata: {
-        userAgent: session.metadata?.userAgent || 'browser-explorer',
+        userAgent: String(session.metadata?.userAgent || 'browser-explorer'),
         fingerprint: this.generateFingerprint(session),
         ...options?.metadata,
       },

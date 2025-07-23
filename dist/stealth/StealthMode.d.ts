@@ -60,6 +60,8 @@ export declare class StealthMode {
     detectBotDetection(page: Page): Promise<boolean>;
     getMetrics(): StealthMetrics;
     resetMetrics(): void;
+    getConfig(): StealthConfig;
+    generateRandomUserAgent(): string;
     private injectStealthScripts;
     private getStealthScript;
     private setupRequestInterception;

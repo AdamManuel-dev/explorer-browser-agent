@@ -65,7 +65,18 @@ export class MultiStrategyAuthManager {
   private defaultSelectors: Record<AuthStrategy, AuthSelectors>;
 
   constructor() {
-    this.defaultSelectors = this.initializeDefaultSelectors();
+    try {
+      this.defaultSelectors = this.initializeDefaultSelectors();
+    } catch (error) {
+      logger.error('Failed to initialize auth manager', error);
+      this.defaultSelectors = {
+        basic: {
+          usernameField: 'input[name="username"]',
+          passwordField: 'input[name="password"]',
+          submitButton: 'button[type="submit"]',
+        }
+      } as Record<AuthStrategy, AuthSelectors>;
+    }
   }
 
   async authenticate(page: Page, config: AuthConfig): Promise<AuthResult> {

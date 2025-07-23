@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RichTextEditorStrategy = void 0;
 class RichTextEditorStrategy {
+    type = 'rich-text-editor';
     async execute(context) {
         const { element } = context;
         try {

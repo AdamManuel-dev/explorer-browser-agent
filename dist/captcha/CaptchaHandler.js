@@ -317,9 +317,9 @@ class CaptchaHandler {
         if (this.config.manualSolving.promptUser) {
             // In a real implementation, this would prompt the user
             // For now, just wait and hope the user solves it
-            console.log(`\n🔐 CAPTCHA DETECTED: ${detection.type}`);
-            console.log('Please solve the CAPTCHA manually in the browser window.');
-            console.log(`Waiting ${this.config.manualSolving.timeout / 1000} seconds...\n`);
+            logger_1.logger.info(`\n🔐 CAPTCHA DETECTED: ${detection.type}`);
+            logger_1.logger.info('Please solve the CAPTCHA manually in the browser window.');
+            logger_1.logger.info(`Waiting ${this.config.manualSolving.timeout / 1000} seconds...\n`);
             await page.waitForTimeout(this.config.manualSolving.timeout);
             // Check if CAPTCHA is solved
             const stillPresent = await this.detectCaptcha(page);
@@ -460,6 +460,13 @@ class CaptchaHandler {
         if (this.config.manualSolving.enabled)
             return 'manual';
         return 'bypass';
+    }
+    /**
+     * Get the detection patterns for all CAPTCHA types
+     * @returns A map of CAPTCHA types to their detection selectors
+     */
+    getDetectionPatterns() {
+        return new Map(this.detectionPatterns);
     }
     mergeWithDefaults(config) {
         return {

@@ -26,7 +26,7 @@ class PageObjectGenerator {
         for (const step of steps) {
             // Update current URL on navigation
             if (step.type === 'navigation') {
-                currentUrl = step.value || '';
+                currentUrl = String(step.value) || '';
             }
             // Group steps by URL
             if (!groups.has(currentUrl)) {
@@ -159,7 +159,7 @@ class PageObjectGenerator {
                 return `// ${step.action}`;
         }
     }
-    generateAssertions(steps) {
+    generateAssertions(_steps) {
         const assertions = {};
         // Add common assertions
         assertions.isVisible = {
@@ -229,7 +229,7 @@ class PageObjectGenerator {
         }
         // Getters for elements
         lines.push('  // Element getters');
-        for (const [name, selector] of Object.entries(pageObject.selectors)) {
+        for (const [name] of Object.entries(pageObject.selectors)) {
             lines.push(`  get ${name}() {`);
             lines.push(`    return this.page.locator(this.selectors.${name});`);
             lines.push('  }');

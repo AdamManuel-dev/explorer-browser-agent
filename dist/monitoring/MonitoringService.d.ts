@@ -27,12 +27,12 @@ export interface TraceSpan {
     startTime: Date;
     endTime?: Date;
     duration?: number;
-    tags: Record<string, any>;
+    tags: Record<string, unknown>;
     logs: Array<{
         timestamp: Date;
         level: 'info' | 'warn' | 'error' | 'debug';
         message: string;
-        fields?: Record<string, any>;
+        fields?: Record<string, unknown>;
     }>;
     status: 'active' | 'completed' | 'error';
     error?: string;
@@ -137,10 +137,10 @@ export declare class MonitoringService extends EventEmitter {
     recordTimer(name: string, duration: number, labels?: Record<string, string>): void;
     startTimer(name: string): () => void;
     timeFunction<T>(name: string, fn: () => Promise<T> | T, labels?: Record<string, string>): Promise<T>;
-    startSpan(operationName: string, parentSpanId?: string, tags?: Record<string, any>): string;
-    finishSpan(spanId: string, tags?: Record<string, any>): void;
-    addSpanLog(spanId: string, level: 'info' | 'warn' | 'error' | 'debug', message: string, fields?: Record<string, any>): void;
-    addSpanTag(spanId: string, key: string, value: any): void;
+    startSpan(operationName: string, parentSpanId?: string, tags?: Record<string, unknown>): string;
+    finishSpan(spanId: string, tags?: Record<string, unknown>): void;
+    addSpanLog(spanId: string, level: 'info' | 'warn' | 'error' | 'debug', message: string, fields?: Record<string, unknown>): void;
+    addSpanTag(spanId: string, key: string, value: unknown): void;
     trackPageRequest(url: string, success: boolean, responseTime: number, bytesDownloaded: number): void;
     trackCaptchaSolved(type: string, success: boolean, timeToSolve: number): void;
     trackAuthenticationAttempt(strategy: string, success: boolean): void;

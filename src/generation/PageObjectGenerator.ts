@@ -34,7 +34,7 @@ export class PageObjectGenerator {
     for (const step of steps) {
       // Update current URL on navigation
       if (step.type === 'navigation') {
-        currentUrl = step.value || '';
+        currentUrl = String(step.value) || '';
       }
 
       // Group steps by URL
@@ -196,8 +196,8 @@ export class PageObjectGenerator {
     }
   }
 
-  private generateAssertions(_steps: InteractionStep[]): Record<string, unknown> {
-    const assertions: Record<string, unknown> = {};
+  private generateAssertions(_steps: InteractionStep[]): Record<string, PageAssertion> {
+    const assertions: Record<string, PageAssertion> = {};
 
     // Add common assertions
     assertions.isVisible = {

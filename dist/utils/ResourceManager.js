@@ -165,6 +165,8 @@ class ResourceManager extends events_1.EventEmitter {
             // Cleanup contexts
             for (let i = browserItem.contexts.length - 1; i >= 0; i--) {
                 const contextItem = browserItem.contexts[i];
+                if (!contextItem)
+                    continue;
                 const contextAge = now - contextItem.lastUsed.getTime();
                 const shouldCleanupContext = force ||
                     (contextItem.isIdle && contextAge > this.config.cleanup.idleTimeout) ||
@@ -176,6 +178,8 @@ class ResourceManager extends events_1.EventEmitter {
                 // Cleanup pages
                 for (let j = contextItem.pages.length - 1; j >= 0; j--) {
                     const pageItem = contextItem.pages[j];
+                    if (!pageItem)
+                        continue;
                     const pageAge = now - pageItem.lastUsed.getTime();
                     const shouldCleanupPage = force ||
                         (pageItem.isIdle && pageAge > this.config.cleanup.idleTimeout) ||
@@ -350,6 +354,8 @@ class ResourceManager extends events_1.EventEmitter {
         if (contextIndex === -1)
             return;
         const contextItem = browserItem.contexts[contextIndex];
+        if (!contextItem)
+            return;
         logger_1.logger.debug('Destroying context', { contextId });
         try {
             await contextItem.context.close();
@@ -366,6 +372,8 @@ class ResourceManager extends events_1.EventEmitter {
         if (pageIndex === -1)
             return;
         const pageItem = contextItem.pages[pageIndex];
+        if (!pageItem)
+            return;
         logger_1.logger.debug('Destroying page', { pageId });
         try {
             await pageItem.page.close();

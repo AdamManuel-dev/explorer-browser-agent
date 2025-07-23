@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AudioPlayerStrategy = void 0;
 class AudioPlayerStrategy {
+    type = 'audio-player';
     async execute(context) {
         const { element } = context;
         try {

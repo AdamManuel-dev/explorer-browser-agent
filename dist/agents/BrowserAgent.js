@@ -66,6 +66,9 @@ class BrowserAgent {
         await this.page.screenshot({ path });
         logger_1.logger.info('Screenshot saved', { path });
     }
+    getPage() {
+        return this.page;
+    }
     async close() {
         if (this.browser) {
             await this.browser.close();

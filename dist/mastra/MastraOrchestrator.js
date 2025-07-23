@@ -2,38 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MastraOrchestrator = void 0;
 const core_1 = require("@mastra/core");
-class WorkflowEngine {
-    config;
-    workflows = new Map();
-    eventHandlers = new Map();
-    isStarted = false;
-    constructor(config) {
-        this.config = config;
-    }
-    registerWorkflow(name, workflow) {
-        this.workflows.set(name, workflow);
-    }
-    async start() {
-        this.isStarted = true;
-    }
-    async stop() {
-        this.isStarted = false;
-    }
-    on(event, handler) {
-        if (!this.eventHandlers.has(event)) {
-            this.eventHandlers.set(event, []);
-        }
-        this.eventHandlers.get(event).push(handler);
-    }
-    emit(event, ...args) {
-        const handlers = this.eventHandlers.get(event) || [];
-        handlers.forEach(handler => handler(...args));
-    }
-}
 const uuid_1 = require("uuid");
 const logger_1 = require("../utils/logger");
 const PlannerAgent_1 = require("./agents/PlannerAgent");
 const ExplorationWorkflow_1 = require("./workflows/ExplorationWorkflow");
+const WorkflowEngine_1 = require("./WorkflowEngine");
 class MastraOrchestrator {
     mastraEngine;
     workflowEngine;
@@ -54,7 +27,7 @@ class MastraOrchestrator {
             description: 'AI-powered web exploration and test generation platform',
         });
         // Initialize workflow engine
-        this.workflowEngine = new WorkflowEngine({
+        this.workflowEngine = new WorkflowEngine_1.WorkflowEngine({
             maxConcurrentWorkflows: config.maxConcurrentWorkflows || 5,
             retryAttempts: config.retryAttempts || 3,
             defaultTimeout: config.defaultTimeout || 300000, // 5 minutes

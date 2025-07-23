@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ModalTriggerStrategy = void 0;
 class ModalTriggerStrategy {
+    type = 'modal-trigger';
     async execute(context) {
         const { element } = context;
         try {

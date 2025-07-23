@@ -40,7 +40,19 @@ class MultiStrategyAuthManager {
     currentSession = null;
     defaultSelectors;
     constructor() {
-        this.defaultSelectors = this.initializeDefaultSelectors();
+        try {
+            this.defaultSelectors = this.initializeDefaultSelectors();
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to initialize auth manager', error);
+            this.defaultSelectors = {
+                basic: {
+                    usernameField: 'input[name="username"]',
+                    passwordField: 'input[name="password"]',
+                    submitButton: 'button[type="submit"]',
+                }
+            };
+        }
     }
     async authenticate(page, config) {
         logger_1.logger.info('Starting authentication', {
@@ -472,6 +484,9 @@ class MultiStrategyAuthManager {
     }
     getCurrentSession() {
         return this.currentSession;
+    }
+    getAvailableStrategies() {
+        return ['basic', 'oauth', 'mfa', 'api', 'custom'];
     }
     isAuthenticated() {
         return this.currentSession?.authenticated || false;

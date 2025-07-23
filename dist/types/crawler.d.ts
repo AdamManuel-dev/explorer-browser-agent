@@ -14,6 +14,7 @@ export interface CrawlConfiguration {
     userAgent: string;
     customHeaders?: Record<string, string>;
     parallelWorkers?: number;
+    followExternalLinks?: boolean;
 }
 export interface CrawlResult {
     pagesVisited: number;
@@ -21,7 +22,8 @@ export interface CrawlResult {
     errors: CrawlError[];
     duration: number;
     crawlTree: Map<string, CrawlNode[]>;
-    crawledUrls?: Map<string, any>;
+    crawledUrls?: Map<string, CrawlNode>;
+    elements?: Array<unknown>;
 }
 export interface CrawlError {
     url: string;
@@ -81,5 +83,25 @@ export interface ResilientCrawlerOptions {
     backoffStrategy?: 'linear' | 'exponential';
     healthCheck?: boolean;
     circuitBreaker?: boolean;
+}
+export interface RedisConfig {
+    host: string;
+    port: number;
+    password?: string;
+    db?: number;
+    keyPrefix?: string;
+}
+export interface DistributedCrawlResultItem {
+    pageInfo?: UrlInfo;
+    error?: CrawlError;
+    crawledUrls?: UrlInfo[];
+    errors?: CrawlError[];
+    statistics?: {
+        totalPages: number;
+        totalTime: number;
+        averageLoadTime: number;
+        maxDepthReached: number;
+        errorCount: number;
+    };
 }
 //# sourceMappingURL=crawler.d.ts.map
