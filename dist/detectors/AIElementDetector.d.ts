@@ -1,0 +1,22 @@
+import { Page } from 'playwright';
+import { ElementDetectionResult } from '../types/elements';
+export declare class AIElementDetector {
+    private stagehand;
+    private selectorPatterns;
+    constructor();
+    initialize(page: Page): Promise<void>;
+    detectInteractiveElements(page: Page): Promise<ElementDetectionResult>;
+    private detectWithAI;
+    private detectBySelectors;
+    private createElementFromObservation;
+    private createElementFromHandle;
+    private inferElementType;
+    private extractMetadata;
+    private classifyElements;
+    private classifyWithAI;
+    private mergeAndDeduplicate;
+    private generateElementKey;
+    private initializeSelectorPatterns;
+    cleanup(): Promise<void>;
+}
+//# sourceMappingURL=AIElementDetector.d.ts.map

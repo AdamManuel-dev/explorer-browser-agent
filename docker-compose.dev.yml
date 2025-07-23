@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Development-only services
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+      - DEBUG=browser-explorer:*
+
+  # Playwright debug viewer
+  playwright-trace:
+    image: mcr.microsoft.com/playwright:v1.40.0-focal
+    container_name: browser-explorer-playwright-trace
+    volumes:
+      - ./traces:/traces
+    ports:
+      - "9323:9323"
+    command: npx playwright show-trace /traces
+    profiles:
+      - debug
+    networks:
+      - browser-explorer-network
+
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: browser-explorer-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+    networks:
+      - browser-explorer-network

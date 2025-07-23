@@ -1,0 +1,1 @@
+{"version":3,"file":"DragDropStrategy.d.ts","sourceRoot":"","sources":["../../../src/interactions/strategies/DragDropStrategy.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,mBAAmB,EAAE,MAAM,wBAAwB,CAAC;AAC7D,OAAO,EAAE,kBAAkB,EAAE,iBAAiB,EAAE,MAAM,UAAU,CAAC;AAEjE,qBAAa,gBAAiB,YAAW,mBAAmB;IACpD,OAAO,CAAC,OAAO,EAAE,kBAAkB,GAAG,OAAO,CAAC,iBAAiB,CAAC;CAkBvE"}

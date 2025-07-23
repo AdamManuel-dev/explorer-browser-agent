@@ -1,0 +1,427 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Weekly security scan on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Dependency vulnerability scanning
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          # Run audit and capture output
+          npm audit --audit-level=moderate --json > npm-audit-results.json || true
+          
+          # Check if there are any vulnerabilities
+          VULN_COUNT=$(jq '.metadata.vulnerabilities.total' npm-audit-results.json 2>/dev/null || echo "0")
+          
+          echo "Found $VULN_COUNT vulnerabilities"
+          
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "## Security Vulnerabilities Found" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Total vulnerabilities: $VULN_COUNT" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Run \`npm audit\` locally for detailed information." >> $GITHUB_STEP_SUMMARY
+            
+            # For non-main branches, just warn
+            if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+              echo "::warning::Found $VULN_COUNT npm audit vulnerabilities"
+            else
+              echo "::error::Found $VULN_COUNT npm audit vulnerabilities in main branch"
+            fi
+          else
+            echo "✅ No vulnerabilities found in dependencies" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload npm audit results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: npm-audit-results
+          path: npm-audit-results.json
+
+  # SAST scanning with CodeQL
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript' ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{matrix.language}}"
+
+  # Secrets scanning
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Scanning for potential hardcoded secrets..."
+          
+          # Common secret patterns
+          PATTERNS=(
+            "password\s*[:=]\s*['\"][^'\"]+['\"]"
+            "api[_-]?key\s*[:=]\s*['\"][^'\"]+['\"]"
+            "secret\s*[:=]\s*['\"][^'\"]+['\"]"
+            "token\s*[:=]\s*['\"][^'\"]+['\"]"
+            "aws[_-]?access[_-]?key"
+            "aws[_-]?secret[_-]?key"
+            "sk-[a-zA-Z0-9]{48}"
+            "xox[baprs]-[0-9]{12}-[0-9]{12}-[a-zA-Z0-9]{24}"
+          )
+          
+          SECRETS_FOUND=0
+          
+          for pattern in "${PATTERNS[@]}"; do
+            echo "Checking pattern: $pattern"
+            if grep -r -i -E "$pattern" --include="*.ts" --include="*.js" --include="*.json" --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null; then
+              SECRETS_FOUND=$((SECRETS_FOUND + 1))
+              echo "::warning::Potential secret found matching pattern: $pattern"
+            fi
+          done
+          
+          if [ $SECRETS_FOUND -gt 0 ]; then
+            echo "::error::Found $SECRETS_FOUND potential secrets in code"
+            echo "## ⚠️ Potential Secrets Detected" >> $GITHUB_STEP_SUMMARY
+            echo "Found $SECRETS_FOUND potential secrets. Please review the logs above." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ No Hardcoded Secrets Found" >> $GITHUB_STEP_SUMMARY
+            echo "Secret scanning completed successfully." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # License compliance check
+  license-scan:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install license checker
+        run: npm install -g license-checker
+
+      - name: Check licenses
+        run: |
+          echo "Checking license compliance..."
+          
+          # Generate license report
+          license-checker --json > license-report.json
+          
+          # Check for problematic licenses
+          PROBLEMATIC_LICENSES=("GPL-2.0" "GPL-3.0" "AGPL-1.0" "AGPL-3.0" "LGPL-2.0" "LGPL-2.1" "LGPL-3.0")
+          
+          echo "## License Compliance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          ISSUES_FOUND=0
+          
+          for license in "${PROBLEMATIC_LICENSES[@]}"; do
+            if grep -q "\"licenses\": \"$license\"" license-report.json; then
+              ISSUES_FOUND=$((ISSUES_FOUND + 1))
+              echo "::warning::Found dependency with $license license"
+              echo "- ⚠️ Found dependency with $license license" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          if [ $ISSUES_FOUND -eq 0 ]; then
+            echo "- ✅ No problematic licenses found" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Count total dependencies
+          TOTAL_DEPS=$(jq 'keys | length' license-report.json)
+          echo "- 📊 Total dependencies scanned: $TOTAL_DEPS" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-report
+          path: license-report.json
+
+  # Docker image security scan
+  docker-security-scan:
+    name: Docker Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.changed_files, 'Dockerfile')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: production
+          load: true
+          tags: browser-explorer:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'browser-explorer:security-scan'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Trivy for critical vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'browser-explorer:security-scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+  # Security policy compliance
+  security-policy-check:
+    name: Security Policy Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check security policy files
+        run: |
+          echo "## Security Policy Compliance" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for SECURITY.md
+          if [ -f "SECURITY.md" ]; then
+            echo "- ✅ SECURITY.md exists" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ SECURITY.md not found" >> $GITHUB_STEP_SUMMARY
+            echo "::warning::SECURITY.md file not found. Consider adding a security policy."
+          fi
+          
+          # Check for .github/SECURITY.md
+          if [ -f ".github/SECURITY.md" ]; then
+            echo "- ✅ .github/SECURITY.md exists" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Check for vulnerability disclosure in README
+          if grep -i -q "security\|vulnerability\|responsible disclosure" README.md; then
+            echo "- ✅ Security information found in README.md" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ No security information found in README.md" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Check for secure coding practices
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Secure Coding Practices" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for input validation
+          if grep -r -q "validator\|joi\|yup\|zod" --include="*.ts" --include="*.js" src/; then
+            echo "- ✅ Input validation library detected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ No input validation library detected" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Check for rate limiting
+          if grep -r -q "rate.limit\|express-rate-limit" --include="*.ts" --include="*.js" src/; then
+            echo "- ✅ Rate limiting implementation found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ℹ️ No rate limiting implementation detected" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Check for HTTPS enforcement
+          if grep -r -q "https\|ssl\|tls" --include="*.ts" --include="*.js" src/; then
+            echo "- ✅ HTTPS/SSL/TLS references found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ℹ️ No explicit HTTPS enforcement detected" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Generate security report
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, codeql-analysis, secret-scan, license-scan]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate comprehensive security report
+        run: |
+          echo "# 🔒 Security Scan Report" > security-report.md
+          echo "" >> security-report.md
+          echo "**Scan Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> security-report.md
+          echo "**Repository:** ${{ github.repository }}" >> security-report.md
+          echo "**Commit:** ${{ github.sha }}" >> security-report.md
+          echo "**Branch:** ${{ github.ref_name }}" >> security-report.md
+          echo "" >> security-report.md
+          
+          echo "## Scan Results" >> security-report.md
+          echo "" >> security-report.md
+          echo "| Component | Status |" >> security-report.md
+          echo "|-----------|--------|" >> security-report.md
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-report.md
+          echo "| CodeQL Analysis | ${{ needs.codeql-analysis.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-report.md
+          echo "| Secret Scan | ${{ needs.secret-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-report.md
+          echo "| License Compliance | ${{ needs.license-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-report.md
+          echo "" >> security-report.md
+          
+          # Overall status
+          if [[ "${{ needs.dependency-scan.result }}" == "success" && "${{ needs.codeql-analysis.result }}" == "success" && "${{ needs.secret-scan.result }}" == "success" && "${{ needs.license-scan.result }}" == "success" ]]; then
+            echo "## 🎉 Overall Status: PASSED" >> security-report.md
+            echo "" >> security-report.md
+            echo "All security scans completed successfully. No critical issues detected." >> security-report.md
+          else
+            echo "## ⚠️ Overall Status: ATTENTION REQUIRED" >> security-report.md
+            echo "" >> security-report.md
+            echo "One or more security scans detected issues that require attention." >> security-report.md
+          fi
+          
+          echo "" >> security-report.md
+          echo "## Recommendations" >> security-report.md
+          echo "" >> security-report.md
+          echo "- 🔄 Review and address any failed security checks" >> security-report.md
+          echo "- 📚 Keep dependencies up to date" >> security-report.md
+          echo "- 🛡️ Follow secure coding practices" >> security-report.md
+          echo "- 🔍 Regularly monitor for new vulnerabilities" >> security-report.md
+          echo "- 📋 Review and update security policies" >> security-report.md
+          
+          # Display report in job summary
+          cat security-report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: security-report.md
+
+      # Optionally create an issue for security findings
+      - name: Create security issue
+        if: failure() && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `🔒 Security Scan Alert - ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## Security Scan Results
+            
+            One or more security scans have detected issues that require attention.
+            
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Commit:** ${{ github.sha }}
+            **Branch:** ${{ github.ref_name }}
+            
+            Please review the workflow logs and address any security issues found.
+            
+            ### Quick Actions:
+            - [ ] Review dependency vulnerabilities
+            - [ ] Check CodeQL findings
+            - [ ] Verify no secrets are exposed
+            - [ ] Confirm license compliance
+            
+            This issue was automatically created by the security scanning workflow.
+            `;
+            
+            // Check if a similar issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security,automated'
+            });
+            
+            const existingIssue = issues.data.find(issue => 
+              issue.title.includes('Security Scan Alert')
+            );
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'automated', 'high-priority']
+              });
+            }

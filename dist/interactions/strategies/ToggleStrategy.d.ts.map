@@ -1,0 +1,1 @@
+{"version":3,"file":"ToggleStrategy.d.ts","sourceRoot":"","sources":["../../../src/interactions/strategies/ToggleStrategy.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,mBAAmB,EAAE,MAAM,wBAAwB,CAAC;AAC7D,OAAO,EAAE,kBAAkB,EAAE,iBAAiB,EAAE,MAAM,UAAU,CAAC;AAEjE,qBAAa,cAAe,YAAW,mBAAmB;IAClD,OAAO,CAAC,OAAO,EAAE,kBAAkB,GAAG,OAAO,CAAC,iBAAiB,CAAC;CAkBvE"}

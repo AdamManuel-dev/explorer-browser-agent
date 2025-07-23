@@ -1,0 +1,841 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+  schedule:
+    # Weekly performance benchmarks on Saturdays at 4 AM UTC
+    - cron: '0 4 * * 6'
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Type of benchmark to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - crawling
+          - generation
+          - memory
+          - load
+
+env:
+  NODE_VERSION: '18'
+  BENCHMARK_ITERATIONS: 5
+  PERFORMANCE_THRESHOLD_MS: 30000
+
+jobs:
+  # Crawling performance benchmarks
+  crawling-performance:
+    name: Crawling Performance
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'crawling' || github.event.inputs.benchmark_type == ''
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Create benchmark test
+        run: |
+          mkdir -p benchmarks
+          cat > benchmarks/crawling-benchmark.js << 'EOF'
+          const { performance } = require('perf_hooks');
+          const { BreadthFirstCrawler } = require('../dist/crawler');
+          const { chromium } = require('playwright');
+          const { MonitoringService } = require('../dist/monitoring');
+
+          async function runCrawlingBenchmark() {
+            const results = [];
+            const browser = await chromium.launch({ headless: true });
+            
+            try {
+              const monitoring = new MonitoringService({
+                enabled: true,
+                reporting: { enabled: false }
+              });
+              await monitoring.initialize();
+
+              const crawler = new BreadthFirstCrawler(browser);
+              
+              // Benchmark different scenarios
+              const scenarios = [
+                { name: 'Small Site', maxPages: 5, maxDepth: 2 },
+                { name: 'Medium Site', maxPages: 15, maxDepth: 3 },
+                { name: 'Large Site', maxPages: 30, maxDepth: 4 }
+              ];
+
+              for (const scenario of scenarios) {
+                console.log(`Running ${scenario.name} benchmark...`);
+                const iterationResults = [];
+
+                for (let i = 0; i < process.env.BENCHMARK_ITERATIONS; i++) {
+                  const startTime = performance.now();
+                  
+                  try {
+                    const result = await crawler.crawl({
+                      startUrl: 'https://httpbin.org/html',
+                      maxPages: scenario.maxPages,
+                      maxDepth: scenario.maxDepth,
+                      parallelWorkers: 2,
+                      crawlDelay: 100,
+                      monitoring
+                    });
+
+                    const duration = performance.now() - startTime;
+                    iterationResults.push({
+                      duration,
+                      pagesProcessed: result.crawledUrls.length,
+                      errorsCount: result.errors.length,
+                      avgLoadTime: result.statistics.averageLoadTime
+                    });
+
+                    console.log(`  Iteration ${i + 1}: ${duration.toFixed(2)}ms, ${result.crawledUrls.length} pages`);
+                  } catch (error) {
+                    console.error(`  Iteration ${i + 1} failed:`, error.message);
+                    iterationResults.push({
+                      duration: performance.now() - startTime,
+                      error: error.message
+                    });
+                  }
+                }
+
+                // Calculate statistics
+                const successfulRuns = iterationResults.filter(r => !r.error);
+                const avgDuration = successfulRuns.reduce((sum, r) => sum + r.duration, 0) / successfulRuns.length;
+                const minDuration = Math.min(...successfulRuns.map(r => r.duration));
+                const maxDuration = Math.max(...successfulRuns.map(r => r.duration));
+
+                results.push({
+                  scenario: scenario.name,
+                  iterations: iterationResults.length,
+                  successfulRuns: successfulRuns.length,
+                  avgDuration: avgDuration.toFixed(2),
+                  minDuration: minDuration.toFixed(2),
+                  maxDuration: maxDuration.toFixed(2),
+                  avgPagesProcessed: (successfulRuns.reduce((sum, r) => sum + r.pagesProcessed, 0) / successfulRuns.length).toFixed(1),
+                  avgLoadTime: (successfulRuns.reduce((sum, r) => sum + r.avgLoadTime, 0) / successfulRuns.length).toFixed(2)
+                });
+              }
+
+              await monitoring.shutdown();
+            } finally {
+              await browser.close();
+            }
+
+            return results;
+          }
+
+          runCrawlingBenchmark()
+            .then(results => {
+              console.log('\n=== Crawling Performance Results ===');
+              console.table(results);
+              
+              // Save results
+              require('fs').writeFileSync('crawling-results.json', JSON.stringify(results, null, 2));
+              
+              // Check for performance regressions
+              const hasPerformanceIssues = results.some(r => 
+                parseFloat(r.avgDuration) > parseFloat(process.env.PERFORMANCE_THRESHOLD_MS)
+              );
+              
+              if (hasPerformanceIssues) {
+                console.error('Performance regression detected!');
+                process.exit(1);
+              }
+            })
+            .catch(error => {
+              console.error('Benchmark failed:', error);
+              process.exit(1);
+            });
+          EOF
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run crawling benchmark
+        run: node benchmarks/crawling-benchmark.js
+        env:
+          BENCHMARK_ITERATIONS: ${{ env.BENCHMARK_ITERATIONS }}
+          PERFORMANCE_THRESHOLD_MS: ${{ env.PERFORMANCE_THRESHOLD_MS }}
+
+      - name: Upload crawling results
+        uses: actions/upload-artifact@v3
+        with:
+          name: crawling-performance-results
+          path: crawling-results.json
+
+  # Test generation performance
+  generation-performance:
+    name: Test Generation Performance
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'generation' || github.event.inputs.benchmark_type == ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create generation benchmark
+        run: |
+          mkdir -p benchmarks
+          cat > benchmarks/generation-benchmark.js << 'EOF'
+          const { performance } = require('perf_hooks');
+          const { TestGenerator } = require('../dist/generation');
+          const fs = require('fs');
+          const path = require('path');
+
+          async function runGenerationBenchmark() {
+            const results = [];
+            const tempDir = path.join(__dirname, '../temp-generation-test');
+            
+            // Clean up and create temp directory
+            if (fs.existsSync(tempDir)) {
+              fs.rmSync(tempDir, { recursive: true, force: true });
+            }
+            fs.mkdirSync(tempDir, { recursive: true });
+
+            try {
+              const generator = new TestGenerator({
+                framework: 'playwright',
+                language: 'typescript',
+                outputDirectory: tempDir,
+                generatePageObjects: true,
+                generateFixtures: true,
+                generateHelpers: true
+              });
+
+              // Create test paths of varying complexity
+              const testCases = [
+                { name: 'Simple Path (5 steps)', stepCount: 5 },
+                { name: 'Medium Path (15 steps)', stepCount: 15 },
+                { name: 'Complex Path (30 steps)', stepCount: 30 },
+                { name: 'Large Path (50 steps)', stepCount: 50 }
+              ];
+
+              for (const testCase of testCases) {
+                console.log(`Running ${testCase.name} benchmark...`);
+                const iterationResults = [];
+
+                for (let i = 0; i < process.env.BENCHMARK_ITERATIONS; i++) {
+                  // Create mock user path
+                  const mockPath = {
+                    id: `benchmark-path-${i}`,
+                    name: `Benchmark Path ${i}`,
+                    startUrl: 'https://example.com',
+                    steps: Array.from({ length: testCase.stepCount }, (_, stepIndex) => ({
+                      type: stepIndex % 3 === 0 ? 'click' : stepIndex % 3 === 1 ? 'fill' : 'navigate',
+                      selector: `#element-${stepIndex}`,
+                      value: stepIndex % 3 === 1 ? `test-value-${stepIndex}` : undefined,
+                      url: stepIndex % 3 === 2 ? `https://example.com/page-${stepIndex}` : undefined,
+                      timestamp: new Date(Date.now() + stepIndex * 1000)
+                    })),
+                    assertions: Array.from({ length: Math.floor(testCase.stepCount / 3) }, (_, assertIndex) => ({
+                      type: 'visible',
+                      selector: `#result-${assertIndex}`,
+                      expected: true
+                    })),
+                    duration: testCase.stepCount * 1000,
+                    metadata: { benchmark: true },
+                    createdAt: new Date()
+                  };
+
+                  const startTime = performance.now();
+                  
+                  try {
+                    const result = await generator.generate(mockPath);
+                    const duration = performance.now() - startTime;
+
+                    iterationResults.push({
+                      duration,
+                      filesGenerated: result.files.length,
+                      testsGenerated: result.summary.totalTests,
+                      linesOfCode: result.files.reduce((sum, file) => sum + file.content.split('\n').length, 0)
+                    });
+
+                    console.log(`  Iteration ${i + 1}: ${duration.toFixed(2)}ms, ${result.files.length} files, ${result.summary.totalTests} tests`);
+                  } catch (error) {
+                    console.error(`  Iteration ${i + 1} failed:`, error.message);
+                    iterationResults.push({
+                      duration: performance.now() - startTime,
+                      error: error.message
+                    });
+                  }
+                }
+
+                // Calculate statistics
+                const successfulRuns = iterationResults.filter(r => !r.error);
+                const avgDuration = successfulRuns.reduce((sum, r) => sum + r.duration, 0) / successfulRuns.length;
+
+                results.push({
+                  testCase: testCase.name,
+                  stepCount: testCase.stepCount,
+                  iterations: iterationResults.length,
+                  successfulRuns: successfulRuns.length,
+                  avgDuration: avgDuration.toFixed(2),
+                  avgFilesGenerated: (successfulRuns.reduce((sum, r) => sum + r.filesGenerated, 0) / successfulRuns.length).toFixed(1),
+                  avgTestsGenerated: (successfulRuns.reduce((sum, r) => sum + r.testsGenerated, 0) / successfulRuns.length).toFixed(1),
+                  avgLinesOfCode: (successfulRuns.reduce((sum, r) => sum + r.linesOfCode, 0) / successfulRuns.length).toFixed(0)
+                });
+              }
+            } finally {
+              // Clean up
+              if (fs.existsSync(tempDir)) {
+                fs.rmSync(tempDir, { recursive: true, force: true });
+              }
+            }
+
+            return results;
+          }
+
+          runGenerationBenchmark()
+            .then(results => {
+              console.log('\n=== Generation Performance Results ===');
+              console.table(results);
+              
+              // Save results
+              fs.writeFileSync('generation-results.json', JSON.stringify(results, null, 2));
+              
+              // Check for performance regressions
+              const hasPerformanceIssues = results.some(r => 
+                parseFloat(r.avgDuration) > 10000 // 10 second threshold for generation
+              );
+              
+              if (hasPerformanceIssues) {
+                console.error('Generation performance regression detected!');
+                process.exit(1);
+              }
+            })
+            .catch(error => {
+              console.error('Generation benchmark failed:', error);
+              process.exit(1);
+            });
+          EOF
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run generation benchmark
+        run: node benchmarks/generation-benchmark.js
+        env:
+          BENCHMARK_ITERATIONS: ${{ env.BENCHMARK_ITERATIONS }}
+
+      - name: Upload generation results
+        uses: actions/upload-artifact@v3
+        with:
+          name: generation-performance-results
+          path: generation-results.json
+
+  # Memory usage analysis
+  memory-performance:
+    name: Memory Performance
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'memory' || github.event.inputs.benchmark_type == ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Create memory benchmark
+        run: |
+          mkdir -p benchmarks
+          cat > benchmarks/memory-benchmark.js << 'EOF'
+          const { performance } = require('perf_hooks');
+          const { BrowserExplorer } = require('../dist');
+          const fs = require('fs');
+          const path = require('path');
+
+          function getMemoryUsage() {
+            const usage = process.memoryUsage();
+            return {
+              rss: Math.round(usage.rss / 1024 / 1024), // MB
+              heapTotal: Math.round(usage.heapTotal / 1024 / 1024),
+              heapUsed: Math.round(usage.heapUsed / 1024 / 1024),
+              external: Math.round(usage.external / 1024 / 1024)
+            };
+          }
+
+          async function runMemoryBenchmark() {
+            const results = [];
+            const tempDir = path.join(__dirname, '../temp-memory-test');
+            
+            // Clean up and create temp directory
+            if (fs.existsSync(tempDir)) {
+              fs.rmSync(tempDir, { recursive: true, force: true });
+            }
+            fs.mkdirSync(tempDir, { recursive: true });
+
+            // Create test config
+            const configPath = path.join(tempDir, 'test-config.yaml');
+            fs.writeFileSync(configPath, `
+              crawling:
+                startUrl: https://httpbin.org/html
+                maxDepth: 2
+                maxPages: 10
+                parallelWorkers: 1
+              browser:
+                headless: true
+                timeout: 10000
+              generation:
+                framework: playwright
+                language: typescript
+                outputDirectory: ${tempDir}
+            `);
+
+            console.log('Starting memory benchmark...');
+            
+            const baselineMemory = getMemoryUsage();
+            console.log('Baseline memory:', baselineMemory);
+
+            try {
+              for (let i = 0; i < 5; i++) {
+                console.log(`\nIteration ${i + 1}:`);
+                
+                const memoryBefore = getMemoryUsage();
+                const startTime = performance.now();
+
+                const explorer = new BrowserExplorer();
+                await explorer.initialize(configPath);
+                
+                const memoryAfterInit = getMemoryUsage();
+                
+                const result = await explorer.explore();
+                
+                const memoryAfterCrawl = getMemoryUsage();
+                const duration = performance.now() - startTime;
+
+                await explorer.cleanup();
+                
+                // Force garbage collection if available
+                if (global.gc) {
+                  global.gc();
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                const memoryAfterCleanup = getMemoryUsage();
+
+                const iterationResult = {
+                  iteration: i + 1,
+                  duration: Math.round(duration),
+                  memoryBefore,
+                  memoryAfterInit,
+                  memoryAfterCrawl,
+                  memoryAfterCleanup,
+                  memoryIncrease: memoryAfterCrawl.heapUsed - memoryBefore.heapUsed,
+                  memoryRecovered: memoryAfterCrawl.heapUsed - memoryAfterCleanup.heapUsed,
+                  pagesProcessed: result.crawlResult.crawledUrls.length,
+                  testsGenerated: result.testsGenerated
+                };
+
+                results.push(iterationResult);
+                
+                console.log(`  Duration: ${iterationResult.duration}ms`);
+                console.log(`  Memory increase: ${iterationResult.memoryIncrease}MB`);
+                console.log(`  Memory recovered: ${iterationResult.memoryRecovered}MB`);
+                console.log(`  Pages processed: ${iterationResult.pagesProcessed}`);
+              }
+
+            } finally {
+              // Clean up
+              if (fs.existsSync(tempDir)) {
+                fs.rmSync(tempDir, { recursive: true, force: true });
+              }
+            }
+
+            // Calculate averages
+            const avgMemoryIncrease = results.reduce((sum, r) => sum + r.memoryIncrease, 0) / results.length;
+            const avgMemoryRecovered = results.reduce((sum, r) => sum + r.memoryRecovered, 0) / results.length;
+            const maxMemoryUsed = Math.max(...results.map(r => r.memoryAfterCrawl.heapUsed));
+            
+            const summary = {
+              iterations: results.length,
+              avgMemoryIncrease: Math.round(avgMemoryIncrease),
+              avgMemoryRecovered: Math.round(avgMemoryRecovered),
+              maxMemoryUsed,
+              baselineMemory: baselineMemory.heapUsed,
+              results
+            };
+
+            return summary;
+          }
+
+          runMemoryBenchmark()
+            .then(summary => {
+              console.log('\n=== Memory Performance Summary ===');
+              console.log(`Average memory increase: ${summary.avgMemoryIncrease}MB`);
+              console.log(`Average memory recovered: ${summary.avgMemoryRecovered}MB`);
+              console.log(`Maximum memory used: ${summary.maxMemoryUsed}MB`);
+              console.log(`Baseline memory: ${summary.baselineMemory}MB`);
+              
+              // Save results
+              fs.writeFileSync('memory-results.json', JSON.stringify(summary, null, 2));
+              
+              // Check for memory leaks
+              const memoryLeakThreshold = 100; // MB
+              if (summary.avgMemoryIncrease > memoryLeakThreshold) {
+                console.error(`Potential memory leak detected! Average increase: ${summary.avgMemoryIncrease}MB`);
+                process.exit(1);
+              }
+              
+              // Check for excessive memory usage
+              const maxMemoryThreshold = 1000; // MB
+              if (summary.maxMemoryUsed > maxMemoryThreshold) {
+                console.error(`Excessive memory usage detected! Max: ${summary.maxMemoryUsed}MB`);
+                process.exit(1);
+              }
+            })
+            .catch(error => {
+              console.error('Memory benchmark failed:', error);
+              process.exit(1);
+            });
+          EOF
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run memory benchmark
+        run: node --expose-gc benchmarks/memory-benchmark.js
+
+      - name: Upload memory results
+        uses: actions/upload-artifact@v3
+        with:
+          name: memory-performance-results
+          path: memory-results.json
+
+  # Load testing
+  load-testing:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == 'load' || github.event.inputs.benchmark_type == ''
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Create load test
+        run: |
+          mkdir -p benchmarks
+          cat > benchmarks/load-test.js << 'EOF'
+          const { performance } = require('perf_hooks');
+          const { DistributedCrawler } = require('../dist/crawler');
+          const { MonitoringService } = require('../dist/monitoring');
+          const { chromium } = require('playwright');
+
+          async function runLoadTest() {
+            const browser = await chromium.launch({ headless: true });
+            const results = [];
+
+            try {
+              const monitoring = new MonitoringService({
+                enabled: true,
+                reporting: { enabled: false }
+              });
+              await monitoring.initialize();
+
+              console.log('Starting load test with multiple concurrent crawlers...');
+
+              // Test with increasing concurrent load
+              const loadLevels = [1, 2, 4, 8];
+
+              for (const concurrency of loadLevels) {
+                console.log(`\nTesting with ${concurrency} concurrent crawlers...`);
+                
+                const startTime = performance.now();
+                const promises = [];
+
+                for (let i = 0; i < concurrency; i++) {
+                  const crawler = new DistributedCrawler(browser, {
+                    workerId: `worker-${i}`,
+                    concurrency: 2,
+                    redis: {
+                      host: 'localhost',
+                      port: 6379,
+                      keyPrefix: `test-${Date.now()}-${i}`
+                    },
+                    maxDepth: 2,
+                    maxPages: 10,
+                    queueConfig: {
+                      maxRetries: 2,
+                      retryDelay: 1000,
+                      priorityLevels: 3,
+                      cleanupInterval: 30000
+                    },
+                    coordination: {
+                      heartbeatInterval: 5000,
+                      workerTimeout: 30000,
+                      resultSyncInterval: 10000
+                    }
+                  });
+
+                  promises.push(
+                    crawler.distributedCrawl('https://httpbin.org/html')
+                      .then(result => ({
+                        workerId: crawler.config?.workerId || `worker-${i}`,
+                        success: true,
+                        pagesProcessed: result.coordinationMetrics.jobsProcessed,
+                        duration: Date.now() - startTime
+                      }))
+                      .catch(error => ({
+                        workerId: crawler.config?.workerId || `worker-${i}`,
+                        success: false,
+                        error: error.message,
+                        duration: Date.now() - startTime
+                      }))
+                  );
+                }
+
+                const workerResults = await Promise.all(promises);
+                const totalDuration = performance.now() - startTime;
+                
+                const successfulWorkers = workerResults.filter(r => r.success);
+                const totalPagesProcessed = successfulWorkers.reduce((sum, r) => sum + r.pagesProcessed, 0);
+
+                results.push({
+                  concurrency,
+                  totalDuration: Math.round(totalDuration),
+                  successfulWorkers: successfulWorkers.length,
+                  failedWorkers: workerResults.length - successfulWorkers.length,
+                  totalPagesProcessed,
+                  avgPagesPerWorker: totalPagesProcessed / successfulWorkers.length,
+                  pagesPerSecond: (totalPagesProcessed / (totalDuration / 1000)).toFixed(2)
+                });
+
+                console.log(`  Duration: ${Math.round(totalDuration)}ms`);
+                console.log(`  Successful workers: ${successfulWorkers.length}/${workerResults.length}`);
+                console.log(`  Total pages processed: ${totalPagesProcessed}`);
+                console.log(`  Pages per second: ${(totalPagesProcessed / (totalDuration / 1000)).toFixed(2)}`);
+
+                // Brief pause between load levels
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+
+              await monitoring.shutdown();
+            } finally {
+              await browser.close();
+            }
+
+            return results;
+          }
+
+          runLoadTest()
+            .then(results => {
+              console.log('\n=== Load Test Results ===');
+              console.table(results);
+              
+              // Save results
+              require('fs').writeFileSync('load-test-results.json', JSON.stringify(results, null, 2));
+              
+              // Check for performance degradation under load
+              const baselinePerformance = results[0]; // Single worker performance
+              const highLoadPerformance = results[results.length - 1]; // Highest concurrency
+              
+              const performanceDegradation = (baselinePerformance.pagesPerSecond - highLoadPerformance.pagesPerSecond) / baselinePerformance.pagesPerSecond;
+              
+              console.log(`\nPerformance degradation under load: ${(performanceDegradation * 100).toFixed(1)}%`);
+              
+              if (performanceDegradation > 0.5) { // More than 50% degradation
+                console.error('Significant performance degradation under load detected!');
+                process.exit(1);
+              }
+            })
+            .catch(error => {
+              console.error('Load test failed:', error);
+              process.exit(1);
+            });
+          EOF
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run load test
+        run: node benchmarks/load-test.js
+        env:
+          REDIS_URL: redis://localhost:6379
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: load-test-results.json
+
+  # Consolidate and analyze results
+  analyze-results:
+    name: Analyze Performance Results
+    runs-on: ubuntu-latest
+    needs: [crawling-performance, generation-performance, memory-performance, load-testing]
+    if: always()
+    steps:
+      - name: Download all results
+        uses: actions/download-artifact@v3
+
+      - name: Analyze performance trends
+        run: |
+          echo "# 📊 Performance Analysis Report" > performance-report.md
+          echo "" >> performance-report.md
+          echo "**Test Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> performance-report.md
+          echo "**Commit:** ${{ github.sha }}" >> performance-report.md
+          echo "**Branch:** ${{ github.ref_name }}" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          echo "## Test Results Summary" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "| Test Category | Status | Details |" >> performance-report.md
+          echo "|---------------|--------|---------|" >> performance-report.md
+          echo "| Crawling Performance | ${{ needs.crawling-performance.result == 'success' && '✅ Passed' || '❌ Failed' }} | Web crawling benchmarks |" >> performance-report.md
+          echo "| Generation Performance | ${{ needs.generation-performance.result == 'success' && '✅ Passed' || '❌ Failed' }} | Test generation benchmarks |" >> performance-report.md
+          echo "| Memory Performance | ${{ needs.memory-performance.result == 'success' && '✅ Passed' || '❌ Failed' }} | Memory usage and leak detection |" >> performance-report.md
+          echo "| Load Testing | ${{ needs.load-testing.result == 'success' && '✅ Passed' || '❌ Failed' }} | Concurrent load handling |" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          # Process individual results if available
+          if [ -f "crawling-performance-results/crawling-results.json" ]; then
+            echo "## Crawling Performance Details" >> performance-report.md
+            echo "" >> performance-report.md
+            echo "\`\`\`json" >> performance-report.md
+            cat crawling-performance-results/crawling-results.json >> performance-report.md
+            echo "\`\`\`" >> performance-report.md
+            echo "" >> performance-report.md
+          fi
+          
+          if [ -f "memory-performance-results/memory-results.json" ]; then
+            echo "## Memory Usage Analysis" >> performance-report.md
+            echo "" >> performance-report.md
+            MEMORY_DATA=$(cat memory-performance-results/memory-results.json)
+            AVG_INCREASE=$(echo "$MEMORY_DATA" | jq -r '.avgMemoryIncrease')
+            MAX_MEMORY=$(echo "$MEMORY_DATA" | jq -r '.maxMemoryUsed')
+            echo "- **Average Memory Increase:** ${AVG_INCREASE}MB" >> performance-report.md
+            echo "- **Maximum Memory Used:** ${MAX_MEMORY}MB" >> performance-report.md
+            echo "" >> performance-report.md
+          fi
+          
+          # Overall assessment
+          OVERALL_STATUS="PASSED"
+          if [[ "${{ needs.crawling-performance.result }}" != "success" ]] || [[ "${{ needs.generation-performance.result }}" != "success" ]] || [[ "${{ needs.memory-performance.result }}" != "success" ]] || [[ "${{ needs.load-testing.result }}" != "success" ]]; then
+            OVERALL_STATUS="ISSUES DETECTED"
+          fi
+          
+          echo "## 🎯 Overall Assessment: $OVERALL_STATUS" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          if [ "$OVERALL_STATUS" = "PASSED" ]; then
+            echo "All performance tests completed successfully. No significant regressions detected." >> performance-report.md
+          else
+            echo "Performance issues detected. Please review the detailed results above." >> performance-report.md
+          fi
+          
+          echo "" >> performance-report.md
+          echo "## 📈 Recommendations" >> performance-report.md
+          echo "" >> performance-report.md
+          echo "- Monitor performance trends over time" >> performance-report.md
+          echo "- Investigate any performance regressions" >> performance-report.md
+          echo "- Consider optimizations for high-load scenarios" >> performance-report.md
+          echo "- Regular memory profiling to prevent leaks" >> performance-report.md
+          
+          # Display in job summary
+          cat performance-report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload consolidated report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-analysis-report
+          path: performance-report.md
+
+      - name: Comment on PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let comment = '## 📊 Performance Test Results\n\n';
+            
+            const results = {
+              crawling: '${{ needs.crawling-performance.result }}',
+              generation: '${{ needs.generation-performance.result }}',
+              memory: '${{ needs.memory-performance.result }}',
+              load: '${{ needs.load-testing.result }}'
+            };
+            
+            comment += '| Test | Status |\n|------|--------|\n';
+            comment += `| Crawling Performance | ${results.crawling === 'success' ? '✅' : '❌'} |\n`;
+            comment += `| Generation Performance | ${results.generation === 'success' ? '✅' : '❌'} |\n`;
+            comment += `| Memory Performance | ${results.memory === 'success' ? '✅' : '❌'} |\n`;
+            comment += `| Load Testing | ${results.load === 'success' ? '✅' : '❌'} |\n\n`;
+            
+            const allPassed = Object.values(results).every(result => result === 'success');
+            
+            if (allPassed) {
+              comment += '🎉 All performance tests passed! No regressions detected.';
+            } else {
+              comment += '⚠️ Some performance tests failed. Please review the detailed results in the workflow logs.';
+            }
+            
+            comment += `\n\n**Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

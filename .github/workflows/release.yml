@@ -1,0 +1,469 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Validate release readiness
+  validate-release:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+
+      - name: Update package.json version
+        run: |
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          echo "Updated package.json to version ${{ steps.version.outputs.version }}"
+
+      - name: Run full test suite
+        run: |
+          npm run lint
+          npm run type-check
+          npm run test:unit
+          npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run self-test validation
+        run: npm run self-test:validate
+
+      - name: Validate changelog
+        run: |
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "❌ CHANGELOG.md not found"
+            exit 1
+          fi
+          
+          if ! grep -q "${{ steps.version.outputs.version }}" CHANGELOG.md; then
+            echo "❌ Version ${{ steps.version.outputs.version }} not found in CHANGELOG.md"
+            exit 1
+          fi
+          
+          echo "✅ Changelog validation passed"
+
+  # Build and test release artifacts
+  build-release:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: validate-release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version
+        run: npm version ${{ needs.validate-release.outputs.version }} --no-git-tag-version
+
+      - name: Build project
+        run: npm run build
+
+      - name: Create release package
+        run: |
+          mkdir -p release-artifacts
+          
+          # Create tarball
+          npm pack
+          mv *.tgz release-artifacts/
+          
+          # Copy important files
+          cp README.md CHANGELOG.md LICENSE release-artifacts/
+          cp -r dist/ release-artifacts/
+          cp -r examples/ release-artifacts/ || echo "No examples directory"
+          cp package.json release-artifacts/
+          
+          # Create version info
+          echo "${{ needs.validate-release.outputs.version }}" > release-artifacts/VERSION
+          echo "${{ github.sha }}" > release-artifacts/COMMIT
+          
+          # List contents
+          echo "Release artifacts:"
+          ls -la release-artifacts/
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+
+  # Build and push Docker images
+  build-docker:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ needs.validate-release.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Browser Explorer
+            org.opencontainers.image.description=AI-powered web exploration and test generation agent
+            org.opencontainers.image.version=${{ needs.validate-release.outputs.version }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.validate-release.outputs.version }}
+            COMMIT=${{ github.sha }}
+
+      - name: Run security scan on image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-release.outputs.version }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload security scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Create comprehensive release
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release, build-docker]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: release-artifacts
+          path: release-artifacts/
+
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          VERSION=${{ needs.validate-release.outputs.version }}
+          
+          # Extract changelog section for this version
+          if [ -f "CHANGELOG.md" ]; then
+            awk "/## \[?$VERSION\]?/,/## \[?[0-9]/ { if (/## \[?[0-9]/ && !/## \[?$VERSION\]?/) exit; print }" CHANGELOG.md > release-notes.md
+            # Remove the version header line
+            sed -i '1d' release-notes.md
+          else
+            echo "Release $VERSION" > release-notes.md
+            echo "" >> release-notes.md
+            echo "## What's Changed" >> release-notes.md
+            echo "" >> release-notes.md
+          fi
+          
+          # Add Docker image info
+          echo "" >> release-notes.md
+          echo "## Docker Images" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "\`\`\`bash" >> release-notes.md
+          echo "# Pull the latest release" >> release-notes.md
+          echo "docker pull ghcr.io/${{ github.repository }}:$VERSION" >> release-notes.md
+          echo "docker pull ghcr.io/${{ github.repository }}:latest" >> release-notes.md
+          echo "\`\`\`" >> release-notes.md
+          echo "" >> release-notes.md
+          
+          # Add installation instructions
+          echo "## Installation" >> release-notes.md
+          echo "" >> release-notes.md
+          echo "\`\`\`bash" >> release-notes.md
+          echo "npm install browser-explorer@$VERSION" >> release-notes.md
+          echo "\`\`\`" >> release-notes.md
+          echo "" >> release-notes.md
+          
+          # Add full changelog link
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/v$(git describe --tags --abbrev=0 HEAD^)...v$VERSION" >> release-notes.md
+          
+          # Show what we generated
+          echo "Generated release notes:"
+          cat release-notes.md
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate-release.outputs.tag }}
+          name: Release ${{ needs.validate-release.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(needs.validate-release.outputs.version, '-') }}
+          files: |
+            release-artifacts/*.tgz
+            release-artifacts/VERSION
+            release-artifacts/COMMIT
+          generate_release_notes: true
+
+  # Publish to npm (if configured)
+  publish-npm:
+    name: Publish to NPM
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release]
+    if: github.repository_owner == 'your-org' # Replace with your org
+    environment: npm-publish
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update version
+        run: npm version ${{ needs.validate-release.outputs.version }} --no-git-tag-version
+
+      - name: Build for production
+        run: npm run build
+
+      - name: Publish to NPM
+        run: |
+          if [[ "${{ contains(needs.validate-release.outputs.version, '-') }}" == "true" ]]; then
+            echo "Publishing prerelease to NPM..."
+            npm publish --tag beta
+          else
+            echo "Publishing stable release to NPM..."
+            npm publish
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Deploy documentation (if configured)
+  deploy-docs:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [validate-release, create-release]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build documentation
+        run: |
+          # Generate API documentation
+          npm run docs:build || echo "No docs build script found"
+          
+          # Create documentation structure
+          mkdir -p docs-site
+          
+          # Copy README and other docs
+          cp README.md docs-site/
+          cp CHANGELOG.md docs-site/
+          
+          # Copy examples if they exist
+          cp -r examples/ docs-site/ || echo "No examples directory"
+          
+          # Create index.html
+          cat > docs-site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Browser Explorer Documentation</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 40px; }
+              .header { border-bottom: 1px solid #eee; padding-bottom: 20px; margin-bottom: 30px; }
+              .nav { margin: 20px 0; }
+              .nav a { margin-right: 20px; text-decoration: none; color: #0366d6; }
+              .content { max-width: 800px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>Browser Explorer</h1>
+              <p>AI-powered web exploration and test generation agent</p>
+            </div>
+            <div class="nav">
+              <a href="README.md">Documentation</a>
+              <a href="CHANGELOG.md">Changelog</a>
+              <a href="https://github.com/${{ github.repository }}">GitHub</a>
+            </div>
+            <div class="content">
+              <h2>Quick Links</h2>
+              <ul>
+                <li><a href="README.md">Getting Started</a></li>
+                <li><a href="examples/">Examples</a></li>
+                <li><a href="https://github.com/${{ github.repository }}/releases">Releases</a></li>
+              </ul>
+            </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Post-release tasks
+  post-release:
+    name: Post-Release Tasks
+    runs-on: ubuntu-latest
+    needs: [validate-release, create-release]
+    if: always() && needs.create-release.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Update development branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create a branch for version bump
+          git checkout -b release/post-${{ needs.validate-release.outputs.version }}
+          
+          # Update package.json version
+          npm version ${{ needs.validate-release.outputs.version }} --no-git-tag-version
+          
+          # Commit changes
+          git add package.json
+          git commit -m "chore: bump version to ${{ needs.validate-release.outputs.version }} [skip ci]"
+          
+          # Push branch
+          git push origin release/post-${{ needs.validate-release.outputs.version }}
+
+      - name: Create version bump PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/post-${{ needs.validate-release.outputs.version }}
+          title: "chore: post-release version bump to ${{ needs.validate-release.outputs.version }}"
+          body: |
+            Automated post-release version bump.
+            
+            - Updates package.json version to ${{ needs.validate-release.outputs.version }}
+            - Created from release workflow
+            
+            This PR can be merged immediately.
+          labels: |
+            automated
+            release
+
+      - name: Create release summary
+        run: |
+          echo "## 🚀 Release ${{ needs.validate-release.outputs.version }} Completed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate-release.outputs.tag }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 🐳 [Docker Image](https://ghcr.io/${{ github.repository }}:${{ needs.validate-release.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 📚 [Documentation](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Release created and published" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Docker images pushed to registry" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Documentation updated" >> $GITHUB_STEP_SUMMARY
+          echo "- 📝 Version bump PR created for development branch" >> $GITHUB_STEP_SUMMARY

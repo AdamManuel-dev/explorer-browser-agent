@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  # Database services
+  postgres:
+    image: postgres:15-alpine
+    container_name: browser-explorer-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: browser_explorer
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - browser-explorer-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: browser-explorer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - browser-explorer-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Browser Explorer application services
+  browser-explorer-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: browser-explorer-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/browser_explorer
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./generated-tests:/app/generated-tests
+      - ./reports:/app/reports
+      - ./screenshots:/app/screenshots
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - browser-explorer-network
+    profiles:
+      - dev
+
+  browser-explorer-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: browser-explorer-prod
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/browser_explorer
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - browser-explorer-network
+    profiles:
+      - prod
+
+  browser-explorer-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: testing
+    container_name: browser-explorer-test
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/browser_explorer_test
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=error
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - browser-explorer-network
+    profiles:
+      - test
+
+  # Admin and monitoring tools
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: browser-explorer-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - browser-explorer-network
+    profiles:
+      - admin
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: browser-explorer-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@browser-explorer.com
+      PGLADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - browser-explorer-network
+    profiles:
+      - admin
+
+volumes:
+  redis-data:
+  postgres-data:
+
+networks:
+  browser-explorer-network:
+    driver: bridge
