@@ -12,9 +12,27 @@ import { logger } from '../utils/logger';
 import { TestDataGenerator } from './TestDataGenerator';
 import * as strategies from './strategies';
 
+interface PageState {
+  url: string;
+  localStorage: Record<string, string>;
+  sessionStorage: Record<string, string>;
+  cookies: Array<{
+    name: string;
+    value: string;
+    domain: string;
+    path: string;
+    expires: number;
+    httpOnly: boolean;
+    secure: boolean;
+    sameSite?: 'Strict' | 'Lax' | 'None';
+  }>;
+}
+
 export class InteractionExecutor {
   private strategies: Map<ElementType, InteractionStrategy>;
+
   private testDataGenerator: TestDataGenerator;
+
   private page: Page | null = null;
 
   constructor() {
@@ -43,7 +61,7 @@ export class InteractionExecutor {
       const initialState = await this.captureState();
 
       // Set up network monitoring
-      const networkPromise = this.monitorNetwork(networkActivity);
+      this.monitorNetwork(networkActivity);
 
       // Get strategy for element type
       const strategy = this.strategies.get(element.type);
@@ -176,9 +194,7 @@ export class InteractionExecutor {
     });
 
     this.page.on('response', (response) => {
-      const activity = networkActivity.find(
-        (a) => a.url === response.url() && !a.status
-      );
+      const activity = networkActivity.find((a) => a.url === response.url() && !a.status);
       if (activity) {
         activity.status = response.status();
       }
@@ -195,8 +211,15 @@ export class InteractionExecutor {
     }
   }
 
-  private async captureState(): Promise<any> {
-    if (!this.page) return {};
+  private async captureState(): Promise<PageState> {
+    if (!this.page) {
+      return {
+        url: '',
+        localStorage: {},
+        sessionStorage: {},
+        cookies: [],
+      };
+    }
 
     return {
       url: this.page.url(),
@@ -214,7 +237,7 @@ export class InteractionExecutor {
     };
   }
 
-  private compareStates(before: any, after: any): StateChange[] {
+  private compareStates(before: PageState, after: PageState): StateChange[] {
     const changes: StateChange[] = [];
 
     // Check URL changes

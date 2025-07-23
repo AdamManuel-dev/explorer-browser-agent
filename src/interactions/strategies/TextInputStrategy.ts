@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class TextInputStrategy implements InteractionStrategy {

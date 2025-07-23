@@ -2,20 +2,28 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TimePickerStrategy = void 0;
 class TimePickerStrategy {
-    async execute(context) {
-        const { element } = context;
+    type = 'time-picker';
+    async execute(element, context) {
+        const { page } = context;
+        const startTime = Date.now();
         try {
             // Basic implementation - just click the time picker
-            await element.click();
+            const el = await page.$(element.selector);
+            if (!el) {
+                throw new Error('Time picker element not found');
+            }
+            await el.click();
             return {
                 success: true,
-                message: 'Time picker clicked successfully',
+                value: 'Time picker clicked successfully',
+                timing: Date.now() - startTime,
             };
         }
         catch (error) {
             return {
                 success: false,
-                message: `Failed to interact with time picker: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: `Failed to interact with time picker: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timing: Date.now() - startTime,
             };
         }
     }

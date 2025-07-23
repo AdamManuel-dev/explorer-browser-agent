@@ -16,6 +16,7 @@ import { PathOptimizer } from '../recording/PathOptimizer';
 
 export class TestGenerator {
   private optimizer: PathOptimizer;
+
   private formatting: CodeFormatting;
 
   constructor(private options: GenerationOptions) {
@@ -79,7 +80,7 @@ export class TestGenerator {
         error: error instanceof Error ? error.message : String(error),
         severity: 'error',
       });
-      
+
       return {
         files,
         summary: this.calculateSummary(files, userPath),
@@ -110,7 +111,7 @@ export class TestGenerator {
   private buildTestStructure(path: UserPath): TestStructure {
     // Group steps for better organization
     const stepGroups = this.optimizer.groupSteps(path);
-    
+
     // Build imports
     const imports = this.buildImports();
 
@@ -155,6 +156,8 @@ export class TestGenerator {
           from: 'puppeteer',
         });
         break;
+      default:
+        throw new Error(`Unsupported framework: ${this.options.framework}`);
     }
 
     return imports;
@@ -171,7 +174,15 @@ export class TestGenerator {
         }
         break;
       case 'cypress':
-        code.push(`cy.viewport(${path.metadata.viewport.width}, ${path.metadata.viewport.height});`);
+        code.push(
+          `cy.viewport(${path.metadata.viewport.width}, ${path.metadata.viewport.height});`
+        );
+        break;
+      case 'puppeteer':
+        // Puppeteer setup code if needed
+        break;
+      default:
+        // No setup code needed for unknown frameworks
         break;
     }
 
@@ -195,9 +206,9 @@ export class TestGenerator {
   }
 
   private convertStepsToTestSteps(steps: InteractionStep[]): TestStep[] {
-    return steps.map(step => {
+    return steps.map((step) => {
       const code = this.generateStepCode(step);
-      
+
       return {
         description: step.action,
         code,
@@ -224,27 +235,27 @@ export class TestGenerator {
     switch (step.type) {
       case 'navigation':
         return `await page.goto('${step.value}');`;
-      
+
       case 'click':
         return `await page.click('${step.element?.selector}');`;
-      
+
       case 'type':
         return `await page.fill('${step.element?.selector}', '${step.value}');`;
-      
+
       case 'select':
         return `await page.selectOption('${step.element?.selector}', '${step.value}');`;
-      
+
       case 'check':
-        return step.value 
+        return step.value
           ? `await page.check('${step.element?.selector}');`
           : `await page.uncheck('${step.element?.selector}');`;
-      
+
       case 'wait':
         return `await page.waitForTimeout(${step.value});`;
-      
+
       case 'screenshot':
         return `await page.screenshot({ path: '${step.screenshot}' });`;
-      
+
       default:
         return `// TODO: ${step.action}`;
     }
@@ -254,27 +265,27 @@ export class TestGenerator {
     switch (step.type) {
       case 'navigation':
         return `cy.visit('${step.value}');`;
-      
+
       case 'click':
         return `cy.get('${step.element?.selector}').click();`;
-      
+
       case 'type':
         return `cy.get('${step.element?.selector}').type('${step.value}');`;
-      
+
       case 'select':
         return `cy.get('${step.element?.selector}').select('${step.value}');`;
-      
+
       case 'check':
         return step.value
           ? `cy.get('${step.element?.selector}').check();`
           : `cy.get('${step.element?.selector}').uncheck();`;
-      
+
       case 'wait':
         return `cy.wait(${step.value});`;
-      
+
       case 'screenshot':
         return `cy.screenshot('${step.screenshot}');`;
-      
+
       default:
         return `// TODO: ${step.action}`;
     }
@@ -284,19 +295,19 @@ export class TestGenerator {
     switch (step.type) {
       case 'navigation':
         return `await page.goto('${step.value}');`;
-      
+
       case 'click':
         return `await page.click('${step.element?.selector}');`;
-      
+
       case 'type':
         return `await page.type('${step.element?.selector}', '${step.value}');`;
-      
+
       case 'select':
         return `await page.select('${step.element?.selector}', '${step.value}');`;
-      
+
       case 'wait':
         return `await page.waitForTimeout(${step.value});`;
-      
+
       default:
         return `// TODO: ${step.action}`;
     }
@@ -304,17 +315,15 @@ export class TestGenerator {
 
   private convertAssertions(assertions: Assertion[], steps: InteractionStep[]): TestAssertion[] {
     // Filter assertions relevant to these steps
-    const relevantAssertions = assertions.filter(assertion => {
+    const relevantAssertions = assertions.filter((assertion) => {
       // Include all URL assertions
       if (assertion.type === 'url') return true;
-      
+
       // Include assertions for elements in these steps
-      return steps.some(step => 
-        step.element?.selector === assertion.target
-      );
+      return steps.some((step) => step.element?.selector === assertion.target);
     });
 
-    return relevantAssertions.map(assertion => ({
+    return relevantAssertions.map((assertion) => ({
       type: assertion.type,
       target: assertion.target,
       expected: assertion.expected,
@@ -329,7 +338,7 @@ export class TestGenerator {
     const s = semicolons ? ';' : '';
 
     // Add imports
-    structure.imports.forEach(imp => {
+    structure.imports.forEach((imp) => {
       if (imp.default) {
         lines.push(`import ${imp.default} from ${q}${imp.from}${q}${s}`);
       } else if (imp.named) {
@@ -345,7 +354,7 @@ export class TestGenerator {
     // Add setup
     if (structure.setup.code.length > 0) {
       lines.push(`${indent}test.beforeEach(async ({ page }) => {`);
-      structure.setup.code.forEach(line => {
+      structure.setup.code.forEach((line) => {
         lines.push(`${indent}${indent}${line}`);
       });
       lines.push(`${indent}})${s}`);
@@ -355,27 +364,27 @@ export class TestGenerator {
     // Add test cases
     structure.tests.forEach((testCase, index) => {
       if (index > 0) lines.push('');
-      
+
       lines.push(`${indent}test(${q}${testCase.name}${q}, async ({ page }) => {`);
-      
+
       // Add steps
-      testCase.steps.forEach(step => {
+      testCase.steps.forEach((step) => {
         if (step.description && this.options.addComments) {
           lines.push(`${indent}${indent}// ${step.description}`);
         }
         lines.push(`${indent}${indent}${step.code}`);
       });
-      
+
       // Add assertions
       if (testCase.assertions.length > 0) {
         lines.push('');
         lines.push(`${indent}${indent}// Assertions`);
-        testCase.assertions.forEach(assertion => {
+        testCase.assertions.forEach((assertion) => {
           const assertionCode = this.generateAssertionCode(assertion);
           lines.push(`${indent}${indent}${assertionCode}`);
         });
       }
-      
+
       lines.push(`${indent}})${s}`);
     });
 
@@ -434,10 +443,10 @@ export class TestGenerator {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
-    
+
     const extension = this.options.language === 'typescript' ? 'ts' : 'js';
     const suffix = this.options.framework === 'playwright' ? 'spec' : 'test';
-    
+
     return `${name}.${suffix}.${extension}`;
   }
 
@@ -447,10 +456,9 @@ export class TestGenerator {
 
   private generateTestName(steps: InteractionStep[], index: number): string {
     // Try to generate meaningful name from steps
-    const navigation = steps.find(s => s.type === 'navigation');
-    const submission = steps.find(s => 
-      s.element?.type === 'button' && 
-      s.element.text?.toLowerCase().includes('submit')
+    const navigation = steps.find((s) => s.type === 'navigation');
+    const submission = steps.find(
+      (s) => s.element?.type === 'button' && s.element.text?.toLowerCase().includes('submit')
     );
 
     if (navigation && submission) {
@@ -466,10 +474,10 @@ export class TestGenerator {
 
   private generateTestDescription(steps: InteractionStep[]): string {
     const actions = steps
-      .filter(s => s.type !== 'wait' && s.type !== 'screenshot')
-      .map(s => s.action)
+      .filter((s) => s.type !== 'wait' && s.type !== 'screenshot')
+      .map((s) => s.action)
       .join(', ');
-    
+
     return `Performs: ${actions}`;
   }
 
@@ -483,26 +491,26 @@ export class TestGenerator {
     }
   }
 
-  private async generatePageObjects(path: UserPath): Promise<TestFile[]> {
+  private async generatePageObjects(_path: UserPath): Promise<TestFile[]> {
     // TODO: Implement page object generation
     return [];
   }
 
-  private async generateFixtures(path: UserPath): Promise<TestFile[]> {
+  private async generateFixtures(_path: UserPath): Promise<TestFile[]> {
     // TODO: Implement fixture generation
     return [];
   }
 
-  private async generateHelpers(path: UserPath): Promise<TestFile[]> {
+  private async generateHelpers(_path: UserPath): Promise<TestFile[]> {
     // TODO: Implement helper generation
     return [];
   }
 
-  private calculateSummary(files: TestFile[], path: UserPath): any {
-    const testFiles = files.filter(f => f.type === 'test');
-    const pageObjects = files.filter(f => f.type === 'page-object');
-    const fixtures = files.filter(f => f.type === 'fixture');
-    const helpers = files.filter(f => f.type === 'helper');
+  private calculateSummary(files: TestFile[], _path: UserPath): unknown {
+    const testFiles = files.filter((f) => f.type === 'test');
+    const pageObjects = files.filter((f) => f.type === 'page-object');
+    const fixtures = files.filter((f) => f.type === 'fixture');
+    const helpers = files.filter((f) => f.type === 'helper');
 
     return {
       totalFiles: files.length,

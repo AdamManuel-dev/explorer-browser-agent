@@ -21,7 +21,7 @@ class CrawlerService {
             // Inject browser agent into crawler
             this.crawler.crawlPage = async (url) => {
                 await this.browserAgent.navigate(url);
-                const page = this.browserAgent.page;
+                const { page } = this.browserAgent;
                 return this.crawler.extractUrls(page, url);
             };
             return await this.crawler.crawl();

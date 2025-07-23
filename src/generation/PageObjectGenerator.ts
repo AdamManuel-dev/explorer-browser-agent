@@ -17,7 +17,7 @@ export class PageObjectGenerator {
 
     // Generate page object for each page
     const files: TestFile[] = [];
-    
+
     for (const [url, steps] of pageGroups.entries()) {
       const pageObject = this.generatePageObject(url, steps);
       const file = this.generatePageObjectFile(pageObject);
@@ -68,16 +68,16 @@ export class PageObjectGenerator {
 
     for (const step of steps) {
       if (!step.element) continue;
-      
+
       const { selector, type, text } = step.element;
-      
+
       // Skip if already processed
       if (seen.has(selector)) continue;
       seen.add(selector);
 
       // Generate a meaningful name
       const name = this.generateSelectorName(step.element);
-      
+
       selectors[name] = {
         selector,
         description: text || `${type} element`,
@@ -119,7 +119,9 @@ export class PageObjectGenerator {
     const formSteps: InteractionStep[] = [];
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      
+
+      if (!step) continue;
+
       if (step.type === 'type' || step.type === 'select' || step.type === 'check') {
         formSteps.push(step);
       } else if (formSteps.length > 0 && step.element?.type === 'button') {
@@ -131,15 +133,14 @@ export class PageObjectGenerator {
     }
 
     // Identify login patterns
-    const passwordStep = steps.find(s => 
-      s.element?.type === 'password-input'
-    );
+    const passwordStep = steps.find((s) => s.element?.type === 'password-input');
     if (passwordStep) {
-      const loginSteps = steps.filter(s => 
-        s.element?.type === 'text-input' ||
-        s.element?.type === 'email-input' ||
-        s.element?.type === 'password-input' ||
-        (s.element?.type === 'button' && s.element.text?.toLowerCase().includes('login'))
+      const loginSteps = steps.filter(
+        (s) =>
+          s.element?.type === 'text-input' ||
+          s.element?.type === 'email-input' ||
+          s.element?.type === 'password-input' ||
+          (s.element?.type === 'button' && s.element.text?.toLowerCase().includes('login'))
       );
       patterns.set('login', loginSteps);
     }
@@ -155,9 +156,9 @@ export class PageObjectGenerator {
     };
 
     // Add parameters based on input fields
-    const inputs = steps.filter(s => s.type === 'type' || s.type === 'select');
+    const inputs = steps.filter((s) => s.type === 'type' || s.type === 'select');
     if (inputs.length > 0) {
-      action.parameters = inputs.map(input => ({
+      action.parameters = inputs.map((input) => ({
         name: this.generateParameterName(input.element!),
         type: 'string',
         required: true,
@@ -165,7 +166,7 @@ export class PageObjectGenerator {
     }
 
     // Generate steps
-    action.steps = steps.map(step => this.generateActionStep(step));
+    action.steps = steps.map((step) => this.generateActionStep(step));
 
     return action;
   }
@@ -180,9 +181,10 @@ export class PageObjectGenerator {
     switch (step.type) {
       case 'click':
         return `await this.page.click(this.selectors.${selectorName});`;
-      case 'type':
+      case 'type': {
         const paramName = this.generateParameterName(step.element);
         return `await this.page.fill(this.selectors.${selectorName}, ${paramName});`;
+      }
       case 'select':
         return `await this.page.selectOption(this.selectors.${selectorName}, value);`;
       case 'check':
@@ -194,8 +196,8 @@ export class PageObjectGenerator {
     }
   }
 
-  private generateAssertions(steps: InteractionStep[]): Record<string, any> {
-    const assertions: Record<string, any> = {};
+  private generateAssertions(_steps: InteractionStep[]): Record<string, unknown> {
+    const assertions: Record<string, unknown> = {};
 
     // Add common assertions
     assertions.isVisible = {
@@ -264,11 +266,11 @@ export class PageObjectGenerator {
     // Actions
     for (const [name, action] of Object.entries(pageObject.actions)) {
       const params = action.parameters
-        ? action.parameters.map(p => `${p.name}: ${p.type}`).join(', ')
+        ? action.parameters.map((p) => `${p.name}: ${p.type}`).join(', ')
         : '';
-      
+
       lines.push(`  async ${name}(${params}) {`);
-      action.steps.forEach(step => {
+      action.steps.forEach((step) => {
         lines.push(`    ${step}`);
       });
       lines.push('  }');
@@ -277,7 +279,7 @@ export class PageObjectGenerator {
 
     // Getters for elements
     lines.push('  // Element getters');
-    for (const [name, selector] of Object.entries(pageObject.selectors)) {
+    for (const [name] of Object.entries(pageObject.selectors)) {
       lines.push(`  get ${name}() {`);
       lines.push(`    return this.page.locator(this.selectors.${name});`);
       lines.push('  }');
@@ -293,13 +295,13 @@ export class PageObjectGenerator {
     try {
       const urlObj = new URL(url);
       const pathname = urlObj.pathname.replace(/^\/|\/$/g, '');
-      
+
       if (!pathname) return 'Home';
-      
+
       // Convert path to PascalCase
       return pathname
         .split(/[-/_]/)
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join('');
     } catch {
       return 'Page';
@@ -311,15 +313,15 @@ export class PageObjectGenerator {
     if (element.attributes.id) {
       return this.toCamelCase(element.attributes.id);
     }
-    
+
     if (element.attributes.name) {
       return this.toCamelCase(element.attributes.name);
     }
-    
+
     if (element.text) {
       return this.toCamelCase(element.text) + this.capitalize(element.type);
     }
-    
+
     // Fallback to type + index
     return `${element.type.replace('-', '')}Element`;
   }
@@ -328,20 +330,20 @@ export class PageObjectGenerator {
     if (element.attributes.name) {
       return this.toCamelCase(element.attributes.name);
     }
-    
+
     if (element.metadata?.label) {
       return this.toCamelCase(element.metadata.label);
     }
-    
+
     return 'value';
   }
 
   private generateActionDescription(name: string, steps: InteractionStep[]): string {
     const actions = steps
-      .map(s => s.action)
+      .map((s) => s.action)
       .filter(Boolean)
       .join(', ');
-    
+
     return `${name}: ${actions}`;
   }
 
@@ -350,9 +352,9 @@ export class PageObjectGenerator {
       .replace(/[^a-zA-Z0-9]/g, ' ')
       .split(' ')
       .filter(Boolean)
-      .map((word, index) => 
-        index === 0 
-          ? word.toLowerCase() 
+      .map((word, index) =>
+        index === 0
+          ? word.toLowerCase()
           : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
       )
       .join('');

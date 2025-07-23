@@ -9,6 +9,7 @@ The monitoring module provides comprehensive metrics collection, distributed tra
 A comprehensive monitoring service that collects metrics, traces operations, and provides health monitoring capabilities.
 
 **Features:**
+
 - **Metrics Collection**: Counters, gauges, histograms, and timers
 - **Distributed Tracing**: Span-based operation tracking
 - **System Metrics**: CPU, memory, and network monitoring
@@ -21,27 +22,35 @@ A comprehensive monitoring service that collects metrics, traces operations, and
 ### Metrics Types
 
 #### Counters
+
 Track cumulative values that only increase:
+
 ```typescript
 monitoring.recordCounter('pages_crawled_total', 1, { status: 'success' });
 monitoring.recordCounter('errors_total', 1, { error_type: 'network' });
 ```
 
 #### Gauges
+
 Track values that can go up or down:
+
 ```typescript
 monitoring.recordGauge('active_crawlers', 5);
 monitoring.recordGauge('memory_usage_bytes', process.memoryUsage().heapUsed);
 ```
 
 #### Histograms
+
 Track distributions of values:
+
 ```typescript
 monitoring.recordHistogram('response_time_ms', 250, [100, 500, 1000, 5000]);
 ```
 
 #### Timers
+
 Track operation durations:
+
 ```typescript
 monitoring.recordTimer('page_load_time', 1250, { url: 'example.com' });
 ```
@@ -49,6 +58,7 @@ monitoring.recordTimer('page_load_time', 1250, { url: 'example.com' });
 ### Distributed Tracing
 
 Track operations across multiple components:
+
 ```typescript
 const spanId = monitoring.startSpan('crawl_website', undefined, {
   url: 'https://example.com',
@@ -98,16 +108,14 @@ await monitoring.initialize();
 
 ```typescript
 // Application metrics
-monitoring.recordCounter('requests_total', 1, { 
-  method: 'GET', 
-  status: '200' 
+monitoring.recordCounter('requests_total', 1, {
+  method: 'GET',
+  status: '200',
 });
 
 monitoring.recordGauge('queue_size', 42);
 
-monitoring.recordHistogram('request_duration_ms', 150, 
-  [50, 100, 250, 500, 1000]
-);
+monitoring.recordHistogram('request_duration_ms', 150, [50, 100, 250, 500, 1000]);
 
 // Crawl-specific metrics
 monitoring.trackPageRequest('https://example.com', true, 250, 1024);
@@ -228,7 +236,7 @@ console.log({
   systemHealth: report.summary.overallHealth,
   crawlMetrics: {
     totalRequests: report.crawlMetrics.totalRequests,
-    successRate: (report.crawlMetrics.successfulRequests / report.crawlMetrics.totalRequests),
+    successRate: report.crawlMetrics.successfulRequests / report.crawlMetrics.totalRequests,
     avgResponseTime: report.crawlMetrics.averageResponseTime,
   },
   alerts: report.alerts,
@@ -436,8 +444,5 @@ const aggregator = new MetricsAggregator({
   functions: ['sum', 'avg', 'max', 'p95', 'p99'],
 });
 
-const aggregatedMetrics = aggregator.aggregate(
-  monitoring.getMetrics('response_time'),
-  '5m'
-);
+const aggregatedMetrics = aggregator.aggregate(monitoring.getMetrics('response_time'), '5m');
 ```

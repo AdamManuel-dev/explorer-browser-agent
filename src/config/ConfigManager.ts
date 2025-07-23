@@ -51,7 +51,7 @@ export interface BrowserExplorerConfig {
 
   // Test generation
   generation: {
-    framework: 'playwright' | 'cypress' | 'puppeteer';
+    framework: 'playwright' | 'cypress' | 'puppeteer' | 'selenium';
     language: 'typescript' | 'javascript';
     outputDirectory: string;
     generatePageObjects: boolean;
@@ -126,9 +126,8 @@ export interface BrowserExplorerConfig {
 
 export class ConfigManager {
   private config: BrowserExplorerConfig | null = null;
-  private configPath: string | null = null;
 
-  constructor() {}
+  private configPath: string | null = null;
 
   async loadConfig(configPath?: string): Promise<BrowserExplorerConfig> {
     if (configPath) {
@@ -168,7 +167,7 @@ export class ConfigManager {
 
   async saveConfig(config: BrowserExplorerConfig, filePath?: string): Promise<void> {
     const savePath = filePath || this.configPath || 'browser-explorer.config.yaml';
-    
+
     const configData = yaml.stringify(config, {
       indent: 2,
       lineWidth: 120,
@@ -218,7 +217,7 @@ export class ConfigManager {
       const content = await fs.readFile(filePath, 'utf8');
       const extension = path.extname(filePath);
 
-      let parsed: any;
+      let parsed: unknown;
       if (extension === '.json') {
         parsed = JSON.parse(content);
       } else if (extension === '.yaml' || extension === '.yml') {
@@ -227,7 +226,7 @@ export class ConfigManager {
         throw new Error(`Unsupported config file format: ${extension}`);
       }
 
-      return this.deepMerge(this.getDefaultConfig(), parsed);
+      return this.deepMerge(this.getDefaultConfig(), parsed as Partial<BrowserExplorerConfig>);
     } catch (error) {
       logger.error('Failed to load config file', { filePath, error });
       throw new Error(`Failed to load config from ${filePath}: ${error}`);
@@ -239,62 +238,62 @@ export class ConfigManager {
 
     // App settings
     if (process.env.NODE_ENV) {
-      overrides.app = { 
-        ...config.app, 
-        environment: process.env.NODE_ENV as any 
+      overrides.app = {
+        ...config.app,
+        environment: process.env.NODE_ENV as 'development' | 'production' | 'test',
       };
     }
     if (process.env.LOG_LEVEL) {
-      overrides.app = { 
-        ...overrides.app, 
-        ...config.app, 
-        logLevel: process.env.LOG_LEVEL as any 
+      overrides.app = {
+        ...overrides.app,
+        ...config.app,
+        logLevel: process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error',
       };
     }
 
     // Crawling settings
     if (process.env.START_URL) {
-      overrides.crawling = { 
-        ...config.crawling, 
-        startUrl: process.env.START_URL 
+      overrides.crawling = {
+        ...config.crawling,
+        startUrl: process.env.START_URL,
       };
     }
     if (process.env.MAX_DEPTH) {
-      overrides.crawling = { 
-        ...overrides.crawling, 
-        ...config.crawling, 
-        maxDepth: parseInt(process.env.MAX_DEPTH) 
+      overrides.crawling = {
+        ...overrides.crawling,
+        ...config.crawling,
+        maxDepth: parseInt(process.env.MAX_DEPTH),
       };
     }
     if (process.env.MAX_PAGES) {
-      overrides.crawling = { 
-        ...overrides.crawling, 
-        ...config.crawling, 
-        maxPages: parseInt(process.env.MAX_PAGES) 
+      overrides.crawling = {
+        ...overrides.crawling,
+        ...config.crawling,
+        maxPages: parseInt(process.env.MAX_PAGES),
       };
     }
 
     // Browser settings
     if (process.env.HEADLESS_MODE) {
-      overrides.browser = { 
-        ...config.browser, 
-        headless: process.env.HEADLESS_MODE === 'true' 
+      overrides.browser = {
+        ...config.browser,
+        headless: process.env.HEADLESS_MODE === 'true',
       };
     }
 
     // Database
     if (process.env.DATABASE_URL) {
-      overrides.database = { 
-        ...config.database, 
-        url: process.env.DATABASE_URL 
+      overrides.database = {
+        ...config.database,
+        url: process.env.DATABASE_URL,
       };
     }
 
     // Redis
     if (process.env.REDIS_URL) {
-      overrides.redis = { 
-        ...config.redis, 
-        url: process.env.REDIS_URL 
+      overrides.redis = {
+        ...config.redis,
+        url: process.env.REDIS_URL,
       };
     }
 
@@ -309,9 +308,9 @@ export class ConfigManager {
 
     // Output directory
     if (process.env.OUTPUT_DIRECTORY) {
-      overrides.generation = { 
-        ...config.generation, 
-        outputDirectory: process.env.OUTPUT_DIRECTORY 
+      overrides.generation = {
+        ...config.generation,
+        outputDirectory: process.env.OUTPUT_DIRECTORY,
       };
     }
 
@@ -343,9 +342,12 @@ export class ConfigManager {
       if (!config.authentication.strategy) {
         errors.push('authentication.strategy is required when authentication is enabled');
       }
-      
-      if (config.authentication.strategy === 'basic' && 
-          (!config.authentication.credentials?.username || !config.authentication.credentials?.password)) {
+
+      if (
+        config.authentication.strategy === 'basic' &&
+        (!config.authentication.credentials?.username ||
+          !config.authentication.credentials?.password)
+      ) {
         errors.push('authentication.credentials.username and password are required for basic auth');
       }
     }
@@ -422,14 +424,16 @@ export class ConfigManager {
     const result = { ...target };
 
     for (const key in source) {
-      const sourceValue = source[key];
-      const targetValue = result[key];
+      if (Object.prototype.hasOwnProperty.call(source, key)) {
+        const sourceValue = source[key];
+        const targetValue = result[key];
 
-      if (sourceValue !== undefined) {
-        if (this.isObject(sourceValue) && this.isObject(targetValue)) {
-          result[key] = this.deepMerge(targetValue, sourceValue);
-        } else {
-          result[key] = sourceValue as T[Extract<keyof T, string>];
+        if (sourceValue !== undefined) {
+          if (this.isObject(sourceValue) && this.isObject(targetValue)) {
+            result[key] = this.deepMerge(targetValue, sourceValue) as T[Extract<keyof T, string>];
+          } else {
+            result[key] = sourceValue as T[Extract<keyof T, string>];
+          }
         }
       }
     }
@@ -437,13 +441,13 @@ export class ConfigManager {
     return result;
   }
 
-  private isObject(value: any): value is Record<string, any> {
+  private isObject(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
   }
 
   async createSampleConfig(filePath: string = 'browser-explorer.config.yaml'): Promise<void> {
     const sampleConfig = this.getDefaultConfig();
-    
+
     // Add sample values and comments
     sampleConfig.crawling.startUrl = 'https://example.com';
     sampleConfig.crawling.allowedDomains = ['example.com'];

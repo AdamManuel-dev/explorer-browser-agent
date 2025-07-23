@@ -138,4 +138,34 @@ export interface GenerationError {
     error: string;
     severity: 'warning' | 'error';
 }
+export interface ValidationResult {
+    isValid: boolean;
+    errors: ValidationError[];
+    warnings: ValidationWarning[];
+    metrics: ValidationMetrics;
+}
+export interface ValidationError {
+    type: 'syntax' | 'import' | 'selector' | 'assertion' | 'structure';
+    message: string;
+    line?: number;
+    column?: number;
+    file?: string;
+    severity: 'error' | 'warning';
+}
+export interface ValidationWarning {
+    type: 'best-practice' | 'performance' | 'maintainability';
+    message: string;
+    line?: number;
+    file?: string;
+    suggestion?: string;
+}
+export interface ValidationMetrics {
+    totalTests: number;
+    totalAssertions: number;
+    averageTestLength: number;
+    complexityScore: number;
+    maintainabilityIndex: number;
+    duplicateSelectors: string[];
+    unusedImports: string[];
+}
 //# sourceMappingURL=generation.d.ts.map

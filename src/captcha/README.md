@@ -9,6 +9,7 @@ The CAPTCHA module provides comprehensive CAPTCHA detection, solving, and handli
 A comprehensive CAPTCHA handling system that can detect, solve, and manage various types of CAPTCHAs encountered during web automation.
 
 **Supported CAPTCHA Types:**
+
 - **reCAPTCHA v2**: Checkbox and image challenges
 - **reCAPTCHA v3**: Score-based invisible challenges
 - **hCaptcha**: Privacy-focused alternative to reCAPTCHA
@@ -17,6 +18,7 @@ A comprehensive CAPTCHA handling system that can detect, solve, and manage vario
 - **Custom CAPTCHAs**: Configurable detection patterns
 
 **Solving Strategies:**
+
 - **Service-based**: Integration with solving services (2captcha, anti-captcha, etc.)
 - **Manual solving**: User intervention prompts
 - **Bypass techniques**: Stealth and evasion methods
@@ -33,7 +35,7 @@ const captchaHandler = new CaptchaHandler({
   autoDetect: true,
   solveAttempts: 3,
   timeout: 60000,
-  
+
   // Service configuration
   services: {
     twoCaptcha: {
@@ -45,14 +47,14 @@ const captchaHandler = new CaptchaHandler({
       enabled: false,
     },
   },
-  
+
   // Manual solving fallback
   manualSolving: {
     enabled: true,
     promptUser: true,
     timeout: 120000,
   },
-  
+
   // Custom CAPTCHA patterns
   customSelectors: {
     'company-captcha': ['.company-challenge', '#custom-captcha'],
@@ -70,7 +72,7 @@ if (detection.detected) {
   console.log(`Found ${detection.type} CAPTCHA`);
   console.log(`Confidence: ${detection.confidence}`);
   console.log(`Element: ${detection.selector}`);
-  
+
   if (detection.metadata?.siteKey) {
     console.log(`Site key: ${detection.metadata.siteKey}`);
   }
@@ -86,7 +88,7 @@ const solution = await captchaHandler.solveCaptcha(page, detection);
 if (solution.success) {
   console.log(`CAPTCHA solved in ${solution.timeToSolve}ms`);
   console.log(`Method used: ${solution.method}`);
-  
+
   if (solution.cost) {
     console.log(`Cost: $${solution.cost}`);
   }
@@ -132,11 +134,7 @@ const siteKey = await page.evaluate(() => {
 
 ```typescript
 // Detection patterns for hCaptcha
-const hcaptchaPatterns = [
-  '.h-captcha',
-  '[data-hcaptcha-sitekey]',
-  'iframe[src*="hcaptcha"]',
-];
+const hcaptchaPatterns = ['.h-captcha', '[data-hcaptcha-sitekey]', 'iframe[src*="hcaptcha"]'];
 
 // Configuration
 const hcaptchaConfig = {
@@ -167,15 +165,8 @@ const bypassResult = await captchaHandler.bypassCloudflare(page);
 // Define custom CAPTCHA patterns
 const customConfig = {
   customSelectors: {
-    'banking-captcha': [
-      '.security-challenge',
-      '.verification-image',
-      '#challenge-container',
-    ],
-    'ecommerce-captcha': [
-      '.checkout-verification',
-      '.purchase-challenge',
-    ],
+    'banking-captcha': ['.security-challenge', '.verification-image', '#challenge-container'],
+    'ecommerce-captcha': ['.checkout-verification', '.purchase-challenge'],
   },
 };
 
@@ -212,27 +203,29 @@ async function solveWithTwoCaptcha(siteKey: string, pageUrl: string): Promise<st
       pageurl: pageUrl,
     }),
   });
-  
+
   const { request: taskId } = await response.json();
-  
+
   // Poll for solution
   let solution;
   let attempts = 0;
   const maxAttempts = twoCaptchaConfig.timeout / twoCaptchaConfig.pollingInterval;
-  
+
   while (!solution && attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, twoCaptchaConfig.pollingInterval));
-    
-    const resultResponse = await fetch(`https://2captcha.com/res.php?key=${twoCaptchaConfig.apiKey}&action=get&id=${taskId}`);
+    await new Promise((resolve) => setTimeout(resolve, twoCaptchaConfig.pollingInterval));
+
+    const resultResponse = await fetch(
+      `https://2captcha.com/res.php?key=${twoCaptchaConfig.apiKey}&action=get&id=${taskId}`
+    );
     const result = await resultResponse.text();
-    
+
     if (result.startsWith('OK|')) {
       solution = result.substring(3);
     }
-    
+
     attempts++;
   }
-  
+
   return solution;
 }
 ```
@@ -261,14 +254,14 @@ async function solveWithAntiCaptcha(siteKey: string, pageUrl: string): Promise<s
       softId: antiCaptchaConfig.softId,
     }),
   });
-  
+
   const { taskId } = await createTaskResponse.json();
-  
+
   // Get task result
   let solution;
   while (!solution) {
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
     const resultResponse = await fetch('https://api.anti-captcha.com/getTaskResult', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -277,14 +270,14 @@ async function solveWithAntiCaptcha(siteKey: string, pageUrl: string): Promise<s
         taskId: taskId,
       }),
     });
-    
+
     const result = await resultResponse.json();
-    
+
     if (result.status === 'ready') {
       solution = result.solution.gRecaptchaResponse;
     }
   }
-  
+
   return solution;
 }
 ```
@@ -306,17 +299,20 @@ const manualSolvingConfig = {
 };
 
 // Manual solving implementation
-async function solveManually(page: Page, detection: CaptchaDetectionResult): Promise<CaptchaSolutionResult> {
+async function solveManually(
+  page: Page,
+  detection: CaptchaDetectionResult
+): Promise<CaptchaSolutionResult> {
   console.log(`\n🔐 CAPTCHA DETECTED: ${detection.type}`);
   console.log(manualSolvingConfig.instructions[detection.type] || 'Please solve the CAPTCHA.');
   console.log(`Waiting ${manualSolvingConfig.timeout / 1000} seconds...\n`);
-  
+
   // Wait for user to solve
   await page.waitForTimeout(manualSolvingConfig.timeout);
-  
+
   // Verify solution
   const stillPresent = await captchaHandler.detectCaptcha(page);
-  
+
   return {
     success: !stillPresent.detected,
     method: 'manual',
@@ -336,14 +332,14 @@ async function interactiveManualSolving(detection: CaptchaDetectionResult): Prom
     input: process.stdin,
     output: process.stdout,
   });
-  
+
   console.log(`CAPTCHA Type: ${detection.type}`);
   console.log(`Confidence: ${detection.confidence * 100}%`);
-  
+
   if (detection.metadata?.siteKey) {
     console.log(`Site Key: ${detection.metadata.siteKey}`);
   }
-  
+
   return new Promise((resolve) => {
     rl.question('Press Enter when you have solved the CAPTCHA...', () => {
       rl.close();
@@ -374,12 +370,12 @@ const stealthIntegration = {
         mouseMovements: true,
       },
     });
-    
+
     await stealth.setupPage(page);
-    
+
     // Wait for potential CAPTCHA challenges
     await page.waitForTimeout(5000);
-    
+
     // Check if CAPTCHA was bypassed
     const detection = await captchaHandler.detectCaptcha(page);
     return !detection.detected;
@@ -394,24 +390,30 @@ async function bypassCloudflare(page: Page): Promise<CaptchaSolutionResult> {
   try {
     // Wait for Cloudflare challenge to load
     await page.waitForLoadState('networkidle', { timeout: 30000 });
-    
+
     // Check for challenge elements
-    const challengePresent = await page.locator('.cf-browser-verification').isVisible().catch(() => false);
-    
+    const challengePresent = await page
+      .locator('.cf-browser-verification')
+      .isVisible()
+      .catch(() => false);
+
     if (!challengePresent) {
       return { success: true, method: 'bypass', timeToSolve: 0, solution: 'no-challenge' };
     }
-    
+
     // Try clicking challenge checkbox
     const checkbox = page.locator('input[type="checkbox"]').first();
     if (await checkbox.isVisible().catch(() => false)) {
       await checkbox.click();
-      
+
       // Wait for challenge completion
       await page.waitForTimeout(5000);
-      
-      const stillPresent = await page.locator('.cf-browser-verification').isVisible().catch(() => false);
-      
+
+      const stillPresent = await page
+        .locator('.cf-browser-verification')
+        .isVisible()
+        .catch(() => false);
+
       return {
         success: !stillPresent,
         method: 'bypass',
@@ -419,15 +421,13 @@ async function bypassCloudflare(page: Page): Promise<CaptchaSolutionResult> {
         solution: stillPresent ? undefined : 'checkbox-clicked',
       };
     }
-    
+
     // Wait for automatic challenge completion
-    await page.waitForFunction(
-      () => !document.querySelector('.cf-browser-verification'),
-      { timeout: 30000 }
-    );
-    
+    await page.waitForFunction(() => !document.querySelector('.cf-browser-verification'), {
+      timeout: 30000,
+    });
+
     return { success: true, method: 'bypass', timeToSolve: 30000, solution: 'auto-completed' };
-    
   } catch (error) {
     return {
       success: false,
@@ -448,7 +448,7 @@ interface CaptchaConfig {
   autoDetect: boolean;
   solveAttempts: number;
   timeout: number;
-  
+
   services: {
     twoCaptcha?: {
       apiKey: string;
@@ -469,18 +469,18 @@ interface CaptchaConfig {
       enabled: boolean;
     };
   };
-  
+
   manualSolving: {
     enabled: boolean;
     promptUser: boolean;
     timeout: number;
     instructions?: Record<string, string>;
   };
-  
+
   customSelectors: {
     [key: string]: string[];
   };
-  
+
   bypassTechniques: {
     stealth: boolean;
     waitStrategies: {
@@ -570,19 +570,17 @@ const optimizedConfig = {
 ```typescript
 // Handle multiple CAPTCHAs efficiently
 async function handleMultipleCaptchas(pages: Page[]): Promise<boolean[]> {
-  const detections = await Promise.all(
-    pages.map(page => captchaHandler.detectCaptcha(page))
-  );
-  
+  const detections = await Promise.all(pages.map((page) => captchaHandler.detectCaptcha(page)));
+
   const solutions = await Promise.all(
-    detections.map((detection, index) => 
-      detection.detected ? 
-        captchaHandler.solveCaptcha(pages[index], detection) :
-        Promise.resolve({ success: true, method: 'none' })
+    detections.map((detection, index) =>
+      detection.detected
+        ? captchaHandler.solveCaptcha(pages[index], detection)
+        : Promise.resolve({ success: true, method: 'none' })
     )
   );
-  
-  return solutions.map(solution => solution.success);
+
+  return solutions.map((solution) => solution.success);
 }
 ```
 
@@ -591,6 +589,7 @@ async function handleMultipleCaptchas(pages: Page[]): Promise<boolean[]> {
 ### Common Issues
 
 #### Service API Errors
+
 ```typescript
 try {
   const solution = await captchaHandler.solveCaptcha(page, detection);
@@ -606,6 +605,7 @@ try {
 ```
 
 #### Detection Failures
+
 ```typescript
 // Debug detection issues
 const debugConfig = {
@@ -624,6 +624,7 @@ if (!detection.detected) {
 ```
 
 #### Bypass Failures
+
 ```typescript
 // Implement progressive bypass strategies
 const bypassStrategies = [
@@ -647,7 +648,7 @@ const captchaMetrics = {
   detectionRate: 0.95, // 95% of CAPTCHAs detected
   solvingRate: 0.87, // 87% of CAPTCHAs solved
   averageSolveTime: 15000, // 15 seconds average
-  totalCost: 2.50, // $2.50 in solving costs
+  totalCost: 2.5, // $2.50 in solving costs
 };
 
 // Log CAPTCHA events

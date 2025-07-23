@@ -1,7 +1,7 @@
 export { AIElementDetector } from './AIElementDetector';
-export type { 
+export type {
   InteractiveElement,
   ElementType,
   ElementDetectionResult,
-  ElementClassification 
+  ElementClassification,
 } from '../types/elements';

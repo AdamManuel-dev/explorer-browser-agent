@@ -8,7 +8,7 @@ export interface BrowserbaseConfig {
 
 export interface StagehandConfig {
   modelName?: string;
-  modelClientOptions?: Record<string, any>;
+  modelClientOptions?: Record<string, unknown>;
   enableCaching?: boolean;
   headless?: boolean;
   logger?: (message: string, level?: string) => void;
@@ -40,7 +40,7 @@ export interface ExplorationResult {
   screenshotsTaken: number;
   userPaths: UserPath[];
   errors: ExplorationError[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface UserPath {
@@ -51,7 +51,7 @@ export interface UserPath {
   duration: number;
   success: boolean;
   screenshots: string[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ExplorationStep {
@@ -165,7 +165,7 @@ export interface WorkflowContext {
   results: ExplorationResult[];
   currentPage?: Page;
   errors: ExplorationError[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface AgentCapabilities {

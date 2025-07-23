@@ -48,6 +48,7 @@ The Mastra module provides AI-powered web exploration and test generation capabi
 The main orchestrator that manages exploration sessions, coordinates agents, and handles workflow execution.
 
 **Key Features:**
+
 - Session lifecycle management
 - Concurrent exploration handling
 - Scheduled exploration support
@@ -59,6 +60,7 @@ The main orchestrator that manages exploration sessions, coordinates agents, and
 AI-powered web exploration agent using Browserbase and Stagehand for intelligent browser automation.
 
 **Capabilities:**
+
 - Natural language-driven navigation
 - AI-guided element interaction
 - Intelligent content extraction
@@ -70,6 +72,7 @@ AI-powered web exploration agent using Browserbase and Stagehand for intelligent
 Strategic planning agent that optimizes exploration approaches and resource allocation.
 
 **Capabilities:**
+
 - Intelligent strategy selection
 - Resource requirement calculation
 - Dynamic plan optimization
@@ -81,6 +84,7 @@ Strategic planning agent that optimizes exploration approaches and resource allo
 Test generation coordination agent that transforms exploration results into maintainable test suites.
 
 **Capabilities:**
+
 - Multi-framework test generation
 - Page Object Model creation
 - Fixture and helper generation
@@ -92,6 +96,7 @@ Test generation coordination agent that transforms exploration results into main
 Mastra-based workflow that orchestrates the complete exploration lifecycle.
 
 **Workflow Steps:**
+
 1. **Initialize**: Context setup and validation
 2. **Plan**: Strategy creation and optimization
 3. **Explore**: AI-guided web exploration
@@ -229,7 +234,9 @@ const sessionId = await orchestrator.startExploration({
 const metrics = orchestrator.getSystemMetrics();
 console.log(`System Health: ${metrics.systemHealth}`);
 console.log(`Active Sessions: ${metrics.activeSessions}`);
-console.log(`Success Rate: ${(metrics.completedSessions / metrics.totalSessions * 100).toFixed(1)}%`);
+console.log(
+  `Success Rate: ${((metrics.completedSessions / metrics.totalSessions) * 100).toFixed(1)}%`
+);
 
 // Get active sessions
 const activeSessions = orchestrator.getActiveSessions();
@@ -240,8 +247,7 @@ for (const session of activeSessions) {
 // Get session history
 const history = orchestrator.getSessionHistory(10);
 for (const session of history) {
-  const duration = session.endTime ? 
-    session.endTime.getTime() - session.startTime.getTime() : 0;
+  const duration = session.endTime ? session.endTime.getTime() - session.startTime.getTime() : 0;
   console.log(`${session.request.name}: ${session.status} (${duration}ms)`);
 }
 
@@ -293,17 +299,14 @@ console.log('Risk Level:', recommendations.riskAssessment.level);
 console.log('Risk Factors:', recommendations.riskAssessment.factors);
 
 // Create detailed plan
-const plan = await plannerAgent.createPlan(
-  targets,
-  {
-    domain: 'ecommerce-site.com',
-    objectives: ['comprehensive', 'performance'],
-    constraints: {
-      timeLimit: 3600000,
-      priorityAreas: ['checkout', 'product-search'],
-    },
-  }
-);
+const plan = await plannerAgent.createPlan(targets, {
+  domain: 'ecommerce-site.com',
+  objectives: ['comprehensive', 'performance'],
+  constraints: {
+    timeLimit: 3600000,
+    priorityAreas: ['checkout', 'product-search'],
+  },
+});
 
 console.log(`Plan Strategy: ${plan.strategy}`);
 console.log(`Max Concurrency: ${plan.resources.maxConcurrency}`);
@@ -315,7 +318,7 @@ console.log(`Estimated Duration: ${plan.resources.timeout / 1000}s`);
 ```typescript
 // Generate tests with optimization
 const generationResult = await generatorAgent.generateTests({
-  userPaths: explorationResults.flatMap(r => r.userPaths),
+  userPaths: explorationResults.flatMap((r) => r.userPaths),
   framework: 'playwright',
   language: 'typescript',
   options: {
@@ -334,8 +337,10 @@ console.log(`Code quality score: ${generationResult.quality.lintScore}/100`);
 // Get optimization recommendations
 const optimization = await generatorAgent.optimizeGeneration(userPaths);
 console.log('Optimization Recommendations:', optimization.recommendations);
-console.log('Estimated Maintainability Improvement:', 
-  (optimization.estimatedImprovement.maintainability * 100).toFixed(1) + '%');
+console.log(
+  'Estimated Maintainability Improvement:',
+  (optimization.estimatedImprovement.maintainability * 100).toFixed(1) + '%'
+);
 ```
 
 ## Configuration
@@ -465,12 +470,14 @@ program
     try {
       const sessionId = await orchestrator.startExploration({
         name: `CLI Exploration of ${options.url}`,
-        targets: [{
-          url: options.url,
-          domain: new URL(options.url).hostname,
-          maxDepth: parseInt(options.depth),
-          maxPages: parseInt(options.pages),
-        }],
+        targets: [
+          {
+            url: options.url,
+            domain: new URL(options.url).hostname,
+            maxDepth: parseInt(options.depth),
+            maxPages: parseInt(options.pages),
+          },
+        ],
         ...(options.generateTests && {
           testGenerationOptions: {
             framework: options.framework,
@@ -483,14 +490,14 @@ program
       });
 
       console.log(`Exploration started: ${sessionId}`);
-      
+
       // Monitor progress
       const interval = setInterval(() => {
         const status = orchestrator.getExplorationStatus(sessionId);
         if (!status) return;
 
         console.log(`Progress: ${status.progress.currentStep} (${status.progress.percentage}%)`);
-        
+
         if (status.status === 'completed' || status.status === 'failed') {
           clearInterval(interval);
           console.log(`Final Status: ${status.status}`);
@@ -501,7 +508,6 @@ program
           process.exit(status.status === 'completed' ? 0 : 1);
         }
       }, 2000);
-
     } catch (error) {
       console.error('Exploration failed:', error.message);
       process.exit(1);
@@ -514,11 +520,14 @@ program
   .action(async () => {
     const metrics = orchestrator.getSystemMetrics();
     const health = await orchestrator.healthCheck();
-    
+
     console.log('System Status:', health.status);
     console.log('Active Sessions:', metrics.activeSessions);
     console.log('Total Sessions:', metrics.totalSessions);
-    console.log('Success Rate:', (metrics.completedSessions / metrics.totalSessions * 100).toFixed(1) + '%');
+    console.log(
+      'Success Rate:',
+      ((metrics.completedSessions / metrics.totalSessions) * 100).toFixed(1) + '%'
+    );
     console.log('Average Duration:', (metrics.averageSessionDuration / 1000).toFixed(1) + 's');
   });
 
@@ -586,7 +595,7 @@ const orchestrator = new MastraOrchestrator({
 // Implement proper error handling
 try {
   const sessionId = await orchestrator.startExploration(request);
-  
+
   // Monitor session progress with timeout
   const timeout = setTimeout(() => {
     orchestrator.cancelExploration(sessionId);
@@ -602,13 +611,12 @@ try {
       clearTimeout(timeout);
       throw new Error(status.error);
     }
-    
+
     // Continue monitoring
     setTimeout(checkStatus, 5000);
   };
 
   checkStatus();
-
 } catch (error) {
   logger.error('Exploration failed', { error: error.message });
   // Implement retry logic or fallback strategies
@@ -619,16 +627,16 @@ try {
 
 ```typescript
 // Optimize exploration targets
-const optimizedTargets = targets.map(target => ({
+const optimizedTargets = targets.map((target) => ({
   ...target,
   // Limit scope for better performance
   maxDepth: Math.min(target.maxDepth, 4),
   maxPages: Math.min(target.maxPages, 100),
-  
+
   // Use specific patterns to focus exploration
   patterns: ['product', 'checkout', 'cart'], // Instead of exploring everything
   excludePatterns: ['admin', 'internal', 'debug'],
-  
+
   // Configure selectors for better element detection
   selectors: {
     include: ['[data-testid]', '[aria-label]', 'button', 'a', 'input'],
@@ -688,6 +696,7 @@ setInterval(async () => {
 ### Common Issues
 
 #### 1. Browserbase Connection Errors
+
 ```typescript
 // Check API credentials and project configuration
 const testConnection = async () => {
@@ -702,6 +711,7 @@ const testConnection = async () => {
 ```
 
 #### 2. Stagehand AI Model Issues
+
 ```typescript
 // Configure fallback models
 const stagehandConfig = {
@@ -715,14 +725,17 @@ const stagehandConfig = {
 ```
 
 #### 3. High Memory Usage
+
 ```typescript
 // Monitor and manage memory usage
 const monitorMemory = () => {
   const usage = process.memoryUsage();
-  if (usage.heapUsed > 1024 * 1024 * 1024) { // 1GB
+  if (usage.heapUsed > 1024 * 1024 * 1024) {
+    // 1GB
     logger.warn('High memory usage detected', { usage });
     // Reduce concurrent sessions
-    orchestrator.config.maxConcurrentWorkflows = Math.max(1, 
+    orchestrator.config.maxConcurrentWorkflows = Math.max(
+      1,
       orchestrator.config.maxConcurrentWorkflows - 1
     );
   }
@@ -732,6 +745,7 @@ setInterval(monitorMemory, 30000);
 ```
 
 #### 4. Test Generation Failures
+
 ```typescript
 // Implement robust error handling for test generation
 const generateTestsWithFallback = async (userPaths) => {
@@ -744,7 +758,7 @@ const generateTestsWithFallback = async (userPaths) => {
     });
   } catch (error) {
     logger.warn('Full test generation failed, trying minimal generation', { error: error.message });
-    
+
     // Fallback to minimal generation
     return await generatorAgent.generateTests({
       userPaths,
@@ -796,7 +810,7 @@ const orchestrator = new MastraOrchestrator({
 The Mastra integration is designed to be extensible:
 
 - **Custom Agents**: Implement specialized agents for specific domains
-- **Workflow Steps**: Add custom steps to the exploration workflow  
+- **Workflow Steps**: Add custom steps to the exploration workflow
 - **Test Generators**: Support additional testing frameworks and languages
 - **Notification Channels**: Integrate with various communication platforms
 - **Storage Backends**: Support different storage solutions for results

@@ -1,3 +1,5 @@
+import type { BrowserExplorerConfig } from './config/ConfigManager';
+
 // Main exports for programmatic usage
 export { BrowserAgent } from './agents/BrowserAgent';
 export { BreadthFirstCrawler, CrawlerService, DistributedCrawler } from './crawler';
@@ -15,39 +17,21 @@ export { MonitoringService } from './monitoring';
 export { SelfTestRunner } from './testing';
 
 // Type exports
-export type { 
-  CrawlConfiguration, 
-  CrawlResult, 
-  CrawlNode 
-} from './crawler';
+export type { CrawlConfiguration, CrawlResult, CrawlNode } from './crawler';
 
-export type { 
-  InteractiveElement, 
-  ElementType, 
-  ElementDetectionResult 
-} from './detectors';
+export type { InteractiveElement, ElementType, ElementDetectionResult } from './detectors';
 
-export type { 
-  InteractionStrategy, 
-  InteractionResult, 
-  InteractionContext 
+export type {
+  InteractionStrategy,
+  InteractionResult,
+  InteractionContext,
 } from './types/interactions';
 
-export type { 
-  UserPath, 
-  InteractionStep, 
-  RecordingOptions 
-} from './recording';
+export type { UserPath, InteractionStep, RecordingOptions } from './recording';
 
-export type { 
-  TestFile, 
-  GenerationOptions, 
-  GenerationResult 
-} from './generation';
+export type { TestFile, GenerationOptions, GenerationResult } from './generation';
 
-export type { 
-  BrowserExplorerConfig 
-} from './config';
+export type { BrowserExplorerConfig } from './config';
 
 export type {
   RedisConfig,
@@ -57,17 +41,9 @@ export type {
   DistributedCrawlResult,
 } from './crawler';
 
-export type {
-  AuthStrategy,
-  AuthenticationConfig,
-  AuthSession,
-  AuthResult,
-} from './auth';
+export type { AuthStrategy, AuthConfig, AuthSession, AuthResult } from './auth';
 
-export type {
-  StealthConfig,
-  StealthMetrics,
-} from './stealth';
+export type { StealthConfig, StealthMetrics } from './stealth';
 
 export type {
   CaptchaType,
@@ -90,19 +66,17 @@ export type {
   MonitoringReport,
 } from './monitoring';
 
-export type {
-  SelfTestConfig,
-  TestResult,
-  SelfTestReport,
-} from './testing';
+export type { SelfTestConfig, TestResult, SelfTestReport } from './testing';
 
 // Main integration class for easy usage
 export class BrowserExplorer {
   private configManager: ConfigManager;
-  private crawlerService: CrawlerService | null = null;
-  private config: any = null;
 
-  constructor(configPath?: string) {
+  private crawlerService: CrawlerService | null = null;
+
+  private config: BrowserExplorerConfig | null = null;
+
+  constructor(_configPath?: string) {
     this.configManager = new ConfigManager();
   }
 
@@ -110,7 +84,7 @@ export class BrowserExplorer {
     this.config = await this.configManager.loadConfig(configPath);
   }
 
-  async explore(url?: string): Promise<any> {
+  async explore(url?: string): Promise<CrawlResult> {
     if (!this.config) {
       throw new Error('BrowserExplorer not initialized. Call initialize() first.');
     }
@@ -188,7 +162,7 @@ export class BrowserExplorer {
     }
   }
 
-  getConfig(): any {
+  getConfig(): BrowserExplorerConfig | null {
     return this.config;
   }
 }

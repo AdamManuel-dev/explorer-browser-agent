@@ -1,25 +1,23 @@
-import { test, expect, describe, beforeEach, vi, afterEach } from '@jest/globals';
+import { test, expect, describe, beforeEach, jest, afterEach } from '@jest/globals';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { ConfigManager } from '../config/ConfigManager';
 import { Config } from '../types/config';
-import { logger } from '../utils/logger';
 
-vi.mock('../utils/logger');
-vi.mock('fs/promises');
+jest.mock('../utils/logger');
+jest.mock('fs/promises');
 
 describe('ConfigManager', () => {
   let configManager: ConfigManager;
   let mockFs: typeof fs;
 
   beforeEach(() => {
-    mockFs = fs as any;
+    mockFs = fs as jest.Mocked<typeof fs>;
     configManager = new ConfigManager();
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('initialization', () => {
@@ -57,7 +55,9 @@ generation:
   includePageObjects: true
       `;
 
-      (mockFs.readFile as any).mockResolvedValue(yamlConfig);
+      (mockFs.readFile as jest.MockedFunction<typeof fs.readFile>).mockResolvedValue(
+        Buffer.from(yamlConfig)
+      );
 
       const config = await configManager.loadConfig();
 
@@ -91,7 +91,9 @@ generation:
         },
       };
 
-      (mockFs.readFile as any).mockResolvedValue(JSON.stringify(jsonConfig));
+      (mockFs.readFile as jest.MockedFunction<typeof fs.readFile>).mockResolvedValue(
+        Buffer.from(JSON.stringify(jsonConfig))
+      );
       configManager = new ConfigManager('./config.json');
 
       const config = await configManager.loadConfig();
@@ -102,7 +104,9 @@ generation:
     });
 
     test('should handle missing configuration file', async () => {
-      (mockFs.readFile as any).mockRejectedValue(new Error('ENOENT: no such file or directory'));
+      (mockFs.readFile as jest.MockedFunction<typeof fs.readFile>).mockRejectedValue(
+        new Error('ENOENT: no such file or directory')
+      );
 
       const config = await configManager.loadConfig();
 
@@ -121,7 +125,9 @@ browser:
 headless: true  # Invalid indentation
       `;
 
-      (mockFs.readFile as any).mockResolvedValue(invalidYaml);
+      (mockFs.readFile as jest.MockedFunction<typeof fs.readFile>).mockResolvedValue(
+        Buffer.from(invalidYaml)
+      );
 
       await expect(configManager.loadConfig()).rejects.toThrow();
     });
@@ -134,7 +140,9 @@ headless: true  # Invalid indentation
         }  // Invalid trailing comma
       }`;
 
-      (mockFs.readFile as any).mockResolvedValue(invalidJson);
+      (mockFs.readFile as jest.MockedFunction<typeof fs.readFile>).mockResolvedValue(
+        Buffer.from(invalidJson)
+      );
       configManager = new ConfigManager('./config.json');
 
       await expect(configManager.loadConfig()).rejects.toThrow();
@@ -198,9 +206,9 @@ headless: true  # Invalid indentation
       const result = configManager.validateConfig(invalidConfig);
       expect(result.isValid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some(e => e.includes('maxDepth'))).toBe(true);
-      expect(result.errors.some(e => e.includes('maxPages'))).toBe(true);
-      expect(result.errors.some(e => e.includes('delay'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('maxDepth'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('maxPages'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('delay'))).toBe(true);
     });
 
     test('should detect invalid browser configuration', () => {
@@ -229,9 +237,9 @@ headless: true  # Invalid indentation
 
       const result = configManager.validateConfig(invalidConfig);
       expect(result.isValid).toBe(false);
-      expect(result.errors.some(e => e.includes('userAgent'))).toBe(true);
-      expect(result.errors.some(e => e.includes('timeout'))).toBe(true);
-      expect(result.errors.some(e => e.includes('viewport'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('userAgent'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('timeout'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('viewport'))).toBe(true);
     });
 
     test('should detect invalid generation configuration', () => {
@@ -252,17 +260,17 @@ headless: true  # Invalid indentation
         },
         generation: {
           outputDir: '', // Invalid
-          framework: 'unsupported' as any, // Invalid
-          language: 'python' as any, // Invalid
+          framework: 'unsupported' as 'playwright' | 'cypress' | 'puppeteer', // Invalid
+          language: 'python' as 'typescript' | 'javascript', // Invalid
           includePageObjects: true,
         },
       };
 
       const result = configManager.validateConfig(invalidConfig);
       expect(result.isValid).toBe(false);
-      expect(result.errors.some(e => e.includes('outputDir'))).toBe(true);
-      expect(result.errors.some(e => e.includes('framework'))).toBe(true);
-      expect(result.errors.some(e => e.includes('language'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('outputDir'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('framework'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('language'))).toBe(true);
     });
   });
 
@@ -291,12 +299,13 @@ headless: true  # Invalid indentation
         },
       };
 
-      (mockFs.writeFile as any).mockResolvedValue(undefined);
+      (mockFs.writeFile as jest.MockedFunction<typeof fs.writeFile>).mockResolvedValue(undefined);
 
       await configManager.saveConfig(config);
 
       expect(mockFs.writeFile).toHaveBeenCalled();
-      const [filePath, content] = (mockFs.writeFile as any).mock.calls[0];
+      const [filePath, content] = (mockFs.writeFile as jest.MockedFunction<typeof fs.writeFile>)
+        .mock.calls[0];
       expect(filePath).toContain('browser-explorer.yaml');
       expect(content).toContain('maxDepth: 5');
       expect(content).toContain('framework: cypress');
@@ -327,14 +336,15 @@ headless: true  # Invalid indentation
       };
 
       configManager = new ConfigManager('./config.json');
-      (mockFs.writeFile as any).mockResolvedValue(undefined);
+      (mockFs.writeFile as jest.MockedFunction<typeof fs.writeFile>).mockResolvedValue(undefined);
 
       await configManager.saveConfig(config);
 
       expect(mockFs.writeFile).toHaveBeenCalled();
-      const [filePath, content] = (mockFs.writeFile as any).mock.calls[0];
+      const [filePath, content] = (mockFs.writeFile as jest.MockedFunction<typeof fs.writeFile>)
+        .mock.calls[0];
       expect(filePath).toContain('config.json');
-      
+
       const parsedContent = JSON.parse(content);
       expect(parsedContent.crawler.maxDepth).toBe(4);
       expect(parsedContent.generation.framework).toBe('playwright');
@@ -364,7 +374,9 @@ headless: true  # Invalid indentation
         },
       };
 
-      (mockFs.writeFile as any).mockRejectedValue(new Error('EACCES: permission denied'));
+      (mockFs.writeFile as jest.MockedFunction<typeof fs.writeFile>).mockRejectedValue(
+        new Error('EACCES: permission denied')
+      );
 
       await expect(configManager.saveConfig(config)).rejects.toThrow('EACCES: permission denied');
     });
@@ -400,7 +412,9 @@ generation:
   framework: "playwright"
       `;
 
-      (mockFs.readFile as any).mockResolvedValue(yamlConfig);
+      (mockFs.readFile as jest.MockedFunction<typeof fs.readFile>).mockResolvedValue(
+        Buffer.from(yamlConfig)
+      );
 
       const config = await configManager.loadConfig();
 
@@ -423,7 +437,9 @@ browser:
   headless: true
       `;
 
-      (mockFs.readFile as any).mockResolvedValue(yamlConfig);
+      (mockFs.readFile as jest.MockedFunction<typeof fs.readFile>).mockResolvedValue(
+        Buffer.from(yamlConfig)
+      );
 
       const config = await configManager.loadConfig();
 
@@ -464,12 +480,13 @@ browser:
     });
 
     test('should create configuration file from template', async () => {
-      (mockFs.writeFile as any).mockResolvedValue(undefined);
+      (mockFs.writeFile as jest.MockedFunction<typeof fs.writeFile>).mockResolvedValue(undefined);
 
       await configManager.createConfigFile('default');
 
       expect(mockFs.writeFile).toHaveBeenCalled();
-      const [filePath, content] = (mockFs.writeFile as any).mock.calls[0];
+      const [filePath, content] = (mockFs.writeFile as jest.MockedFunction<typeof fs.writeFile>)
+        .mock.calls[0];
       expect(filePath).toContain('browser-explorer.yaml');
       expect(content).toContain('maxDepth: 3');
     });
@@ -517,7 +534,7 @@ browser:
           maxDepth: 3,
           // Missing required fields
         },
-      } as any;
+      } as Config;
 
       const result = configManager.validateConfig(incompleteConfig);
       expect(result.isValid).toBe(false);
@@ -546,7 +563,7 @@ browser:
           language: 'typescript',
           includePageObjects: true,
         },
-      } as any;
+      } as Config;
 
       const result = configManager.validateConfig(invalidTypeConfig);
       expect(result.isValid).toBe(false);
@@ -571,21 +588,21 @@ browser:
   describe('configuration watching', () => {
     test('should set up file watcher for configuration changes', async () => {
       const mockWatcher = {
-        on: vi.fn(),
-        close: vi.fn(),
+        on: jest.fn(),
+        close: jest.fn(),
       };
 
       // Mock fs.watch
-      const originalWatch = (fs as any).watch;
-      (fs as any).watch = vi.fn().mockReturnValue(mockWatcher);
+      const originalWatch = (fs as jest.Mocked<typeof fs>).watch;
+      (fs as jest.Mocked<typeof fs>).watch = jest.fn().mockReturnValue(mockWatcher);
 
-      const changeHandler = vi.fn();
+      const changeHandler = jest.fn();
       await configManager.watchConfig(changeHandler);
 
       expect(mockWatcher.on).toHaveBeenCalledWith('change', expect.any(Function));
 
       // Restore original
-      (fs as any).watch = originalWatch;
+      (fs as jest.Mocked<typeof fs>).watch = originalWatch;
     });
   });
 });

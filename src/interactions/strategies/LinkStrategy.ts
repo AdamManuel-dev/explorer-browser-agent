@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class LinkStrategy implements InteractionStrategy {
@@ -30,10 +34,12 @@ export class LinkStrategy implements InteractionStrategy {
       }
 
       // Prepare for navigation
-      const navigationPromise = page.waitForNavigation({ 
-        timeout: options?.timeout || 30000,
-        waitUntil: 'networkidle'
-      }).catch(() => null); // Some links might not navigate
+      const navigationPromise = page
+        .waitForNavigation({
+          timeout: options?.timeout || 30000,
+          waitUntil: 'networkidle',
+        })
+        .catch(() => null); // Some links might not navigate
 
       // Click the link
       await el.click({ force: options?.force });

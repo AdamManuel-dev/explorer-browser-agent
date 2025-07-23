@@ -1,11 +1,9 @@
-import { test, expect, describe, beforeEach, vi, MockedFunction } from '@jest/globals';
+import { test, expect, describe, beforeEach, jest } from '@jest/globals';
 import { Page, Locator } from 'playwright';
 import { InteractionExecutor } from '../interactions/InteractionExecutor';
 import { DetectedElement } from '../types/detector';
-import { InteractionResult } from '../types/interactions';
-import { logger } from '../utils/logger';
 
-vi.mock('../utils/logger');
+jest.mock('../utils/logger');
 
 describe('InteractionExecutor', () => {
   let executor: InteractionExecutor;
@@ -14,31 +12,31 @@ describe('InteractionExecutor', () => {
 
   beforeEach(() => {
     mockLocator = {
-      fill: vi.fn().mockResolvedValue(undefined),
-      click: vi.fn().mockResolvedValue(undefined),
-      check: vi.fn().mockResolvedValue(undefined),
-      uncheck: vi.fn().mockResolvedValue(undefined),
-      selectOption: vi.fn().mockResolvedValue([]),
-      setInputFiles: vi.fn().mockResolvedValue(undefined),
-      press: vi.fn().mockResolvedValue(undefined),
-      hover: vi.fn().mockResolvedValue(undefined),
-      dragTo: vi.fn().mockResolvedValue(undefined),
-      isVisible: vi.fn().mockResolvedValue(true),
-      isEnabled: vi.fn().mockResolvedValue(true),
-      textContent: vi.fn().mockResolvedValue('Test Content'),
-      getAttribute: vi.fn().mockResolvedValue('test-value'),
-      boundingBox: vi.fn().mockResolvedValue({ x: 10, y: 10, width: 100, height: 30 }),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('screenshot')),
-      waitFor: vi.fn().mockResolvedValue(undefined),
+      fill: jest.fn().mockResolvedValue(undefined),
+      click: jest.fn().mockResolvedValue(undefined),
+      check: jest.fn().mockResolvedValue(undefined),
+      uncheck: jest.fn().mockResolvedValue(undefined),
+      selectOption: jest.fn().mockResolvedValue([]),
+      setInputFiles: jest.fn().mockResolvedValue(undefined),
+      press: jest.fn().mockResolvedValue(undefined),
+      hover: jest.fn().mockResolvedValue(undefined),
+      dragTo: jest.fn().mockResolvedValue(undefined),
+      isVisible: jest.fn().mockResolvedValue(true),
+      isEnabled: jest.fn().mockResolvedValue(true),
+      textContent: jest.fn().mockResolvedValue('Test Content'),
+      getAttribute: jest.fn().mockResolvedValue('test-value'),
+      boundingBox: jest.fn().mockResolvedValue({ x: 10, y: 10, width: 100, height: 30 }),
+      screenshot: jest.fn().mockResolvedValue(Buffer.from('screenshot')),
+      waitFor: jest.fn().mockResolvedValue(undefined),
     };
 
     mockPage = {
-      locator: vi.fn().mockReturnValue(mockLocator),
-      url: vi.fn().mockReturnValue('https://example.com'),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('page-screenshot')),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
-      waitForLoadState: vi.fn().mockResolvedValue(undefined),
-      evaluate: vi.fn().mockResolvedValue({}),
+      locator: jest.fn().mockReturnValue(mockLocator),
+      url: jest.fn().mockReturnValue('https://example.com'),
+      screenshot: jest.fn().mockResolvedValue(Buffer.from('page-screenshot')),
+      waitForTimeout: jest.fn().mockResolvedValue(undefined),
+      waitForLoadState: jest.fn().mockResolvedValue(undefined),
+      evaluate: jest.fn().mockResolvedValue({}),
     };
 
     executor = new InteractionExecutor();
@@ -218,7 +216,7 @@ describe('InteractionExecutor', () => {
         metadata: {},
       };
 
-      (mockPage.url as MockedFunction<any>)
+      (mockPage.url as jest.Mock)
         .mockReturnValueOnce('https://example.com/current')
         .mockReturnValueOnce('https://example.com/dashboard');
 
@@ -342,7 +340,7 @@ describe('InteractionExecutor', () => {
       };
 
       // Mock getting options from the page
-      (mockPage.evaluate as MockedFunction<any>).mockResolvedValue(['Option 1', 'Option 2', 'Option 3']);
+      (mockPage.evaluate as jest.Mock).mockResolvedValue(['Option 1', 'Option 2', 'Option 3']);
 
       const result = await executor.executeInteraction(mockPage as Page, element);
 
@@ -481,7 +479,7 @@ describe('InteractionExecutor', () => {
         metadata: {},
       };
 
-      (mockPage.locator as MockedFunction<any>).mockImplementation(() => {
+      (mockPage.locator as jest.Mock).mockImplementation(() => {
         throw new Error('Element not found');
       });
 
@@ -505,7 +503,7 @@ describe('InteractionExecutor', () => {
         metadata: {},
       };
 
-      (mockLocator.click as MockedFunction<any>).mockRejectedValue(new Error('Timeout'));
+      (mockLocator.click as jest.Mock).mockRejectedValue(new Error('Timeout'));
 
       const result = await executor.executeInteraction(mockPage as Page, element);
 
@@ -527,7 +525,7 @@ describe('InteractionExecutor', () => {
       };
 
       let attemptCount = 0;
-      (mockLocator.click as MockedFunction<any>).mockImplementation(() => {
+      (mockLocator.click as jest.Mock).mockImplementation(() => {
         attemptCount++;
         if (attemptCount === 1) {
           throw new Error('Temporary failure');
@@ -561,7 +559,7 @@ describe('InteractionExecutor', () => {
         metadata: {},
       };
 
-      (mockLocator.isEnabled as MockedFunction<any>).mockResolvedValue(false);
+      (mockLocator.isEnabled as jest.Mock).mockResolvedValue(false);
 
       const result = await executor.executeInteraction(mockPage as Page, element);
 
@@ -582,7 +580,7 @@ describe('InteractionExecutor', () => {
         metadata: {},
       };
 
-      (mockLocator.isVisible as MockedFunction<any>).mockResolvedValue(false);
+      (mockLocator.isVisible as jest.Mock).mockResolvedValue(false);
 
       const result = await executor.executeInteraction(mockPage as Page, element);
 
@@ -703,7 +701,7 @@ describe('InteractionExecutor', () => {
       const results = await executor.executeInteractions(mockPage as Page, elements);
 
       expect(results).toHaveLength(3);
-      expect(results.every(r => r.success)).toBe(true);
+      expect(results.every((r) => r.success)).toBe(true);
       expect(results[0].action).toBe('fill');
       expect(results[1].action).toBe('fill');
       expect(results[2].action).toBe('click');
@@ -736,7 +734,7 @@ describe('InteractionExecutor', () => {
       ];
 
       let clickCount = 0;
-      (mockLocator.click as MockedFunction<any>).mockImplementation(() => {
+      (mockLocator.click as jest.Mock).mockImplementation(() => {
         clickCount++;
         if (clickCount === 2) {
           throw new Error('Second click failed');

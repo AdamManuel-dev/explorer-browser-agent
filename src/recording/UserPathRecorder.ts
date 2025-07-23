@@ -6,33 +6,45 @@ import {
   InteractionStep,
   StepType,
   Assertion,
-  AssertionType,
   RecordingSession,
   RecordingOptions,
   PathMetadata,
   PathAnalysis,
 } from '../types/recording';
 import { InteractiveElement } from '../types/elements';
-import { InteractionResult, NetworkActivity, StateChange } from '../types/interactions';
+import { InteractionResult, NetworkActivity } from '../types/interactions';
 
 export class UserPathRecorder {
   private session: RecordingSession | null = null;
-  private steps: InteractionStep[] = [];
-  private assertions: Assertion[] = [];
-  private startTime: number = 0;
-  private page: Page | null = null;
-  private context: BrowserContext | null = null;
-  private networkActivity: NetworkActivity[] = [];
-  private consoleMessages: any[] = [];
 
-  constructor(private options: RecordingOptions = {
-    captureScreenshots: true,
-    captureNetwork: true,
-    captureConsole: true,
-    generateAssertions: true,
-    assertionTypes: ['url', 'visible', 'text', 'value'],
-    screenshotQuality: 80,
-  }) {}
+  private steps: InteractionStep[] = [];
+
+  private assertions: Assertion[] = [];
+
+  private startTime: number = 0;
+
+  private page: Page | null = null;
+
+  private context: BrowserContext | null = null;
+
+  private networkActivity: NetworkActivity[] = [];
+
+  private consoleMessages: Array<{
+    type: string;
+    message: string;
+    timestamp: Date;
+  }> = [];
+
+  constructor(
+    private options: RecordingOptions = {
+      captureScreenshots: true,
+      captureNetwork: true,
+      captureConsole: true,
+      generateAssertions: true,
+      assertionTypes: ['url', 'visible', 'text', 'value'],
+      screenshotQuality: 80,
+    }
+  ) {}
 
   async startRecording(page: Page, metadata?: Partial<PathMetadata>): Promise<void> {
     if (this.session) {
@@ -140,9 +152,9 @@ export class UserPathRecorder {
     try {
       // Record network activity during navigation
       const networkCapture = this.captureNetworkActivity();
-      
+
       await this.page!.goto(url);
-      
+
       step.duration = Date.now() - startTime;
       step.networkActivity = await networkCapture;
 
@@ -164,16 +176,13 @@ export class UserPathRecorder {
     }
   }
 
-  async recordInteraction(
-    element: InteractiveElement,
-    result: InteractionResult
-  ): Promise<void> {
+  async recordInteraction(element: InteractiveElement, result: InteractionResult): Promise<void> {
     if (!this.session) {
       throw new Error('No recording in progress');
     }
 
     const stepType = this.mapElementTypeToStepType(element.type);
-    
+
     const step: InteractionStep = {
       id: uuidv4(),
       type: stepType,
@@ -200,7 +209,7 @@ export class UserPathRecorder {
     }
 
     this.steps.push(step);
-    
+
     logger.debug('Recorded interaction', {
       type: stepType,
       element: element.selector,
@@ -241,7 +250,7 @@ export class UserPathRecorder {
       action: reason || `Wait for ${duration}ms`,
       value: duration,
       timestamp: Date.now(),
-      duration: duration,
+      duration,
       networkActivity: [],
       stateChanges: [],
     };
@@ -285,9 +294,7 @@ export class UserPathRecorder {
       });
 
       this.page.on('response', (response) => {
-        const activity = this.networkActivity.find(
-          a => a.url === response.url() && !a.status
-        );
+        const activity = this.networkActivity.find((a) => a.url === response.url() && !a.status);
         if (activity) {
           activity.status = response.status();
         }
@@ -319,7 +326,7 @@ export class UserPathRecorder {
 
     const timestamp = Date.now();
     const filename = `${name}_${timestamp}.png`;
-    
+
     try {
       await this.page.screenshot({
         path: `screenshots/${filename}`,
@@ -335,7 +342,7 @@ export class UserPathRecorder {
 
   private async captureNetworkActivity(): Promise<NetworkActivity[]> {
     const startCount = this.networkActivity.length;
-    
+
     return new Promise((resolve) => {
       setTimeout(() => {
         const endCount = this.networkActivity.length;
@@ -346,13 +353,13 @@ export class UserPathRecorder {
 
   private mapElementTypeToStepType(elementType: string): StepType {
     const typeMap: Record<string, StepType> = {
-      'button': 'click',
-      'link': 'click',
+      button: 'click',
+      link: 'click',
       'text-input': 'type',
-      'textarea': 'type',
-      'select': 'select',
-      'checkbox': 'check',
-      'radio': 'check',
+      textarea: 'type',
+      select: 'select',
+      checkbox: 'check',
+      radio: 'check',
     };
 
     return typeMap[elementType] || 'click';
@@ -360,7 +367,7 @@ export class UserPathRecorder {
 
   private getActionDescription(element: InteractiveElement, result: InteractionResult): string {
     const elementDesc = element.text || element.selector;
-    
+
     switch (element.type) {
       case 'text-input':
       case 'textarea':
@@ -432,8 +439,8 @@ export class UserPathRecorder {
     }
 
     // Navigation assertion
-    if (result.stateChanges?.some(change => change.type === 'url')) {
-      const urlChange = result.stateChanges.find(change => change.type === 'url');
+    if (result.stateChanges?.some((change) => change.type === 'url')) {
+      const urlChange = result.stateChanges.find((change) => change.type === 'url');
       if (urlChange) {
         this.assertions.push({
           id: uuidv4(),
@@ -450,12 +457,7 @@ export class UserPathRecorder {
     if (!this.page) return;
 
     // Visibility assertions for key elements
-    const importantSelectors = [
-      'h1', 'h2',
-      '[data-testid]',
-      'form',
-      '.error', '.success',
-    ];
+    const importantSelectors = ['h1', 'h2', '[data-testid]', 'form', '.error', '.success'];
 
     for (const selector of importantSelectors) {
       try {
@@ -477,29 +479,28 @@ export class UserPathRecorder {
 
   private analyzePath(path: UserPath): PathAnalysis {
     const uniqueElements = new Set(
-      path.steps
-        .filter(step => step.element)
-        .map(step => step.element!.selector)
+      path.steps.filter((step) => step.element).map((step) => step.element!.selector)
     ).size;
 
     const pageTransitions = path.steps.filter(
-      step => step.type === 'navigation' || 
-              step.stateChanges.some(change => change.type === 'url')
+      (step) =>
+        step.type === 'navigation' || step.stateChanges.some((change) => change.type === 'url')
     ).length;
 
-    const networkRequests = path.steps.reduce(
-      (sum, step) => sum + step.networkActivity.length,
-      0
-    );
+    const networkRequests = path.steps.reduce((sum, step) => sum + step.networkActivity.length, 0);
 
-    const interactionCount = path.steps.filter(
-      step => ['click', 'type', 'select', 'check'].includes(step.type)
+    const interactionCount = path.steps.filter((step) =>
+      ['click', 'type', 'select', 'check'].includes(step.type)
     ).length;
 
-    const complexity = 
-      interactionCount < 5 ? 'simple' :
-      interactionCount < 15 ? 'moderate' :
-      'complex';
+    let complexity: 'simple' | 'moderate' | 'complex';
+    if (interactionCount < 5) {
+      complexity = 'simple';
+    } else if (interactionCount < 15) {
+      complexity = 'moderate';
+    } else {
+      complexity = 'complex';
+    }
 
     return {
       complexity,

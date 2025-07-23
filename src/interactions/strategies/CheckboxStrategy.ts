@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class CheckboxStrategy implements InteractionStrategy {
@@ -20,11 +24,9 @@ export class CheckboxStrategy implements InteractionStrategy {
 
       // Get current state
       const isChecked = await el.isChecked();
-      
+
       // Determine desired state
-      const shouldBeChecked = testData?.value !== undefined 
-        ? Boolean(testData.value)
-        : !isChecked; // Toggle if no specific value provided
+      const shouldBeChecked = testData?.value !== undefined ? Boolean(testData.value) : !isChecked; // Toggle if no specific value provided
 
       // Only click if state needs to change
       if (isChecked !== shouldBeChecked) {

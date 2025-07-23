@@ -102,7 +102,6 @@ export interface BrowserExplorerConfig {
 export declare class ConfigManager {
     private config;
     private configPath;
-    constructor();
     loadConfig(configPath?: string): Promise<BrowserExplorerConfig>;
     getConfig(): BrowserExplorerConfig;
     saveConfig(config: BrowserExplorerConfig, filePath?: string): Promise<void>;

@@ -1,4 +1,4 @@
-import { UserPath, InteractionStep, Assertion } from './recording';
+import { UserPath, InteractionStep } from './recording';
 
 export interface TestFile {
   filename: string;
@@ -8,12 +8,7 @@ export interface TestFile {
   metadata: TestMetadata;
 }
 
-export type TestFileType = 
-  | 'test'
-  | 'page-object'
-  | 'fixture'
-  | 'helper'
-  | 'config';
+export type TestFileType = 'test' | 'page-object' | 'fixture' | 'helper' | 'config';
 
 export interface TestMetadata {
   generatedAt: Date;
@@ -24,11 +19,7 @@ export interface TestMetadata {
   tags?: string[];
 }
 
-export type TestFramework = 
-  | 'playwright'
-  | 'cypress'
-  | 'puppeteer'
-  | 'selenium';
+export type TestFramework = 'playwright' | 'cypress' | 'puppeteer' | 'selenium';
 
 export interface GenerationOptions {
   framework: TestFramework;
@@ -99,7 +90,7 @@ export interface TestStep {
 export interface TestAssertion {
   type: string;
   target: string;
-  expected: any;
+  expected: string | number | boolean | Record<string, unknown>;
   message?: string;
   soft?: boolean; // Continue on failure
 }
@@ -136,7 +127,7 @@ export interface ActionParameter {
   name: string;
   type: string;
   required: boolean;
-  default?: any;
+  default?: string | number | boolean;
 }
 
 export interface PageAssertion {
@@ -168,4 +159,38 @@ export interface GenerationError {
   step?: InteractionStep;
   error: string;
   severity: 'warning' | 'error';
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+  metrics: ValidationMetrics;
+}
+
+export interface ValidationError {
+  type: 'syntax' | 'import' | 'selector' | 'assertion' | 'structure';
+  message: string;
+  line?: number;
+  column?: number;
+  file?: string;
+  severity: 'error' | 'warning';
+}
+
+export interface ValidationWarning {
+  type: 'best-practice' | 'performance' | 'maintainability';
+  message: string;
+  line?: number;
+  file?: string;
+  suggestion?: string;
+}
+
+export interface ValidationMetrics {
+  totalTests: number;
+  totalAssertions: number;
+  averageTestLength: number;
+  complexityScore: number;
+  maintainabilityIndex: number;
+  duplicateSelectors: string[];
+  unusedImports: string[];
 }

@@ -1,12 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BrowserExplorer = exports.ConfigManager = exports.TestFileWriter = exports.PageObjectGenerator = exports.TestGenerator = exports.PathOptimizer = exports.UserPathRecorder = exports.TestDataGenerator = exports.InteractionExecutor = exports.AIElementDetector = exports.CrawlerService = exports.BreadthFirstCrawler = exports.BrowserAgent = void 0;
+exports.BrowserExplorer = exports.SelfTestRunner = exports.MonitoringService = exports.CaptchaHandler = exports.StealthMode = exports.SessionManager = exports.MultiStrategyAuthManager = exports.ConfigManager = exports.TestFileWriter = exports.PageObjectGenerator = exports.TestGenerator = exports.PathOptimizer = exports.UserPathRecorder = exports.TestDataGenerator = exports.InteractionExecutor = exports.AIElementDetector = exports.DistributedCrawler = exports.CrawlerService = exports.BreadthFirstCrawler = exports.BrowserAgent = void 0;
 // Main exports for programmatic usage
 var BrowserAgent_1 = require("./agents/BrowserAgent");
 Object.defineProperty(exports, "BrowserAgent", { enumerable: true, get: function () { return BrowserAgent_1.BrowserAgent; } });
 var crawler_1 = require("./crawler");
 Object.defineProperty(exports, "BreadthFirstCrawler", { enumerable: true, get: function () { return crawler_1.BreadthFirstCrawler; } });
 Object.defineProperty(exports, "CrawlerService", { enumerable: true, get: function () { return crawler_1.CrawlerService; } });
+Object.defineProperty(exports, "DistributedCrawler", { enumerable: true, get: function () { return crawler_1.DistributedCrawler; } });
 var detectors_1 = require("./detectors");
 Object.defineProperty(exports, "AIElementDetector", { enumerable: true, get: function () { return detectors_1.AIElementDetector; } });
 var InteractionExecutor_1 = require("./interactions/InteractionExecutor");
@@ -22,12 +23,24 @@ Object.defineProperty(exports, "PageObjectGenerator", { enumerable: true, get: f
 Object.defineProperty(exports, "TestFileWriter", { enumerable: true, get: function () { return generation_1.TestFileWriter; } });
 var config_1 = require("./config");
 Object.defineProperty(exports, "ConfigManager", { enumerable: true, get: function () { return config_1.ConfigManager; } });
+var auth_1 = require("./auth");
+Object.defineProperty(exports, "MultiStrategyAuthManager", { enumerable: true, get: function () { return auth_1.MultiStrategyAuthManager; } });
+var SessionManager_1 = require("./auth/SessionManager");
+Object.defineProperty(exports, "SessionManager", { enumerable: true, get: function () { return SessionManager_1.SessionManager; } });
+var stealth_1 = require("./stealth");
+Object.defineProperty(exports, "StealthMode", { enumerable: true, get: function () { return stealth_1.StealthMode; } });
+var captcha_1 = require("./captcha");
+Object.defineProperty(exports, "CaptchaHandler", { enumerable: true, get: function () { return captcha_1.CaptchaHandler; } });
+var monitoring_1 = require("./monitoring");
+Object.defineProperty(exports, "MonitoringService", { enumerable: true, get: function () { return monitoring_1.MonitoringService; } });
+var testing_1 = require("./testing");
+Object.defineProperty(exports, "SelfTestRunner", { enumerable: true, get: function () { return testing_1.SelfTestRunner; } });
 // Main integration class for easy usage
 class BrowserExplorer {
     configManager;
     crawlerService = null;
     config = null;
-    constructor(configPath) {
+    constructor(_configPath) {
         this.configManager = new ConfigManager();
     }
     async initialize(configPath) {

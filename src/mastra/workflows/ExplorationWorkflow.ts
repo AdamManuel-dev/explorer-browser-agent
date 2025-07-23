@@ -1,10 +1,11 @@
-import { Workflow, WorkflowContext, WorkflowStep } from '@mastra/workflows';
+// Custom workflow base classes since @mastra/workflows doesn't exist
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../utils/logger';
 import { MonitoringService } from '../../monitoring';
 import { ExplorerAgent } from '../agents/ExplorerAgent';
 import { PlannerAgent } from '../agents/PlannerAgent';
 import { GeneratorAgent } from '../agents/GeneratorAgent';
+import { Workflow } from './WorkflowBase';
 import {
   ExplorationTarget,
   ExplorationResult,
@@ -62,17 +63,25 @@ export interface ExplorationWorkflowOutput {
   };
 }
 
-export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, ExplorationWorkflowOutput> {
+export class ExplorationWorkflow extends Workflow<
+  ExplorationWorkflowInput,
+  ExplorationWorkflowOutput
+> {
   private explorerAgent: ExplorerAgent;
+
   private plannerAgent: PlannerAgent;
+
   private generatorAgent: GeneratorAgent;
+
   private monitoring?: MonitoringService;
+
   private config: ExplorationWorkflowConfig;
 
   constructor(config: ExplorationWorkflowConfig) {
     super({
       name: 'ExplorationWorkflow',
-      description: 'Complete web exploration workflow with planning, exploration, and test generation',
+      description:
+        'Complete web exploration workflow with planning, exploration, and test generation',
       version: '1.0.0',
     });
 
@@ -170,11 +179,11 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
       await this.executeStep('initialize', context);
       await this.executeStep('plan', context);
       await this.executeStep('explore', context);
-      
+
       if (this.config.enableTestGeneration && input.testGenerationOptions) {
         await this.executeStep('generate', context);
       }
-      
+
       await this.executeStep('finalize', context);
 
       const output = context.output as ExplorationWorkflowOutput;
@@ -193,10 +202,9 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
       });
 
       return output;
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       logger.error('Exploration workflow failed', {
         sessionId,
         error: errorMessage,
@@ -229,7 +237,6 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
 
       await this.executeStep('handleError', context);
       return context.output as ExplorationWorkflowOutput;
-
     } finally {
       if (spanId) {
         this.monitoring?.endSpan(spanId);
@@ -280,7 +287,6 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
         sessionId: context.sessionId,
         targetCount: customContext.targets.length,
       });
-
     } catch (error) {
       logger.error('Failed to initialize workflow', {
         sessionId: context.sessionId,
@@ -317,10 +323,7 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
       };
 
       // Generate exploration plan
-      const plan = await this.plannerAgent.createPlan(
-        input.targets,
-        planningContext
-      );
+      const plan = await this.plannerAgent.createPlan(input.targets, planningContext);
 
       output.plan = plan;
       context.metadata.currentStep = 'explore';
@@ -334,7 +337,6 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
         estimatedDuration: plan.resources.timeout,
         maxConcurrency: plan.resources.maxConcurrency,
       });
-
     } catch (error) {
       logger.error('Failed to create exploration plan', {
         sessionId: context.sessionId,
@@ -356,7 +358,7 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
 
     try {
       const output = context.output as ExplorationWorkflowOutput;
-      const plan = output.plan;
+      const { plan } = output;
 
       logger.debug('Starting exploration execution', {
         sessionId: context.sessionId,
@@ -365,15 +367,15 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
       });
 
       const explorationResults: ExplorationResult[] = [];
-      const maxConcurrency = plan.resources.maxConcurrency;
+      const { maxConcurrency } = plan.resources;
 
       // Execute explorations based on strategy
       if (plan.strategy === 'distributed' && maxConcurrency > 1) {
         // Parallel exploration
-        explorationResults.push(...await this.executeParallelExploration(plan));
+        explorationResults.push(...(await this.executeParallelExploration(plan)));
       } else {
         // Sequential exploration
-        explorationResults.push(...await this.executeSequentialExploration(plan));
+        explorationResults.push(...(await this.executeSequentialExploration(plan)));
       }
 
       // Store results
@@ -381,13 +383,15 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
 
       // Calculate metadata
       output.metadata.totalPagesExplored = explorationResults.reduce(
-        (sum, result) => sum + result.pagesExplored, 0
+        (sum, result) => sum + result.pagesExplored,
+        0
       );
 
-      const successfulExplorations = explorationResults.filter(r => r.userPaths.length > 0).length;
-      output.metadata.successRate = explorationResults.length > 0 
-        ? successfulExplorations / explorationResults.length 
-        : 0;
+      const successfulExplorations = explorationResults.filter(
+        (r) => r.userPaths.length > 0
+      ).length;
+      output.metadata.successRate =
+        explorationResults.length > 0 ? successfulExplorations / explorationResults.length : 0;
 
       context.metadata.currentStep = this.config.enableTestGeneration ? 'generate' : 'finalize';
 
@@ -397,7 +401,6 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
         pagesExplored: output.metadata.totalPagesExplored,
         successRate: output.metadata.successRate,
       });
-
     } catch (error) {
       logger.error('Failed to execute exploration', {
         sessionId: context.sessionId,
@@ -435,7 +438,7 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
       });
 
       // Collect all user paths from exploration results
-      const allUserPaths = output.explorationResults.flatMap(result => result.userPaths);
+      const allUserPaths = output.explorationResults.flatMap((result) => result.userPaths);
 
       if (allUserPaths.length === 0) {
         logger.warn('No user paths found for test generation', {
@@ -473,17 +476,18 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
         linesOfCode: testResult.metrics.linesOfCode,
         generationTime: testResult.metrics.generationTime,
       });
-
     } catch (error) {
       logger.error('Failed to generate tests', {
         sessionId: context.sessionId,
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       // Don't fail the entire workflow for test generation errors
       const output = context.output as ExplorationWorkflowOutput;
-      output.metadata.errors.push(`Test generation failed: ${error instanceof Error ? error.message : String(error)}`);
-      
+      output.metadata.errors.push(
+        `Test generation failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+
       context.metadata.currentStep = 'finalize';
     } finally {
       if (spanId) {
@@ -524,7 +528,6 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
         sessionId: context.sessionId,
         totalErrors: output.metadata.errors.length,
       });
-
     } catch (error) {
       logger.error('Failed to finalize workflow', {
         sessionId: context.sessionId,
@@ -549,7 +552,7 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
       });
 
       const output = context.output as ExplorationWorkflowOutput;
-      
+
       // Ensure metadata exists
       if (!output.metadata) {
         output.metadata = {
@@ -562,7 +565,10 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
       }
 
       // Add errors from context
-      output.metadata.errors = [...(output.metadata.errors || []), ...(context.metadata.errors || [])];
+      output.metadata.errors = [
+        ...(output.metadata.errors || []),
+        ...(context.metadata.errors || []),
+      ];
 
       // Attempt cleanup
       await this.cleanupAgents();
@@ -574,7 +580,6 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
           error_count: output.metadata.errors.length.toString(),
         });
       }
-
     } catch (cleanupError) {
       logger.error('Failed to handle workflow error', {
         sessionId: context.sessionId,
@@ -588,9 +593,9 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
    * Execute parallel exploration
    */
   private async executeParallelExploration(plan: CrawlPlan): Promise<ExplorationResult[]> {
-    const maxConcurrency = plan.resources.maxConcurrency;
+    const { maxConcurrency } = plan.resources;
     const results: ExplorationResult[] = [];
-    
+
     // Create batches of targets
     const batches: ExplorationTarget[][] = [];
     for (let i = 0; i < plan.targets.length; i += maxConcurrency) {
@@ -600,8 +605,8 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
     // Process each batch in parallel
     for (const batch of batches) {
       try {
-        const batchPromises = batch.map(target => 
-          this.explorerAgent.explore(target).catch(error => {
+        const batchPromises = batch.map((target) =>
+          this.explorerAgent.explore(target).catch((error) => {
             logger.warn(`Exploration failed for target ${target.url}`, {
               error: error instanceof Error ? error.message : String(error),
             });
@@ -610,23 +615,26 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
         );
 
         const batchResults = await Promise.all(batchPromises);
-        
+
         // Filter out null results (failed explorations)
-        const successfulResults = batchResults.filter(result => result !== null) as ExplorationResult[];
+        const successfulResults = batchResults.filter(
+          (result) => result !== null
+        ) as ExplorationResult[];
         results.push(...successfulResults);
 
         // Optimize plan based on current results if we have more batches
         if (batches.indexOf(batch) < batches.length - 1) {
-          const completedUrls = results.map(r => r.target.url);
+          const completedUrls = results.map((r) => r.target.url);
           const performanceData = {
-            avgResponseTime: results.reduce((sum, r) => sum + (r.endTime.getTime() - r.startTime.getTime()), 0) / results.length,
+            avgResponseTime:
+              results.reduce((sum, r) => sum + (r.endTime.getTime() - r.startTime.getTime()), 0) /
+              results.length,
             totalAttempts: batch.length,
             memoryUsage: process.memoryUsage().heapUsed,
           };
 
           await this.plannerAgent.optimizePlan(plan.id, performanceData, completedUrls);
         }
-
       } catch (error) {
         logger.error(`Failed to process exploration batch`, {
           batchSize: batch.length,
@@ -650,22 +658,24 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
         results.push(result);
 
         // Optimize plan based on current progress
-        if (results.length % 5 === 0) { // Optimize every 5 completions
-          const completedUrls = results.map(r => r.target.url);
+        if (results.length % 5 === 0) {
+          // Optimize every 5 completions
+          const completedUrls = results.map((r) => r.target.url);
           const performanceData = {
-            avgResponseTime: results.reduce((sum, r) => sum + (r.endTime.getTime() - r.startTime.getTime()), 0) / results.length,
+            avgResponseTime:
+              results.reduce((sum, r) => sum + (r.endTime.getTime() - r.startTime.getTime()), 0) /
+              results.length,
             totalAttempts: results.length,
             memoryUsage: process.memoryUsage().heapUsed,
           };
 
           await this.plannerAgent.optimizePlan(plan.id, performanceData, completedUrls);
         }
-
       } catch (error) {
         logger.warn(`Exploration failed for target ${target.url}`, {
           error: error instanceof Error ? error.message : String(error),
         });
-        
+
         // Continue with next target
         continue;
       }
@@ -727,7 +737,7 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
   /**
    * Get workflow status
    */
-  getWorkflowStatus(sessionId: string): {
+  getWorkflowStatus(_sessionId: string): {
     exists: boolean;
     status?: 'running' | 'completed' | 'failed';
     currentStep?: string;
@@ -747,17 +757,17 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
   async cancelWorkflow(sessionId: string): Promise<boolean> {
     try {
       logger.info('Cancelling workflow', { sessionId });
-      
+
       // This would typically involve stopping agents and cleaning up resources
       await this.cleanupAgents();
-      
+
       return true;
     } catch (error) {
       logger.error('Failed to cancel workflow', {
         sessionId,
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       return false;
     }
   }
@@ -766,9 +776,9 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
    * Get agent metrics
    */
   getAgentMetrics(): {
-    explorer: any;
-    planner: any;
-    generator: any;
+    explorer: ReturnType<typeof this.explorerAgent.getMetrics>;
+    planner: ReturnType<typeof this.plannerAgent.getMetrics>;
+    generator: ReturnType<typeof this.generatorAgent.getMetrics>;
   } {
     return {
       explorer: this.explorerAgent.getMetrics(),
@@ -782,7 +792,7 @@ export class ExplorationWorkflow extends Workflow<ExplorationWorkflowInput, Expl
    */
   async shutdown(): Promise<void> {
     logger.info('Shutting down exploration workflow');
-    
+
     try {
       await this.cleanupAgents();
       logger.info('Exploration workflow shutdown completed');

@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class ButtonStrategy implements InteractionStrategy {
@@ -10,6 +14,7 @@ export class ButtonStrategy implements InteractionStrategy {
     context: InteractionContext
   ): Promise<InteractionResult> {
     const { page, options } = context;
+    const startTime = Date.now();
 
     try {
       // Locate the element
@@ -47,6 +52,7 @@ export class ButtonStrategy implements InteractionStrategy {
       return {
         success: true,
         value: 'clicked',
+        timing: Date.now() - startTime,
       };
     } catch (error) {
       logger.error('Button click failed', { element, error });

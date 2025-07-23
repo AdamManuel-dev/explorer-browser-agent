@@ -4,8 +4,11 @@ import { BrowserAgentConfig } from '../types';
 
 export class BrowserAgent {
   private browser: Browser | null = null;
+
   private context: BrowserContext | null = null;
+
   private page: Page | null = null;
+
   private config: BrowserAgentConfig;
 
   constructor(config: Partial<BrowserAgentConfig> = {}) {
@@ -22,12 +25,12 @@ export class BrowserAgent {
       this.browser = await chromium.launch({
         headless: this.config.headless,
       });
-      
+
       this.context = await this.browser.newContext({
         viewport: this.config.viewport,
         userAgent: this.config.userAgent,
       });
-      
+
       this.page = await this.context.newPage();
       logger.info('Browser agent initialized');
     } catch (error) {
@@ -40,7 +43,7 @@ export class BrowserAgent {
     if (!this.page) {
       throw new Error('Browser not initialized');
     }
-    
+
     try {
       await this.page.goto(url, { waitUntil: 'networkidle' });
       logger.info('Navigated to URL', { url });
@@ -54,7 +57,7 @@ export class BrowserAgent {
     if (!this.page) {
       throw new Error('Browser not initialized');
     }
-    
+
     try {
       const content = await this.page.evaluate(() => document.body.innerText);
       return content;
@@ -68,9 +71,13 @@ export class BrowserAgent {
     if (!this.page) {
       throw new Error('Browser not initialized');
     }
-    
+
     await this.page.screenshot({ path });
     logger.info('Screenshot saved', { path });
+  }
+
+  getPage(): Page | null {
+    return this.page;
   }
 
   async close(): Promise<void> {

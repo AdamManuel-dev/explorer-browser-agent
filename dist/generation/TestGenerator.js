@@ -127,6 +127,8 @@ class TestGenerator {
                     from: 'puppeteer',
                 });
                 break;
+            default:
+                throw new Error(`Unsupported framework: ${this.options.framework}`);
         }
         return imports;
     }
@@ -141,6 +143,12 @@ class TestGenerator {
                 break;
             case 'cypress':
                 code.push(`cy.viewport(${path.metadata.viewport.width}, ${path.metadata.viewport.height});`);
+                break;
+            case 'puppeteer':
+                // Puppeteer setup code if needed
+                break;
+            default:
+                // No setup code needed for unknown frameworks
                 break;
         }
         return code;
@@ -160,7 +168,7 @@ class TestGenerator {
         });
     }
     convertStepsToTestSteps(steps) {
-        return steps.map(step => {
+        return steps.map((step) => {
             const code = this.generateStepCode(step);
             return {
                 description: step.action,
@@ -244,14 +252,14 @@ class TestGenerator {
     }
     convertAssertions(assertions, steps) {
         // Filter assertions relevant to these steps
-        const relevantAssertions = assertions.filter(assertion => {
+        const relevantAssertions = assertions.filter((assertion) => {
             // Include all URL assertions
             if (assertion.type === 'url')
                 return true;
             // Include assertions for elements in these steps
-            return steps.some(step => step.element?.selector === assertion.target);
+            return steps.some((step) => step.element?.selector === assertion.target);
         });
-        return relevantAssertions.map(assertion => ({
+        return relevantAssertions.map((assertion) => ({
             type: assertion.type,
             target: assertion.target,
             expected: assertion.expected,
@@ -264,7 +272,7 @@ class TestGenerator {
         const q = quotes === 'single' ? "'" : '"';
         const s = semicolons ? ';' : '';
         // Add imports
-        structure.imports.forEach(imp => {
+        structure.imports.forEach((imp) => {
             if (imp.default) {
                 lines.push(`import ${imp.default} from ${q}${imp.from}${q}${s}`);
             }
@@ -279,7 +287,7 @@ class TestGenerator {
         // Add setup
         if (structure.setup.code.length > 0) {
             lines.push(`${indent}test.beforeEach(async ({ page }) => {`);
-            structure.setup.code.forEach(line => {
+            structure.setup.code.forEach((line) => {
                 lines.push(`${indent}${indent}${line}`);
             });
             lines.push(`${indent}})${s}`);
@@ -291,7 +299,7 @@ class TestGenerator {
                 lines.push('');
             lines.push(`${indent}test(${q}${testCase.name}${q}, async ({ page }) => {`);
             // Add steps
-            testCase.steps.forEach(step => {
+            testCase.steps.forEach((step) => {
                 if (step.description && this.options.addComments) {
                     lines.push(`${indent}${indent}// ${step.description}`);
                 }
@@ -301,7 +309,7 @@ class TestGenerator {
             if (testCase.assertions.length > 0) {
                 lines.push('');
                 lines.push(`${indent}${indent}// Assertions`);
-                testCase.assertions.forEach(assertion => {
+                testCase.assertions.forEach((assertion) => {
                     const assertionCode = this.generateAssertionCode(assertion);
                     lines.push(`${indent}${indent}${assertionCode}`);
                 });
@@ -367,9 +375,8 @@ class TestGenerator {
     }
     generateTestName(steps, index) {
         // Try to generate meaningful name from steps
-        const navigation = steps.find(s => s.type === 'navigation');
-        const submission = steps.find(s => s.element?.type === 'button' &&
-            s.element.text?.toLowerCase().includes('submit'));
+        const navigation = steps.find((s) => s.type === 'navigation');
+        const submission = steps.find((s) => s.element?.type === 'button' && s.element.text?.toLowerCase().includes('submit'));
         if (navigation && submission) {
             return `should complete flow from ${this.getPageName(navigation.value)} to submission`;
         }
@@ -380,8 +387,8 @@ class TestGenerator {
     }
     generateTestDescription(steps) {
         const actions = steps
-            .filter(s => s.type !== 'wait' && s.type !== 'screenshot')
-            .map(s => s.action)
+            .filter((s) => s.type !== 'wait' && s.type !== 'screenshot')
+            .map((s) => s.action)
             .join(', ');
         return `Performs: ${actions}`;
     }
@@ -408,10 +415,10 @@ class TestGenerator {
         return [];
     }
     calculateSummary(files, path) {
-        const testFiles = files.filter(f => f.type === 'test');
-        const pageObjects = files.filter(f => f.type === 'page-object');
-        const fixtures = files.filter(f => f.type === 'fixture');
-        const helpers = files.filter(f => f.type === 'helper');
+        const testFiles = files.filter((f) => f.type === 'test');
+        const pageObjects = files.filter((f) => f.type === 'page-object');
+        const fixtures = files.filter((f) => f.type === 'fixture');
+        const helpers = files.filter((f) => f.type === 'helper');
         return {
             totalFiles: files.length,
             testFiles: testFiles.length,

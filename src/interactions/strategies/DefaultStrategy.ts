@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class DefaultStrategy implements InteractionStrategy {
@@ -19,7 +23,7 @@ export class DefaultStrategy implements InteractionStrategy {
       }
 
       // Try to determine the best interaction based on element properties
-      const tagName = await el.evaluate(e => e.tagName.toLowerCase());
+      const tagName = await el.evaluate((e) => e.tagName.toLowerCase());
       const role = await el.getAttribute('role');
 
       // Scroll into view if needed

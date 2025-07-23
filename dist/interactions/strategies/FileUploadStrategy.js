@@ -34,9 +34,9 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FileUploadStrategy = void 0;
-const logger_1 = require("../../utils/logger");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs/promises"));
+const logger_1 = require("../../utils/logger");
 class FileUploadStrategy {
     type = 'file-upload';
     async execute(element, context) {

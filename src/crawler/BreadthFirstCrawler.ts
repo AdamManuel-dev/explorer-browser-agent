@@ -38,12 +38,29 @@ export interface CrawlError {
   timestamp: Date;
 }
 
+export interface CrawlOptions {
+  startUrl: string;
+  maxDepth: number;
+  maxPages: number;
+  crawlDelay: number;
+  allowedDomains: string[];
+  respectRobotsTxt: boolean;
+  userAgent: string;
+  customHeaders?: Record<string, string>;
+  parallelWorkers?: number;
+}
+
 export class BreadthFirstCrawler {
   private queue: CrawlNode[] = [];
+
   private visited: Set<string> = new Set();
-  private robotsCache: Map<string, any> = new Map();
+
+  private robotsCache: Map<string, ReturnType<typeof robotsParser>> = new Map();
+
   private crawlResult: CrawlResult;
+
   private pQueue: PQueue;
+
   private startTime: number = 0;
 
   constructor(private config: CrawlConfiguration) {
@@ -64,7 +81,7 @@ export class BreadthFirstCrawler {
 
   async crawl(): Promise<CrawlResult> {
     this.startTime = Date.now();
-    
+
     const normalizedStartUrl = this.normalizeUrl(this.config.startUrl);
     const startNode: CrawlNode = {
       url: normalizedStartUrl,
@@ -77,7 +94,7 @@ export class BreadthFirstCrawler {
 
     while (this.queue.length > 0 && this.crawlResult.pagesVisited < this.config.maxPages) {
       const currentDepthNodes = this.getNodesAtCurrentDepth();
-      
+
       if (currentDepthNodes.length === 0) {
         break;
       }
@@ -86,7 +103,7 @@ export class BreadthFirstCrawler {
     }
 
     await this.pQueue.onIdle();
-    
+
     this.crawlResult.duration = Date.now() - this.startTime;
     logger.info('Crawl completed', {
       pagesVisited: this.crawlResult.pagesVisited,
@@ -100,9 +117,9 @@ export class BreadthFirstCrawler {
     const nodes: CrawlNode[] = [];
     const currentDepth = this.queue[0]?.depth;
 
-    while (this.queue.length > 0 && this.queue[0].depth === currentDepth) {
+    while (this.queue.length > 0 && this.queue[0]?.depth === currentDepth) {
       const node = this.queue.shift()!;
-      
+
       if (!this.visited.has(node.url) && this.crawlResult.pagesVisited < this.config.maxPages) {
         nodes.push(node);
       }
@@ -112,9 +129,7 @@ export class BreadthFirstCrawler {
   }
 
   private async processNodesInParallel(nodes: CrawlNode[]): Promise<void> {
-    const promises = nodes.map(node => 
-      this.pQueue.add(() => this.processNode(node))
-    );
+    const promises = nodes.map((node) => this.pQueue.add(() => this.processNode(node)));
 
     await Promise.all(promises);
   }
@@ -133,9 +148,9 @@ export class BreadthFirstCrawler {
       }
 
       logger.info('Crawling URL', { url: node.url, depth: node.depth });
-      
+
       const childUrls = await this.crawlPage(node.url);
-      
+
       this.crawlResult.pagesVisited++;
       this.crawlResult.urls.push(node.url);
 
@@ -144,7 +159,7 @@ export class BreadthFirstCrawler {
       }
 
       if (node.depth < this.config.maxDepth) {
-        const childNodes = childUrls.map(url => ({
+        const childNodes = childUrls.map((url) => ({
           url,
           depth: node.depth + 1,
           parentUrl: node.url,
@@ -164,7 +179,7 @@ export class BreadthFirstCrawler {
     }
   }
 
-  private async crawlPage(url: string): Promise<string[]> {
+  private async crawlPage(_url: string): Promise<string[]> {
     // This is a placeholder - will be implemented with actual page crawling
     // Will be integrated with BrowserAgent
     return [];
@@ -197,7 +212,7 @@ export class BreadthFirstCrawler {
       }
 
       const robots = this.robotsCache.get(robotsUrl);
-      return robots.isAllowed(url, this.config.userAgent);
+      return robots ? robots.isAllowed(url, this.config.userAgent) : true;
     } catch (error) {
       logger.warn('Failed to check robots.txt', { url, error });
       return true;
@@ -211,32 +226,38 @@ export class BreadthFirstCrawler {
 
     try {
       const urlObj = new URL(url);
-      return this.config.allowedDomains.some(domain => 
-        urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`)
+      return this.config.allowedDomains.some(
+        (domain) => urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`)
       );
     } catch {
       return false;
     }
   }
 
-  async extractUrls(page: Page, baseUrl: string): Promise<string[]> {
+  async extractUrls(page: Page, _baseUrl: string): Promise<string[]> {
     const urls = await page.evaluate(() => {
       const anchors = Array.from(document.querySelectorAll('a[href]'));
       return anchors
-        .map(anchor => (anchor as HTMLAnchorElement).href)
-        .filter(href => href && !href.startsWith('javascript:') && !href.startsWith('#'));
+        .map((anchor) => (anchor as HTMLAnchorElement).href)
+        .filter((href) => {
+          if (!href || href.startsWith('#')) return false;
+          // Filter out JavaScript protocol URLs
+          const lowerHref = href.toLowerCase();
+          // eslint-disable-next-line no-script-url
+          return !lowerHref.startsWith('javascript:') && !lowerHref.startsWith('vbscript:');
+        });
     });
 
     return urls
-      .map(url => this.normalizeUrl(url))
-      .filter(url => this.isValidUrl(url) && this.isAllowedDomain(url))
+      .map((url) => this.normalizeUrl(url))
+      .filter((url) => this.isValidUrl(url) && this.isAllowedDomain(url))
       .filter((url, index, self) => self.indexOf(url) === index);
   }
 
   private isValidUrl(url: string): boolean {
     try {
-      new URL(url);
-      return true;
+      const parsedUrl = new URL(url);
+      return !!parsedUrl;
     } catch {
       return false;
     }

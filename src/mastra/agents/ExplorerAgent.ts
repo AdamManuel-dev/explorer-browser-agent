@@ -1,7 +1,7 @@
 import { Agent } from '@mastra/core';
 import { Stagehand } from '@browserbasehq/stagehand';
 import { Browserbase } from '@browserbasehq/sdk';
-import { Page, Browser, BrowserContext } from 'playwright';
+import { Page, BrowserContext } from 'playwright';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../utils/logger';
 import { MonitoringService } from '../../monitoring';
@@ -16,7 +16,6 @@ import {
   UserPath,
   ExplorationStep,
   ElementInfo,
-  ExplorationError,
   AgentCapabilities,
   AgentMetrics,
 } from '../types';
@@ -35,14 +34,23 @@ export interface ExplorerAgentConfig {
 
 export class ExplorerAgent extends Agent {
   private browserbase: Browserbase;
+
   private stagehand: Stagehand;
+
   private monitoring?: MonitoringService;
+
   private stealth?: StealthMode;
+
   private captchaHandler?: CaptchaHandler;
+
   private authManager?: MultiStrategyAuthManager;
+
   private sessions: Map<string, BrowserContext> = new Map();
+
   private activePaths: Map<string, UserPath> = new Map();
+
   private config: ExplorerAgentConfig;
+
   private metrics: AgentMetrics;
 
   constructor(config: ExplorerAgentConfig) {
@@ -115,7 +123,7 @@ export class ExplorerAgent extends Agent {
 
       // Create Browserbase session
       const session = await this.createBrowserbaseSession();
-      
+
       // Initialize Stagehand with the session
       const page = await this.initializeStagehand(session);
 
@@ -138,8 +146,14 @@ export class ExplorerAgent extends Agent {
         target,
         startTime,
         endTime,
-        pagesExplored: userPaths.reduce((sum, path) => sum + path.steps.filter(s => s.type === 'navigate').length, 0),
-        elementsFound: userPaths.reduce((sum, path) => sum + path.steps.filter(s => s.elementInfo).length, 0),
+        pagesExplored: userPaths.reduce(
+          (sum, path) => sum + path.steps.filter((s) => s.type === 'navigate').length,
+          0
+        ),
+        elementsFound: userPaths.reduce(
+          (sum, path) => sum + path.steps.filter((s) => s.elementInfo).length,
+          0
+        ),
         interactionsRecorded: userPaths.reduce((sum, path) => sum + path.steps.length, 0),
         screenshotsTaken: userPaths.reduce((sum, path) => sum + path.screenshots.length, 0),
         userPaths,
@@ -156,7 +170,7 @@ export class ExplorerAgent extends Agent {
 
       this.updateMetrics(true, endTime.getTime() - startTime.getTime());
       this.monitoring?.recordCounter('explorations_completed', 1, { status: 'success' });
-      
+
       logger.info(`Completed exploration of ${target.url}`, {
         explorationId,
         pagesExplored: result.pagesExplored,
@@ -164,11 +178,10 @@ export class ExplorerAgent extends Agent {
       });
 
       return result;
-
     } catch (error) {
       this.updateMetrics(false, Date.now() - startTime.getTime());
       this.monitoring?.recordCounter('explorations_completed', 1, { status: 'error' });
-      
+
       logger.error(`Failed to explore ${target.url}`, {
         explorationId,
         error: error instanceof Error ? error.message : String(error),
@@ -196,14 +209,14 @@ export class ExplorerAgent extends Agent {
 
       // Use Stagehand's AI-powered element detection
       const elements = await this.stagehand.observe({
-        instruction: selectors?.length 
+        instruction: selectors?.length
           ? `Find elements matching these selectors: ${selectors.join(', ')}`
           : 'Find all interactive elements on the page including buttons, links, forms, and inputs',
       });
 
       // Convert Stagehand results to our ElementInfo format
       const elementInfos: ElementInfo[] = [];
-      
+
       for (const element of elements) {
         try {
           const elementInfo = await this.analyzeElement(page, element.selector);
@@ -218,10 +231,9 @@ export class ExplorerAgent extends Agent {
       }
 
       this.monitoring?.recordGauge('elements_extracted', elementInfos.length);
-      
+
       logger.debug(`Extracted ${elementInfos.length} elements from page`);
       return elementInfos;
-
     } catch (error) {
       logger.error('Failed to extract elements', {
         url: page.url(),
@@ -250,7 +262,7 @@ export class ExplorerAgent extends Agent {
       });
 
       // Take screenshot before interaction
-      const beforeScreenshot = await this.takeScreenshot(page);
+      await this.takeScreenshot(page);
 
       // Use Stagehand to perform the interaction
       const result = await this.stagehand.act({
@@ -275,7 +287,7 @@ export class ExplorerAgent extends Agent {
       };
 
       this.monitoring?.recordHistogram('interaction_duration', step.duration);
-      
+
       logger.debug('Completed AI-guided interaction', {
         stepId,
         success: step.success,
@@ -283,10 +295,9 @@ export class ExplorerAgent extends Agent {
       });
 
       return step;
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       logger.error('Failed to interact with element', {
         instruction,
         error: errorMessage,
@@ -325,7 +336,7 @@ export class ExplorerAgent extends Agent {
       if (this.stealth) {
         await this.stealth.navigateStealthily(page, url);
       } else {
-        await page.goto(url, { 
+        await page.goto(url, {
           waitUntil: 'networkidle',
           timeout: this.config.defaultTimeout || 30000,
         });
@@ -353,16 +364,15 @@ export class ExplorerAgent extends Agent {
       };
 
       this.monitoring?.recordHistogram('navigation_duration', step.duration);
-      
+
       logger.debug(`Successfully navigated to ${url}`, {
         duration: step.duration,
       });
 
       return step;
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       logger.error(`Failed to navigate to ${url}`, {
         error: errorMessage,
       });
@@ -388,7 +398,7 @@ export class ExplorerAgent extends Agent {
   /**
    * Create a new Browserbase session
    */
-  private async createBrowserbaseSession(): Promise<any> {
+  private async createBrowserbaseSession(): Promise<unknown> {
     try {
       const session = await this.browserbase.sessions.create({
         projectId: this.config.browserbase.projectId,
@@ -399,7 +409,7 @@ export class ExplorerAgent extends Agent {
       });
 
       this.sessions.set(session.id, session);
-      
+
       logger.debug('Created Browserbase session', {
         sessionId: session.id,
         projectId: this.config.browserbase.projectId,
@@ -417,18 +427,18 @@ export class ExplorerAgent extends Agent {
   /**
    * Initialize Stagehand with a Browserbase session
    */
-  private async initializeStagehand(session: any): Promise<Page> {
+  private async initializeStagehand(session: unknown): Promise<Page> {
     try {
       // Connect Stagehand to the Browserbase session
       const page = await this.stagehand.page;
-      
+
       if (!page) {
         throw new Error('Failed to initialize Stagehand page');
       }
 
       // Set up page with our configuration
       await page.setViewportSize({ width: 1280, height: 720 });
-      
+
       logger.debug('Initialized Stagehand with Browserbase session', {
         sessionId: session.id,
       });
@@ -446,7 +456,10 @@ export class ExplorerAgent extends Agent {
   /**
    * Perform AI-guided exploration of a target
    */
-  private async performAIGuidedExploration(page: Page, target: ExplorationTarget): Promise<UserPath[]> {
+  private async performAIGuidedExploration(
+    page: Page,
+    target: ExplorationTarget
+  ): Promise<UserPath[]> {
     const userPaths: UserPath[] = [];
     const visitedUrls = new Set<string>();
     let currentDepth = 0;
@@ -474,27 +487,29 @@ export class ExplorerAgent extends Agent {
         try {
           // Use Stagehand to observe the current page and find interesting elements
           const observations = await this.stagehand.observe({
-            instruction: 'Find all clickable elements like buttons, links, and form controls that might lead to interesting content or functionality',
+            instruction:
+              'Find all clickable elements like buttons, links, and form controls that might lead to interesting content or functionality',
           });
 
           // Filter observations based on target patterns
           const relevantElements = this.filterElementsByPatterns(observations, target);
 
           // Interact with promising elements
-          for (const element of relevantElements.slice(0, 3)) { // Limit to 3 interactions per page
+          for (const element of relevantElements.slice(0, 3)) {
+            // Limit to 3 interactions per page
             try {
               const interactionStep = await this.interactWithElement(
                 page,
                 `Click on the element: ${element.selector}`
               );
-              
+
               initialPath.steps.push(interactionStep);
 
               // If navigation occurred, check if it's a new URL
               const currentUrl = page.url();
               if (!visitedUrls.has(currentUrl) && this.isRelevantUrl(currentUrl, target)) {
                 visitedUrls.add(currentUrl);
-                
+
                 // Create a new path for this navigation
                 const newPath: UserPath = {
                   id: uuidv4(),
@@ -512,7 +527,6 @@ export class ExplorerAgent extends Agent {
 
               // Wait between interactions to appear human-like
               await page.waitForTimeout(1000 + Math.random() * 2000);
-
             } catch (error) {
               logger.warn('Failed interaction during exploration', {
                 element: element.selector,
@@ -531,7 +545,6 @@ export class ExplorerAgent extends Agent {
               initialPath.steps.push(backNavStep);
             }
           }
-
         } catch (error) {
           logger.warn('Error during exploration iteration', {
             depth: currentDepth,
@@ -543,9 +556,9 @@ export class ExplorerAgent extends Agent {
 
       // Calculate final metrics for initial path
       initialPath.duration = initialPath.steps.reduce((sum, step) => sum + step.duration, 0);
-      initialPath.success = initialPath.steps.some(step => step.success);
+      initialPath.success = initialPath.steps.some((step) => step.success);
       initialPath.screenshots = initialPath.steps
-        .map(step => step.screenshot)
+        .map((step) => step.screenshot)
         .filter(Boolean) as string[];
 
       userPaths.unshift(initialPath); // Add initial path at the beginning
@@ -557,7 +570,6 @@ export class ExplorerAgent extends Agent {
       });
 
       return userPaths;
-
     } catch (error) {
       logger.error('Failed during AI-guided exploration', {
         error: error instanceof Error ? error.message : String(error),
@@ -601,16 +613,16 @@ export class ExplorerAgent extends Agent {
   private async analyzeElement(page: Page, selector: string): Promise<ElementInfo | null> {
     try {
       const element = page.locator(selector).first();
-      
-      if (!await element.isVisible()) {
+
+      if (!(await element.isVisible())) {
         return null;
       }
 
       const [tagName, text, boundingBox, attributes] = await Promise.all([
-        element.evaluate(el => el.tagName.toLowerCase()),
+        element.evaluate((el) => el.tagName.toLowerCase()),
         element.textContent(),
         element.boundingBox(),
-        element.evaluate(el => {
+        element.evaluate((el) => {
           const attrs: Record<string, string> = {};
           for (const attr of el.attributes) {
             attrs[attr.name] = attr.value;
@@ -620,13 +632,15 @@ export class ExplorerAgent extends Agent {
       ]);
 
       const [isClickable, isFormField] = await Promise.all([
-        element.evaluate(el => {
+        element.evaluate((el) => {
           const clickableTypes = ['button', 'a', 'input', 'select', 'textarea'];
-          return clickableTypes.includes(el.tagName.toLowerCase()) || 
-                 el.getAttribute('onclick') !== null ||
-                 el.getAttribute('role') === 'button';
+          return (
+            clickableTypes.includes(el.tagName.toLowerCase()) ||
+            el.getAttribute('onclick') !== null ||
+            el.getAttribute('role') === 'button'
+          );
         }),
-        element.evaluate(el => {
+        element.evaluate((el) => {
           const formTypes = ['input', 'select', 'textarea'];
           return formTypes.includes(el.tagName.toLowerCase());
         }),
@@ -641,7 +655,6 @@ export class ExplorerAgent extends Agent {
         isClickable,
         isFormField,
       };
-
     } catch (error) {
       logger.debug(`Failed to analyze element ${selector}`, {
         error: error instanceof Error ? error.message : String(error),
@@ -674,29 +687,32 @@ export class ExplorerAgent extends Agent {
   /**
    * Filter elements based on target patterns
    */
-  private filterElementsByPatterns(elements: any[], target: ExplorationTarget): any[] {
+  private filterElementsByPatterns(
+    elements: ElementInfo[],
+    target: ExplorationTarget
+  ): ElementInfo[] {
     if (!target.patterns && !target.excludePatterns) {
       return elements;
     }
 
-    return elements.filter(element => {
+    return elements.filter((element) => {
       const text = element.text?.toLowerCase() || '';
       const selector = element.selector?.toLowerCase() || '';
-      
+
       // Check include patterns
       if (target.patterns) {
-        const matchesInclude = target.patterns.some(pattern => 
-          text.includes(pattern.toLowerCase()) || 
-          selector.includes(pattern.toLowerCase())
+        const matchesInclude = target.patterns.some(
+          (pattern) =>
+            text.includes(pattern.toLowerCase()) || selector.includes(pattern.toLowerCase())
         );
         if (!matchesInclude) return false;
       }
 
       // Check exclude patterns
       if (target.excludePatterns) {
-        const matchesExclude = target.excludePatterns.some(pattern =>
-          text.includes(pattern.toLowerCase()) || 
-          selector.includes(pattern.toLowerCase())
+        const matchesExclude = target.excludePatterns.some(
+          (pattern) =>
+            text.includes(pattern.toLowerCase()) || selector.includes(pattern.toLowerCase())
         );
         if (matchesExclude) return false;
       }
@@ -722,7 +738,7 @@ export class ExplorerAgent extends Agent {
    */
   private inferStepType(instruction: string): ExplorationStep['type'] {
     const lower = instruction.toLowerCase();
-    
+
     if (lower.includes('click')) return 'click';
     if (lower.includes('fill') || lower.includes('type') || lower.includes('enter')) return 'fill';
     if (lower.includes('select')) return 'select';
@@ -730,7 +746,7 @@ export class ExplorerAgent extends Agent {
     if (lower.includes('scroll')) return 'scroll';
     if (lower.includes('wait')) return 'wait';
     if (lower.includes('extract') || lower.includes('get')) return 'extract';
-    
+
     return 'click'; // Default fallback
   }
 
@@ -740,10 +756,9 @@ export class ExplorerAgent extends Agent {
   private async cleanupSession(sessionId: string): Promise<void> {
     try {
       if (this.sessions.has(sessionId)) {
-        const session = this.sessions.get(sessionId);
         // The Browserbase SDK should handle session cleanup automatically
         this.sessions.delete(sessionId);
-        
+
         logger.debug('Cleaned up browser session', { sessionId });
       }
     } catch (error) {
@@ -764,14 +779,14 @@ export class ExplorerAgent extends Agent {
     } else {
       this.metrics.tasksFailed++;
     }
-    
-    this.metrics.averageTaskDuration = 
-      (this.metrics.averageTaskDuration * (this.metrics.tasksCompleted - 1) + duration) / 
+
+    this.metrics.averageTaskDuration =
+      (this.metrics.averageTaskDuration * (this.metrics.tasksCompleted - 1) + duration) /
       this.metrics.tasksCompleted;
-      
+
     this.metrics.totalRuntime += duration;
     this.metrics.lastActivity = new Date();
-    
+
     // Update memory usage (simplified)
     const memUsage = process.memoryUsage();
     this.metrics.memoryUsage = memUsage.heapUsed;
@@ -794,9 +809,11 @@ export class ExplorerAgent extends Agent {
     setInterval(() => {
       if (this.monitoring) {
         this.monitoring.recordGauge('agent_tasks_completed', this.metrics.tasksCompleted);
-        this.monitoring.recordGauge('agent_success_rate', 
-          this.metrics.tasksCompleted > 0 ? 
-            this.metrics.tasksSuccessful / this.metrics.tasksCompleted : 0
+        this.monitoring.recordGauge(
+          'agent_success_rate',
+          this.metrics.tasksCompleted > 0
+            ? this.metrics.tasksSuccessful / this.metrics.tasksCompleted
+            : 0
         );
         this.monitoring.recordGauge('agent_memory_usage', this.metrics.memoryUsage);
       }
@@ -808,7 +825,7 @@ export class ExplorerAgent extends Agent {
    */
   async shutdown(): Promise<void> {
     logger.info('Shutting down ExplorerAgent');
-    
+
     try {
       // Clean up all active sessions
       for (const sessionId of this.sessions.keys()) {

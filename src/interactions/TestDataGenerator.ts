@@ -1,10 +1,10 @@
 import { faker } from '@faker-js/faker';
-import { InteractiveElement, ElementType } from '../types/elements';
+import { InteractiveElement } from '../types/elements';
 import { TestData } from '../types/interactions';
 import { logger } from '../utils/logger';
 
 export class TestDataGenerator {
-  private generators: Map<string, () => any>;
+  private generators: Map<string, () => string | number | boolean>;
 
   constructor() {
     this.generators = this.initializeGenerators();
@@ -13,7 +13,7 @@ export class TestDataGenerator {
   async generateForElement(element: InteractiveElement): Promise<TestData> {
     const type = this.detectInputType(element);
     const generator = this.generators.get(type) || this.generators.get('text')!;
-    
+
     try {
       const value = generator();
       return {
@@ -54,17 +54,20 @@ export class TestDataGenerator {
         return 'color';
       case 'file-upload':
         return 'file';
+      default:
+        // Fall through to text analysis
+        break;
     }
 
     // Check attributes for hints
     const { attributes, metadata } = element;
-    
+
     // Check name attribute
     const name = attributes?.name?.toLowerCase() || '';
     const id = attributes?.id?.toLowerCase() || '';
     const placeholder = metadata?.placeholder?.toLowerCase() || '';
     const label = metadata?.label?.toLowerCase() || '';
-    
+
     const combined = `${name} ${id} ${placeholder} ${label}`;
 
     // Email patterns
@@ -73,8 +76,12 @@ export class TestDataGenerator {
     }
 
     // Phone patterns
-    if (combined.includes('phone') || combined.includes('tel') || 
-        combined.includes('mobile') || combined.includes('cell')) {
+    if (
+      combined.includes('phone') ||
+      combined.includes('tel') ||
+      combined.includes('mobile') ||
+      combined.includes('cell')
+    ) {
       return 'phone';
     }
 
@@ -112,14 +119,17 @@ export class TestDataGenerator {
     }
 
     // Date patterns
-    if (combined.includes('date') || combined.includes('dob') || 
-        combined.includes('birth')) {
+    if (combined.includes('date') || combined.includes('dob') || combined.includes('birth')) {
       return 'date';
     }
 
     // Number patterns
-    if (combined.includes('number') || combined.includes('amount') || 
-        combined.includes('quantity') || combined.includes('price')) {
+    if (
+      combined.includes('number') ||
+      combined.includes('amount') ||
+      combined.includes('quantity') ||
+      combined.includes('price')
+    ) {
       return 'number';
     }
 
@@ -132,8 +142,8 @@ export class TestDataGenerator {
     return 'text';
   }
 
-  private initializeGenerators(): Map<string, () => any> {
-    const generators = new Map<string, () => any>();
+  private initializeGenerators(): Map<string, () => string | number | boolean> {
+    const generators = new Map<string, () => string | number | boolean>();
 
     // Personal information
     generators.set('email', () => faker.internet.email());
@@ -173,20 +183,20 @@ export class TestDataGenerator {
 
   private generateSecurePassword(): string {
     // Generate a password that meets common requirements
-    const length = faker.number.int({ min: 12, max: 16 });
+    // const length = faker.number.int({ min: 12, max: 16 });
     const lowercase = faker.string.alpha({ length: 4, casing: 'lower' });
     const uppercase = faker.string.alpha({ length: 4, casing: 'upper' });
     const numbers = faker.string.numeric({ length: 2 });
     const special = faker.helpers.arrayElement(['!', '@', '#', '$', '%', '^', '&', '*']);
-    
-    const password = faker.helpers.shuffle(
-      [...lowercase, ...uppercase, ...numbers, special].join('').split('')
-    ).join('');
+
+    const password = faker.helpers
+      .shuffle([...lowercase, ...uppercase, ...numbers, special].join('').split(''))
+      .join('');
 
     return password;
   }
 
-  generateMultipleValues(count: number, type: string): any[] {
+  generateMultipleValues(count: number, type: string): Array<string | number | boolean> {
     const generator = this.generators.get(type) || this.generators.get('text')!;
     return Array.from({ length: count }, () => generator());
   }
@@ -202,6 +212,6 @@ export class TestDataGenerator {
     max = 3
   ): string[] {
     const count = faker.number.int({ min, max: Math.min(max, options.length) });
-    return faker.helpers.arrayElements(options, count).map(opt => opt.value);
+    return faker.helpers.arrayElements(options, count).map((opt) => opt.value);
   }
 }

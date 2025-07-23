@@ -1,8 +1,12 @@
-import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
-import { logger } from '../../utils/logger';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { InteractiveElement } from '../../types/elements';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
+import { logger } from '../../utils/logger';
 
 export class FileUploadStrategy implements InteractionStrategy {
   type = 'file-upload';
@@ -62,7 +66,7 @@ export class FileUploadStrategy implements InteractionStrategy {
     await fs.mkdir(testDir, { recursive: true });
 
     const testFilePath = path.join(testDir, 'test-document.pdf');
-    
+
     // Create a simple PDF-like file for testing
     const pdfContent = `%PDF-1.4
 1 0 obj

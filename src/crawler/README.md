@@ -9,6 +9,7 @@ The crawler module provides comprehensive web crawling capabilities with support
 A systematic web crawler that uses breadth-first search algorithm to explore websites.
 
 **Features:**
+
 - Queue-based BFS algorithm
 - URL normalization and deduplication
 - Concurrent crawling with configurable worker pools
@@ -17,6 +18,7 @@ A systematic web crawler that uses breadth-first search algorithm to explore web
 - Comprehensive error handling and reporting
 
 **Usage:**
+
 ```typescript
 import { BreadthFirstCrawler } from './crawler';
 import { chromium } from 'playwright';
@@ -41,6 +43,7 @@ console.log(`Crawled ${result.crawledUrls.length} pages`);
 An enhanced crawler with circuit breaker patterns, retry logic, and health monitoring.
 
 **Features:**
+
 - Circuit breaker for fault tolerance
 - Exponential backoff retry strategies
 - Health check monitoring
@@ -48,6 +51,7 @@ An enhanced crawler with circuit breaker patterns, retry logic, and health monit
 - Detailed failure tracking
 
 **Usage:**
+
 ```typescript
 import { ResilientCrawler } from './crawler';
 
@@ -71,6 +75,7 @@ const result = await resilientCrawler.crawl(crawlOptions);
 A distributed crawling system using Redis for coordination and job queuing.
 
 **Features:**
+
 - Redis-based job queue with priority levels
 - Worker coordination and heartbeat monitoring
 - Horizontal scaling support
@@ -79,6 +84,7 @@ A distributed crawling system using Redis for coordination and job queuing.
 - Real-time worker status monitoring
 
 **Usage:**
+
 ```typescript
 import { DistributedCrawler } from './crawler';
 
@@ -106,6 +112,7 @@ const result = await distributedCrawler.distributedCrawl('https://example.com');
 A high-level service that orchestrates different crawler types and provides a unified interface.
 
 **Usage:**
+
 ```typescript
 import { CrawlerService } from './crawler';
 
@@ -123,6 +130,7 @@ await service.cleanup();
 ## Configuration Options
 
 ### CrawlConfiguration
+
 ```typescript
 interface CrawlConfiguration {
   startUrl: string;
@@ -140,6 +148,7 @@ interface CrawlConfiguration {
 ```
 
 ### Circuit Breaker Configuration
+
 ```typescript
 interface CircuitBreakerConfig {
   failureThreshold: number;
@@ -149,6 +158,7 @@ interface CircuitBreakerConfig {
 ```
 
 ### Distributed Crawl Configuration
+
 ```typescript
 interface DistributedCrawlConfig extends CrawlOptions {
   redis: RedisConfig;
@@ -187,6 +197,7 @@ interface DistributedCrawlConfig extends CrawlOptions {
 ## Error Handling
 
 The crawlers provide comprehensive error reporting:
+
 - Network errors (timeouts, connection failures)
 - HTTP errors (4xx, 5xx status codes)
 - Parsing errors (malformed HTML, JavaScript errors)

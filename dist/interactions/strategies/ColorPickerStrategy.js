@@ -2,20 +2,28 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ColorPickerStrategy = void 0;
 class ColorPickerStrategy {
-    async execute(context) {
-        const { element } = context;
+    type = 'color-picker';
+    async execute(element, context) {
+        const { page } = context;
+        const startTime = Date.now();
         try {
             // Basic implementation - just click the color picker
-            await element.click();
+            const el = await page.$(element.selector);
+            if (!el) {
+                throw new Error('Color picker element not found');
+            }
+            await el.click();
             return {
                 success: true,
-                message: 'Color picker clicked successfully',
+                value: 'Color picker clicked successfully',
+                timing: Date.now() - startTime,
             };
         }
         catch (error) {
             return {
                 success: false,
-                message: `Failed to interact with color picker: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: `Failed to interact with color picker: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timing: Date.now() - startTime,
             };
         }
     }

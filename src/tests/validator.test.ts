@@ -1,10 +1,9 @@
-import { test, expect, describe, beforeEach, vi } from '@jest/globals';
+import { test, expect, describe, beforeEach, jest } from '@jest/globals';
 import { TestValidator } from '../generation/TestValidator';
-import { TestFile, TestFramework } from '../types/generation';
-import { logger } from '../utils/logger';
+import { TestFile } from '../types/generation';
 
-vi.mock('../utils/logger');
-vi.mock('fs/promises');
+jest.mock('../utils/logger');
+jest.mock('fs/promises');
 
 describe('TestValidator', () => {
   let validator: TestValidator;
@@ -49,7 +48,22 @@ test('login flow', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -59,7 +73,7 @@ test('login flow', async ({ page }) => {
       const result = await validator.validateTestFile(testFile);
 
       expect(result.isValid).toBe(true);
-      expect(result.errors.filter(e => e.severity === 'error')).toHaveLength(0);
+      expect(result.errors.filter((e) => e.severity === 'error')).toHaveLength(0);
       expect(result.metrics.totalTests).toBe(1);
       expect(result.metrics.totalAssertions).toBe(1);
     });
@@ -79,7 +93,22 @@ test('missing semicolons', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -88,8 +117,8 @@ test('missing semicolons', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const semicolonWarnings = result.errors.filter(e => 
-        e.type === 'syntax' && e.message.includes('semicolon')
+      const semicolonWarnings = result.errors.filter(
+        (e) => e.type === 'syntax' && e.message.includes('semicolon')
       );
       expect(semicolonWarnings.length).toBeGreaterThan(0);
     });
@@ -108,7 +137,22 @@ test('invalid await usage', ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -117,11 +161,11 @@ test('invalid await usage', ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const awaitErrors = result.errors.filter(e =>
-        e.type === 'syntax' && e.message.includes('await used outside async function')
+      const awaitErrors = result.errors.filter(
+        (e) => e.type === 'syntax' && e.message.includes('await used outside async function')
       );
       expect(awaitErrors.length).toBeGreaterThan(0);
-      expect(awaitErrors[0].severity).toBe('error');
+      expect(awaitErrors[0]?.severity).toBe('error');
     });
   });
 
@@ -139,7 +183,22 @@ test('test without imports', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: [],
@@ -148,9 +207,9 @@ test('test without imports', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const importErrors = result.errors.filter(e => e.type === 'import');
+      const importErrors = result.errors.filter((e) => e.type === 'import');
       expect(importErrors.length).toBeGreaterThan(0);
-      expect(importErrors[0].message).toContain('Missing required import');
+      expect(importErrors[0]?.message).toContain('Missing required import');
     });
 
     test('should detect unused imports', async () => {
@@ -168,7 +227,22 @@ test('test with unused import', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -177,8 +251,8 @@ test('test with unused import', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const unusedImportWarnings = result.errors.filter(e =>
-        e.type === 'import' && e.message.includes('Unused import')
+      const unusedImportWarnings = result.errors.filter(
+        (e) => e.type === 'import' && e.message.includes('Unused import')
       );
       expect(unusedImportWarnings.length).toBeGreaterThan(0);
       expect(result.metrics.unusedImports).toContain('Browser');
@@ -203,7 +277,22 @@ test('test with fragile selectors', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -212,8 +301,8 @@ test('test with fragile selectors', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const fragileWarnings = result.warnings.filter(w =>
-        w.type === 'maintainability' && w.message.includes('Fragile selector')
+      const fragileWarnings = result.warnings.filter(
+        (w) => w.type === 'maintainability' && w.message.includes('Fragile selector')
       );
       expect(fragileWarnings.length).toBeGreaterThan(0);
     });
@@ -237,7 +326,22 @@ test('test with duplicate selectors', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -246,8 +350,8 @@ test('test with duplicate selectors', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const duplicateWarnings = result.warnings.filter(w =>
-        w.message.includes('Selector used') && w.message.includes('times')
+      const duplicateWarnings = result.warnings.filter(
+        (w) => w.message.includes('Selector used') && w.message.includes('times')
       );
       expect(duplicateWarnings.length).toBeGreaterThan(0);
       expect(result.metrics.duplicateSelectors).toContain('#submit-btn');
@@ -269,7 +373,22 @@ test('test with class selectors', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -278,7 +397,7 @@ test('test with class selectors', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const testidSuggestions = result.warnings.filter(w =>
+      const testidSuggestions = result.warnings.filter((w) =>
         w.message.includes('Consider using data-testid')
       );
       expect(testidSuggestions.length).toBeGreaterThan(0);
@@ -302,7 +421,22 @@ test('test without assertions', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -311,8 +445,8 @@ test('test without assertions', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const noAssertionErrors = result.errors.filter(e =>
-        e.type === 'assertion' && e.message.includes('has no assertions')
+      const noAssertionErrors = result.errors.filter(
+        (e) => e.type === 'assertion' && e.message.includes('has no assertions')
       );
       expect(noAssertionErrors.length).toBeGreaterThan(0);
     });
@@ -334,7 +468,22 @@ test('test with weak assertions', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -343,8 +492,8 @@ test('test with weak assertions', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const weakAssertionWarnings = result.errors.filter(e =>
-        e.type === 'assertion' && e.message.includes('Weak assertion')
+      const weakAssertionWarnings = result.errors.filter(
+        (e) => e.type === 'assertion' && e.message.includes('Weak assertion')
       );
       expect(weakAssertionWarnings.length).toBeGreaterThan(0);
     });
@@ -367,7 +516,22 @@ test('test with various assertions', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -401,7 +565,22 @@ test('another test with goto', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -410,15 +589,16 @@ test('another test with goto', async ({ page }) => {
 
       const result = await validator.validateTestFile(testFile);
 
-      const gotoWarnings = result.warnings.filter(w =>
+      const gotoWarnings = result.warnings.filter((w) =>
         w.message.includes('Consider moving page.goto to beforeEach')
       );
       expect(gotoWarnings.length).toBe(2);
     });
 
     test('should warn about long tests', async () => {
-      const longTestContent = Array.from({ length: 60 }, (_, i) => 
-        `  await page.click('#button-${i}');`
+      const longTestContent = Array.from(
+        { length: 60 },
+        (_, i) => `  await page.click('#button-${i}');`
       ).join('\n');
 
       const testFile: TestFile = {
@@ -436,7 +616,22 @@ ${longTestContent}
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -445,9 +640,7 @@ ${longTestContent}
 
       const result = await validator.validateTestFile(testFile);
 
-      const longTestWarnings = result.warnings.filter(w =>
-        w.message.includes('is very long')
-      );
+      const longTestWarnings = result.warnings.filter((w) => w.message.includes('is very long'));
       expect(longTestWarnings.length).toBeGreaterThan(0);
     });
   });
@@ -477,7 +670,22 @@ test('second test', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -511,7 +719,22 @@ test('well-written test', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -542,7 +765,22 @@ test('login test', async ({ page }) => {
           type: 'test',
           metadata: {
             generatedAt: new Date(),
-            sourcePath: {} as any,
+            sourcePath: {
+              id: 'test-path',
+              name: 'Test Path',
+              startUrl: 'https://example.com',
+              steps: [],
+              assertions: [],
+              duration: 0,
+              metadata: {
+                totalSteps: 0,
+                browser: 'chromium',
+                platform: 'darwin',
+                timestamp: new Date(),
+                viewport: { width: 1920, height: 1080 },
+              },
+              createdAt: new Date(),
+            },
             framework: 'playwright',
             language: 'typescript',
             dependencies: ['@playwright/test'],
@@ -562,7 +800,22 @@ test('signup test', async ({ page }) => {
           type: 'test',
           metadata: {
             generatedAt: new Date(),
-            sourcePath: {} as any,
+            sourcePath: {
+              id: 'test-path',
+              name: 'Test Path',
+              startUrl: 'https://example.com',
+              steps: [],
+              assertions: [],
+              duration: 0,
+              metadata: {
+                totalSteps: 0,
+                browser: 'chromium',
+                platform: 'darwin',
+                timestamp: new Date(),
+                viewport: { width: 1920, height: 1080 },
+              },
+              createdAt: new Date(),
+            },
             framework: 'playwright',
             language: 'typescript',
             dependencies: ['@playwright/test'],
@@ -586,7 +839,22 @@ test('signup test', async ({ page }) => {
           type: 'test',
           metadata: {
             generatedAt: new Date(),
-            sourcePath: {} as any,
+            sourcePath: {
+              id: 'test-path',
+              name: 'Test Path',
+              startUrl: 'https://example.com',
+              steps: [],
+              assertions: [],
+              duration: 0,
+              metadata: {
+                totalSteps: 0,
+                browser: 'chromium',
+                platform: 'darwin',
+                timestamp: new Date(),
+                viewport: { width: 1920, height: 1080 },
+              },
+              createdAt: new Date(),
+            },
             framework: 'playwright',
             language: 'typescript',
             dependencies: ['@playwright/test'],
@@ -599,7 +867,22 @@ test('signup test', async ({ page }) => {
           type: 'test',
           metadata: {
             generatedAt: new Date(),
-            sourcePath: {} as any,
+            sourcePath: {
+              id: 'test-path',
+              name: 'Test Path',
+              startUrl: 'https://example.com',
+              steps: [],
+              assertions: [],
+              duration: 0,
+              metadata: {
+                totalSteps: 0,
+                browser: 'chromium',
+                platform: 'darwin',
+                timestamp: new Date(),
+                viewport: { width: 1920, height: 1080 },
+              },
+              createdAt: new Date(),
+            },
             framework: 'playwright',
             language: 'typescript',
             dependencies: ['@playwright/test'],
@@ -612,7 +895,22 @@ test('signup test', async ({ page }) => {
           type: 'test',
           metadata: {
             generatedAt: new Date(),
-            sourcePath: {} as any,
+            sourcePath: {
+              id: 'test-path',
+              name: 'Test Path',
+              startUrl: 'https://example.com',
+              steps: [],
+              assertions: [],
+              duration: 0,
+              metadata: {
+                totalSteps: 0,
+                browser: 'chromium',
+                platform: 'darwin',
+                timestamp: new Date(),
+                viewport: { width: 1920, height: 1080 },
+              },
+              createdAt: new Date(),
+            },
             framework: 'playwright',
             language: 'typescript',
             dependencies: ['@playwright/test'],
@@ -622,7 +920,7 @@ test('signup test', async ({ page }) => {
 
       const result = await validator.validateTestSuite(testFiles);
 
-      const namingWarnings = result.warnings.filter(w =>
+      const namingWarnings = result.warnings.filter((w) =>
         w.message.includes('Inconsistent test file naming')
       );
       expect(namingWarnings.length).toBeGreaterThan(0);
@@ -645,7 +943,22 @@ test('test with syntax error', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],
@@ -666,7 +979,22 @@ test('test with syntax error', async ({ page }) => {
         type: 'test',
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as any,
+          sourcePath: {
+            id: 'test-path',
+            name: 'Test Path',
+            startUrl: 'https://example.com',
+            steps: [],
+            assertions: [],
+            duration: 0,
+            metadata: {
+              totalSteps: 0,
+              browser: 'chromium',
+              platform: 'darwin',
+              timestamp: new Date(),
+              viewport: { width: 1920, height: 1080 },
+            },
+            createdAt: new Date(),
+          },
           framework: 'playwright',
           language: 'typescript',
           dependencies: ['@playwright/test'],

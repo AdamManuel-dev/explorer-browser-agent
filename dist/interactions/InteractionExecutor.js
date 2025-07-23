@@ -59,7 +59,7 @@ class InteractionExecutor {
             // Record initial state
             const initialState = await this.captureState();
             // Set up network monitoring
-            const networkPromise = this.monitorNetwork(networkActivity);
+            this.monitorNetwork(networkActivity);
             // Get strategy for element type
             const strategy = this.strategies.get(element.type);
             if (!strategy) {

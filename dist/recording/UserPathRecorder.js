@@ -195,7 +195,7 @@ class UserPathRecorder {
             action: reason || `Wait for ${duration}ms`,
             value: duration,
             timestamp: Date.now(),
-            duration: duration,
+            duration,
             networkActivity: [],
             stateChanges: [],
         };
@@ -232,7 +232,7 @@ class UserPathRecorder {
                 });
             });
             this.page.on('response', (response) => {
-                const activity = this.networkActivity.find(a => a.url === response.url() && !a.status);
+                const activity = this.networkActivity.find((a) => a.url === response.url() && !a.status);
                 if (activity) {
                     activity.status = response.status();
                 }
@@ -285,13 +285,13 @@ class UserPathRecorder {
     }
     mapElementTypeToStepType(elementType) {
         const typeMap = {
-            'button': 'click',
-            'link': 'click',
+            button: 'click',
+            link: 'click',
             'text-input': 'type',
-            'textarea': 'type',
-            'select': 'select',
-            'checkbox': 'check',
-            'radio': 'check',
+            textarea: 'type',
+            select: 'select',
+            checkbox: 'check',
+            radio: 'check',
         };
         return typeMap[elementType] || 'click';
     }
@@ -360,8 +360,8 @@ class UserPathRecorder {
             });
         }
         // Navigation assertion
-        if (result.stateChanges?.some(change => change.type === 'url')) {
-            const urlChange = result.stateChanges.find(change => change.type === 'url');
+        if (result.stateChanges?.some((change) => change.type === 'url')) {
+            const urlChange = result.stateChanges.find((change) => change.type === 'url');
             if (urlChange) {
                 this.assertions.push({
                     id: (0, uuid_1.v4)(),
@@ -377,12 +377,7 @@ class UserPathRecorder {
         if (!this.page)
             return;
         // Visibility assertions for key elements
-        const importantSelectors = [
-            'h1', 'h2',
-            '[data-testid]',
-            'form',
-            '.error', '.success',
-        ];
+        const importantSelectors = ['h1', 'h2', '[data-testid]', 'form', '.error', '.success'];
         for (const selector of importantSelectors) {
             try {
                 const elements = await this.page.$$(selector);
@@ -402,16 +397,11 @@ class UserPathRecorder {
         }
     }
     analyzePath(path) {
-        const uniqueElements = new Set(path.steps
-            .filter(step => step.element)
-            .map(step => step.element.selector)).size;
-        const pageTransitions = path.steps.filter(step => step.type === 'navigation' ||
-            step.stateChanges.some(change => change.type === 'url')).length;
+        const uniqueElements = new Set(path.steps.filter((step) => step.element).map((step) => step.element.selector)).size;
+        const pageTransitions = path.steps.filter((step) => step.type === 'navigation' || step.stateChanges.some((change) => change.type === 'url')).length;
         const networkRequests = path.steps.reduce((sum, step) => sum + step.networkActivity.length, 0);
-        const interactionCount = path.steps.filter(step => ['click', 'type', 'select', 'check'].includes(step.type)).length;
-        const complexity = interactionCount < 5 ? 'simple' :
-            interactionCount < 15 ? 'moderate' :
-                'complex';
+        const interactionCount = path.steps.filter((step) => ['click', 'type', 'select', 'check'].includes(step.type)).length;
+        const complexity = interactionCount < 5 ? 'simple' : interactionCount < 15 ? 'moderate' : 'complex';
         return {
             complexity,
             estimatedDuration: path.duration,

@@ -9,6 +9,7 @@ The testing module provides comprehensive self-testing and validation capabiliti
 A comprehensive testing framework that validates the Browser Explorer system's functionality across all components and integration points.
 
 **Features:**
+
 - **Component Testing**: Individual module validation
 - **Integration Testing**: End-to-end workflow validation
 - **Performance Testing**: Memory usage, speed, and load testing
@@ -72,42 +73,50 @@ console.log(`Tests completed: ${report.summary.successRate * 100}% success rate`
 Validate individual system components:
 
 #### Configuration Manager
+
 - Default configuration loading
 - Configuration validation
 - Schema compliance
 
 #### Monitoring Service
+
 - Metrics recording and retrieval
 - Distributed tracing
 - Alert generation
 - System metrics collection
 
 #### Element Detector
+
 - Element type classification
 - Selector generation
 - Interactive element identification
 
 #### Interaction Executor
+
 - Strategy availability
 - Interaction validation
 - Execution capability
 
 #### Authentication Manager
+
 - Strategy registration
 - Credential validation
 - Session management
 
 #### Session Manager
+
 - Session persistence
 - Cross-domain support
 - Encryption/decryption
 
 #### Stealth Mode
+
 - User agent generation
 - Fingerprint spoofing
 - Behavior simulation
 
 #### CAPTCHA Handler
+
 - Detection patterns
 - Solving strategies
 - Service integration
@@ -117,6 +126,7 @@ Validate individual system components:
 Validate browser-dependent functionality:
 
 #### Basic Crawling
+
 ```typescript
 // Tests actual browser automation
 const crawler = new BreadthFirstCrawler(browser);
@@ -135,6 +145,7 @@ const result = await crawler.crawl({
 ```
 
 #### Element Detection
+
 ```typescript
 // Tests real DOM interaction
 const detector = new AIElementDetector();
@@ -148,6 +159,7 @@ const elements = await detector.detectElements(page);
 ```
 
 #### User Path Recording
+
 ```typescript
 // Tests interaction recording
 const recorder = new UserPathRecorder();
@@ -170,6 +182,7 @@ const path = await recorder.stopRecording();
 End-to-end workflow validation:
 
 #### Complete Workflow
+
 - Full exploration cycle
 - Configuration loading
 - Authentication handling
@@ -178,12 +191,14 @@ End-to-end workflow validation:
 - Result reporting
 
 #### Authentication Workflow
+
 - Multi-strategy authentication
 - Session persistence
 - Cross-browser restoration
 - Error handling
 
 #### Performance Workflow
+
 - Resource utilization
 - Memory management
 - Concurrent operations
@@ -194,6 +209,7 @@ End-to-end workflow validation:
 System performance and resource validation:
 
 #### Memory Usage
+
 ```typescript
 // Tests memory consumption patterns
 const initialMemory = process.memoryUsage().heapUsed;
@@ -212,18 +228,21 @@ const memoryIncrease = finalMemory - initialMemory;
 ```
 
 #### Crawl Performance
+
 - Response time measurement
 - Throughput analysis
 - Resource utilization
 - Scalability limits
 
 #### Generation Performance
+
 - Test creation speed
 - File output efficiency
 - Code quality metrics
 - Resource consumption
 
 #### Concurrent Operations
+
 ```typescript
 // Tests system under concurrent load
 const operations = Array.from({ length: 10 }, (_, i) =>
@@ -251,12 +270,12 @@ interface SelfTestConfig {
   retryAttempts: number; // Retry failed tests
   skipBrowserTests: boolean; // Skip browser-dependent tests
   outputDirectory: string; // Test report output
-  
+
   testEndpoints: {
     enabled: boolean;
     urls: string[]; // External endpoints to test
   };
-  
+
   componentTests: {
     crawler: boolean;
     detector: boolean;
@@ -269,7 +288,7 @@ interface SelfTestConfig {
     captcha: boolean;
     config: boolean;
   };
-  
+
   performanceThresholds: {
     maxCrawlTime: number; // Maximum crawl time (ms)
     maxGenerationTime: number; // Maximum generation time (ms)
@@ -440,7 +459,7 @@ const report = await runner.runAllTests();
 // Report test results as metrics
 monitoring.recordGauge('self_test_success_rate', report.summary.successRate);
 monitoring.recordCounter('self_test_runs_total', 1, {
-  status: report.summary.overallHealth
+  status: report.summary.overallHealth,
 });
 ```
 
@@ -458,6 +477,7 @@ monitoring.recordCounter('self_test_runs_total', 1, {
 ### Common Issues
 
 #### Browser Tests Failing
+
 ```bash
 # Install Playwright browsers
 npx playwright install chromium
@@ -467,6 +487,7 @@ browser-explorer-self-test validate
 ```
 
 #### Memory Issues
+
 ```bash
 # Increase Node.js memory limit
 export NODE_OPTIONS="--max-old-space-size=4096"
@@ -476,6 +497,7 @@ browser-explorer-self-test run --skip-browser --quick
 ```
 
 #### Permission Errors
+
 ```bash
 # Check file system permissions
 ls -la $(pwd)
@@ -485,6 +507,7 @@ sudo browser-explorer-self-test run --output /tmp/reports
 ```
 
 #### Network Timeouts
+
 ```bash
 # Increase timeout for network operations
 browser-explorer-self-test run --timeout 60000
@@ -529,7 +552,7 @@ const customValidation = {
     } catch (error) {
       return { success: false, details: error.message };
     }
-  }
+  },
 };
 
 runner.addCustomValidation(customValidation);

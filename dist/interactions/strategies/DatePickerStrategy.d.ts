@@ -1,6 +1,7 @@
-import { InteractionStrategy } from '../InteractionStrategy';
-import { InteractionContext, InteractionResult } from '../types';
+import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import { InteractiveElement } from '../../types/elements';
 export declare class DatePickerStrategy implements InteractionStrategy {
-    execute(context: InteractionContext): Promise<InteractionResult>;
+    type: string;
+    execute(element: InteractiveElement, context: InteractionContext): Promise<InteractionResult>;
 }
 //# sourceMappingURL=DatePickerStrategy.d.ts.map

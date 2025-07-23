@@ -58,9 +58,7 @@ program
     await cli.init(options);
 });
 // Config commands
-const configCmd = program
-    .command('config')
-    .description('Configuration management');
+const configCmd = program.command('config').description('Configuration management');
 configCmd
     .command('create')
     .description('Create a sample configuration file')

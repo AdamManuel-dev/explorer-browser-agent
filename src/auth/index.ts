@@ -8,8 +8,4 @@ export type {
   AuthSession,
   AuthResult,
 } from './MultiStrategyAuthManager';
-export type {
-  SessionStorage,
-  SessionManagerConfig,
-  StoredSession,
-} from './SessionManager';
+export type { SessionStorage, SessionManagerConfig, StoredSession } from './SessionManager';

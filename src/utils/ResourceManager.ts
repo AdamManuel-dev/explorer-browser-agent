@@ -103,11 +103,17 @@ export interface ResourceAllocation {
 
 export class ResourceManager extends EventEmitter {
   private config: ResourceManagerConfig;
+
   private browserPools: Map<string, BrowserPoolItem> = new Map();
+
   private allocatedResources: Map<string, ResourceAllocation> = new Map();
+
   private monitoringInterval?: NodeJS.Timeout;
+
   private cleanupInterval?: NodeJS.Timeout;
+
   private startTime = Date.now();
+
   private isShuttingDown = false;
 
   constructor(config?: Partial<ResourceManagerConfig>) {
@@ -173,7 +179,6 @@ export class ResourceManager extends EventEmitter {
 
       this.emit('resourceAllocated', allocation);
       return allocation;
-
     } catch (error) {
       logger.error('Failed to allocate resources', error);
       throw error;
@@ -193,23 +198,23 @@ export class ResourceManager extends EventEmitter {
       // Mark resources as idle
       const browserItem = this.browserPools.get(allocation.browserId);
       if (browserItem) {
-        const contextItem = browserItem.contexts.find(c => c.id === allocation.contextId);
+        const contextItem = browserItem.contexts.find((c) => c.id === allocation.contextId);
         if (contextItem) {
-          const pageItem = contextItem.pages.find(p => p.id === allocation.pageId);
+          const pageItem = contextItem.pages.find((p) => p.id === allocation.pageId);
           if (pageItem) {
             pageItem.isIdle = true;
             pageItem.lastUsed = new Date();
           }
-          
+
           // Check if all pages in context are idle
-          if (contextItem.pages.every(p => p.isIdle)) {
+          if (contextItem.pages.every((p) => p.isIdle)) {
             contextItem.isIdle = true;
             contextItem.lastUsed = new Date();
           }
         }
 
         // Check if all contexts in browser are idle
-        if (browserItem.contexts.every(c => c.isIdle)) {
+        if (browserItem.contexts.every((c) => c.isIdle)) {
           browserItem.isIdle = true;
           browserItem.lastUsed = new Date();
         }
@@ -217,7 +222,6 @@ export class ResourceManager extends EventEmitter {
 
       this.allocatedResources.delete(allocationId);
       this.emit('resourceReleased', allocation);
-
     } catch (error) {
       logger.error('Error releasing resources', { allocationId, error });
     }
@@ -225,8 +229,8 @@ export class ResourceManager extends EventEmitter {
 
   async getResourceMetrics(): Promise<ResourceMetrics> {
     const browsers = Array.from(this.browserPools.values());
-    const contexts = browsers.flatMap(b => b.contexts);
-    const pages = contexts.flatMap(c => c.pages);
+    const contexts = browsers.flatMap((b) => b.contexts);
+    const pages = contexts.flatMap((c) => c.pages);
 
     // Calculate memory usage
     const memoryUsage = await this.getMemoryUsage();
@@ -242,22 +246,25 @@ export class ResourceManager extends EventEmitter {
     return {
       browsers: {
         total: browsers.length,
-        active: browsers.filter(b => !b.isIdle).length,
-        idle: browsers.filter(b => b.isIdle).length,
-        byType: browsers.reduce((acc, b) => {
-          acc[b.type] = (acc[b.type] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>),
+        active: browsers.filter((b) => !b.isIdle).length,
+        idle: browsers.filter((b) => b.isIdle).length,
+        byType: browsers.reduce(
+          (acc, b) => {
+            acc[b.type] = (acc[b.type] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>
+        ),
       },
       contexts: {
         total: contexts.length,
-        active: contexts.filter(c => !c.isIdle).length,
-        idle: contexts.filter(c => c.isIdle).length,
+        active: contexts.filter((c) => !c.isIdle).length,
+        idle: contexts.filter((c) => c.isIdle).length,
       },
       pages: {
         total: pages.length,
-        active: pages.filter(p => !p.isIdle).length,
-        idle: pages.filter(p => p.isIdle).length,
+        active: pages.filter((p) => !p.isIdle).length,
+        idle: pages.filter((p) => p.isIdle).length,
       },
       memory: memoryInfo,
       cpu: {
@@ -275,9 +282,10 @@ export class ResourceManager extends EventEmitter {
 
     for (const [browserId, browserItem] of this.browserPools.entries()) {
       const browserAge = now - browserItem.lastUsed.getTime();
-      const shouldCleanupBrowser = force || 
+      const shouldCleanupBrowser =
+        force ||
         (browserItem.isIdle && browserAge > this.config.cleanup.idleTimeout) ||
-        (browserAge > this.config.cleanup.forceCleanupAfter);
+        browserAge > this.config.cleanup.forceCleanupAfter;
 
       if (shouldCleanupBrowser) {
         await this.destroyBrowser(browserId);
@@ -288,10 +296,13 @@ export class ResourceManager extends EventEmitter {
       // Cleanup contexts
       for (let i = browserItem.contexts.length - 1; i >= 0; i--) {
         const contextItem = browserItem.contexts[i];
+        if (!contextItem) continue;
+
         const contextAge = now - contextItem.lastUsed.getTime();
-        const shouldCleanupContext = force ||
+        const shouldCleanupContext =
+          force ||
           (contextItem.isIdle && contextAge > this.config.cleanup.idleTimeout) ||
-          (contextAge > this.config.cleanup.forceCleanupAfter);
+          contextAge > this.config.cleanup.forceCleanupAfter;
 
         if (shouldCleanupContext) {
           await this.destroyContext(browserItem, contextItem.id);
@@ -301,10 +312,13 @@ export class ResourceManager extends EventEmitter {
         // Cleanup pages
         for (let j = contextItem.pages.length - 1; j >= 0; j--) {
           const pageItem = contextItem.pages[j];
+          if (!pageItem) continue;
+
           const pageAge = now - pageItem.lastUsed.getTime();
-          const shouldCleanupPage = force ||
+          const shouldCleanupPage =
+            force ||
             (pageItem.isIdle && pageAge > this.config.cleanup.idleTimeout) ||
-            (pageAge > this.config.cleanup.forceCleanupAfter);
+            pageAge > this.config.cleanup.forceCleanupAfter;
 
           if (shouldCleanupPage) {
             await this.destroyPage(contextItem, pageItem.id);
@@ -348,7 +362,10 @@ export class ResourceManager extends EventEmitter {
 
   private findAvailableBrowser(): BrowserPoolItem | null {
     for (const browserItem of this.browserPools.values()) {
-      if (browserItem.isIdle && browserItem.contexts.length < this.config.browserPool.maxContextsPerBrowser) {
+      if (
+        browserItem.isIdle &&
+        browserItem.contexts.length < this.config.browserPool.maxContextsPerBrowser
+      ) {
         return browserItem;
       }
     }
@@ -357,7 +374,10 @@ export class ResourceManager extends EventEmitter {
 
   private findAvailableContext(browserItem: BrowserPoolItem): ContextPoolItem | null {
     for (const contextItem of browserItem.contexts) {
-      if (contextItem.isIdle && contextItem.pages.length < this.config.browserPool.maxPagesPerContext) {
+      if (
+        contextItem.isIdle &&
+        contextItem.pages.length < this.config.browserPool.maxPagesPerContext
+      ) {
         return contextItem;
       }
     }
@@ -365,7 +385,7 @@ export class ResourceManager extends EventEmitter {
   }
 
   private findAvailablePage(contextItem: ContextPoolItem): PagePoolItem | null {
-    return contextItem.pages.find(p => p.isIdle) || null;
+    return contextItem.pages.find((p) => p.isIdle) || null;
   }
 
   private async createBrowser(): Promise<BrowserPoolItem> {
@@ -374,7 +394,7 @@ export class ResourceManager extends EventEmitter {
     }
 
     // Select browser type (round-robin or random)
-    const browserTypes = this.config.browserPool.browserTypes;
+    const { browserTypes } = this.config.browserPool;
     const browserType = browserTypes[this.browserPools.size % browserTypes.length];
 
     logger.debug('Creating new browser', { type: browserType });
@@ -405,7 +425,7 @@ export class ResourceManager extends EventEmitter {
     };
 
     this.browserPools.set(browserItem.id, browserItem);
-    
+
     // Set up browser event handlers
     browser.on('disconnected', () => {
       logger.warn('Browser disconnected', { browserId: browserItem.id });
@@ -497,48 +517,49 @@ export class ResourceManager extends EventEmitter {
     try {
       await browserItem.browser.close();
       this.browserPools.delete(browserId);
-      
+
       logger.info('Browser destroyed', { browserId });
       this.emit('browserDestroyed', { browserId });
-
     } catch (error) {
       logger.error('Error destroying browser', { browserId, error });
     }
   }
 
   private async destroyContext(browserItem: BrowserPoolItem, contextId: string): Promise<void> {
-    const contextIndex = browserItem.contexts.findIndex(c => c.id === contextId);
+    const contextIndex = browserItem.contexts.findIndex((c) => c.id === contextId);
     if (contextIndex === -1) return;
 
     const contextItem = browserItem.contexts[contextIndex];
+    if (!contextItem) return;
+
     logger.debug('Destroying context', { contextId });
 
     try {
       await contextItem.context.close();
       browserItem.contexts.splice(contextIndex, 1);
-      
+
       logger.debug('Context destroyed', { contextId });
       this.emit('contextDestroyed', { contextId });
-
     } catch (error) {
       logger.error('Error destroying context', { contextId, error });
     }
   }
 
   private async destroyPage(contextItem: ContextPoolItem, pageId: string): Promise<void> {
-    const pageIndex = contextItem.pages.findIndex(p => p.id === pageId);
+    const pageIndex = contextItem.pages.findIndex((p) => p.id === pageId);
     if (pageIndex === -1) return;
 
     const pageItem = contextItem.pages[pageIndex];
+    if (!pageItem) return;
+
     logger.debug('Destroying page', { pageId });
 
     try {
       await pageItem.page.close();
       contextItem.pages.splice(pageIndex, 1);
-      
+
       logger.debug('Page destroyed', { pageId });
       this.emit('pageDestroyed', { pageId });
-
     } catch (error) {
       logger.error('Error destroying page', { pageId, error });
     }
@@ -564,7 +585,7 @@ export class ResourceManager extends EventEmitter {
     this.monitoringInterval = setInterval(async () => {
       try {
         const metrics = await this.getResourceMetrics();
-        
+
         // Check alert thresholds
         if (metrics.memory.used > this.config.monitoring.alertThresholds.memoryUsage) {
           this.emit('memoryAlert', metrics.memory);
@@ -579,7 +600,6 @@ export class ResourceManager extends EventEmitter {
         }
 
         this.emit('metrics', metrics);
-
       } catch (error) {
         logger.error('Error collecting metrics', error);
       }

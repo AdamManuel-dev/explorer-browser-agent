@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class SelectStrategy implements InteractionStrategy {
@@ -20,7 +24,7 @@ export class SelectStrategy implements InteractionStrategy {
 
       // Get available options
       const availableOptions = element.metadata?.options || [];
-      
+
       // Determine value to select
       let valueToSelect: string;
       if (testData?.value) {
@@ -28,7 +32,8 @@ export class SelectStrategy implements InteractionStrategy {
       } else if (availableOptions.length > 0) {
         // Select a random option (skip first if it's a placeholder)
         const startIndex = availableOptions[0]?.value === '' ? 1 : 0;
-        const randomIndex = Math.floor(Math.random() * (availableOptions.length - startIndex)) + startIndex;
+        const randomIndex =
+          Math.floor(Math.random() * (availableOptions.length - startIndex)) + startIndex;
         valueToSelect = availableOptions[randomIndex].value;
       } else {
         throw new Error('No options available to select');

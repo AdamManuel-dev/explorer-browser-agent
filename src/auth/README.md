@@ -9,6 +9,7 @@ The authentication module provides comprehensive authentication strategies and s
 A flexible authentication manager that supports multiple authentication strategies including basic auth, OAuth, MFA, and API key authentication.
 
 **Supported Strategies:**
+
 - **Basic Authentication**: Username/password login forms
 - **OAuth 2.0/OpenID Connect**: Third-party authentication providers
 - **Multi-Factor Authentication (MFA)**: TOTP, SMS, email verification
@@ -16,6 +17,7 @@ A flexible authentication manager that supports multiple authentication strategi
 - **Custom Strategies**: Extensible framework for custom auth flows
 
 **Usage:**
+
 ```typescript
 import { MultiStrategyAuthManager } from './auth';
 
@@ -54,6 +56,7 @@ if (result.success) {
 Handles authentication session persistence and restoration across browser instances.
 
 **Features:**
+
 - Multiple storage backends (file, memory, Redis)
 - Session encryption and security
 - Automatic session cleanup
@@ -61,6 +64,7 @@ Handles authentication session persistence and restoration across browser instan
 - Session validation and refresh
 
 **Usage:**
+
 ```typescript
 import { SessionManager } from './auth';
 
@@ -85,8 +89,8 @@ await sessionManager.captureSession(page, 'user-session-123', 'example.com');
 
 // Restore session in new browser instance
 const restored = await sessionManager.restoreSessionToPage(
-  newPage, 
-  'user-session-123', 
+  newPage,
+  'user-session-123',
   'example.com'
 );
 
@@ -230,7 +234,7 @@ class CustomAuthStrategy extends AuthStrategy {
     await page.goto(this.config.loginUrl);
     await page.fill('#custom-field', credentials.customValue);
     await page.click('#custom-submit');
-    
+
     return {
       success: true,
       strategy: 'custom',
@@ -273,7 +277,7 @@ await sessionManager.restoreSessionToPage(page, 'session-id', 'api.example.com')
 ```typescript
 try {
   const result = await authManager.authenticate(page, 'basic', credentials);
-  
+
   if (!result.success) {
     switch (result.error) {
       case 'INVALID_CREDENTIALS':

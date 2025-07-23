@@ -49,8 +49,11 @@ export interface StealthMetrics {
 
 export class StealthMode {
   private config: StealthConfig;
+
   private metrics: StealthMetrics;
+
   private userAgentPool: string[];
+
   private currentUserAgentIndex = 0;
 
   constructor(config?: Partial<StealthConfig>) {
@@ -74,16 +77,16 @@ export class StealthMode {
       viewport: this.getRandomViewport(),
       locale: this.getRandomLocale(),
       timezoneId: this.config.fingerprinting.spoofTimezone ? this.getRandomTimezone() : undefined,
-      
+
       // HTTP settings
       extraHTTPHeaders: this.buildStealthHeaders(),
-      
+
       // Permissions
       permissions: [],
-      
+
       // Geolocation spoofing
       geolocation: this.getRandomGeolocation(),
-      
+
       // Media settings
       colorScheme: Math.random() > 0.5 ? 'light' : 'dark',
       reducedMotion: Math.random() > 0.8 ? 'reduce' : 'no-preference',
@@ -143,7 +146,6 @@ export class StealthMode {
       this.updateMetrics('navigation', true, loadTime);
 
       logger.debug('Stealth navigation completed successfully');
-
     } catch (error) {
       this.updateMetrics('navigation', false);
       logger.error('Stealth navigation failed', error);
@@ -155,7 +157,7 @@ export class StealthMode {
     logger.debug('Typing stealthily', { selector, textLength: text.length });
 
     const element = page.locator(selector);
-    
+
     // Clear existing content
     await element.clear();
 
@@ -163,11 +165,11 @@ export class StealthMode {
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       await element.type(char);
-      
+
       // Random delay between keystrokes
       const delay = this.getTypingDelay();
       await page.waitForTimeout(delay);
-      
+
       // Occasional longer pauses (thinking time)
       if (Math.random() < 0.05) {
         await page.waitForTimeout(this.randomBetween(500, 1500));
@@ -181,7 +183,7 @@ export class StealthMode {
     logger.debug('Clicking stealthily', { selector });
 
     const element = page.locator(selector);
-    
+
     // Move mouse to element first
     if (this.config.navigation.mouseMoves) {
       await element.hover();
@@ -193,7 +195,7 @@ export class StealthMode {
     if (box) {
       const x = box.x + box.width * (0.2 + Math.random() * 0.6);
       const y = box.y + box.height * (0.2 + Math.random() * 0.6);
-      
+
       await page.mouse.click(x, y, {
         delay: this.randomBetween(50, 150),
       });
@@ -221,19 +223,21 @@ export class StealthMode {
       () => page.locator('[class*="captcha"]').isVisible(),
       () => page.locator('text="Please verify you are human"').isVisible(),
       () => page.locator('text="Security Check"').isVisible(),
-      
+
       // Cloudflare detection
       () => page.locator('text="Checking your browser"').isVisible(),
       () => page.locator('.cf-browser-verification').isVisible(),
-      
+
       // Custom detection check
-      () => page.evaluate(() => {
-        // Check for common bot detection variables
-        return !!(window as any).webdriver || 
-               !!(window as any).phantom || 
-               !!(window as any).callPhantom ||
-               navigator.webdriver === true;
-      }),
+      () =>
+        page.evaluate(
+          () =>
+            // Check for common bot detection variables
+            !!(window as unknown as { webdriver?: boolean }).webdriver ||
+            !!(window as unknown as { phantom?: boolean }).phantom ||
+            !!(window as unknown as { callPhantom?: boolean }).callPhantom ||
+            navigator.webdriver === true
+        ),
     ];
 
     for (const check of detectionIndicators) {
@@ -290,14 +294,20 @@ export class StealthMode {
       });
 
       // Override languages
-      ${this.config.fingerprinting.spoofLanguages ? `
+      ${
+        this.config.fingerprinting.spoofLanguages
+          ? `
       Object.defineProperty(navigator, 'languages', {
         get: () => ['en-US', 'en'],
       });
-      ` : ''}
+      `
+          : ''
+      }
 
       // Override canvas fingerprinting
-      ${this.config.fingerprinting.spoofCanvas ? `
+      ${
+        this.config.fingerprinting.spoofCanvas
+          ? `
       const getContext = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function(type) {
         if (type === '2d') {
@@ -316,20 +326,28 @@ export class StealthMode {
         }
         return getContext.call(this, type);
       };
-      ` : ''}
+      `
+          : ''
+      }
 
       // Override WebGL fingerprinting
-      ${this.config.fingerprinting.spoofWebGL ? `
+      ${
+        this.config.fingerprinting.spoofWebGL
+          ? `
       const getParameter = WebGLRenderingContext.prototype.getParameter;
       WebGLRenderingContext.prototype.getParameter = function(parameter) {
         if (parameter === 37445) return 'Intel Inc.';
         if (parameter === 37446) return 'Intel Iris OpenGL Engine';
         return getParameter.call(this, parameter);
       };
-      ` : ''}
+      `
+          : ''
+      }
 
       // Override audio fingerprinting
-      ${this.config.fingerprinting.spoofAudio ? `
+      ${
+        this.config.fingerprinting.spoofAudio
+          ? `
       const createAnalyser = AudioContext.prototype.createAnalyser;
       AudioContext.prototype.createAnalyser = function() {
         const analyser = createAnalyser.call(this);
@@ -342,7 +360,9 @@ export class StealthMode {
         };
         return analyser;
       };
-      ` : ''}
+      `
+          : ''
+      }
 
       // Hide automation indicators
       delete window.webdriver;
@@ -398,7 +418,7 @@ export class StealthMode {
 
       // Spoof referrer
       if (this.config.navigation.refererSpoofing && Math.random() < 0.3) {
-        headers['Referer'] = 'https://www.google.com/';
+        headers.Referer = 'https://www.google.com/';
       }
 
       await route.continue({ headers });
@@ -493,7 +513,7 @@ export class StealthMode {
 
   private getRandomGeolocation(): { latitude: number; longitude: number } {
     const locations = [
-      { latitude: 40.7128, longitude: -74.0060 }, // New York
+      { latitude: 40.7128, longitude: -74.006 }, // New York
       { latitude: 34.0522, longitude: -118.2437 }, // Los Angeles
       { latitude: 51.5074, longitude: -0.1278 }, // London
       { latitude: 48.8566, longitude: 2.3522 }, // Paris
@@ -503,11 +523,11 @@ export class StealthMode {
 
   private buildStealthHeaders(): Record<string, string> {
     return {
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       'Accept-Language': this.getRandomItem(this.config.headers.acceptLanguage),
       'Accept-Encoding': this.getRandomItem(this.config.headers.acceptEncoding),
-      'DNT': '1',
-      'Connection': 'keep-alive',
+      DNT: '1',
+      Connection: 'keep-alive',
       'Upgrade-Insecure-Requests': '1',
       ...this.config.headers.customHeaders,
     };
@@ -525,10 +545,13 @@ export class StealthMode {
     return this.config.userAgents.customAgents || defaultAgents;
   }
 
-  private async humanDelay(min = this.config.timing.minDelay, max = this.config.timing.maxDelay): Promise<void> {
+  private async humanDelay(
+    min = this.config.timing.minDelay,
+    max = this.config.timing.maxDelay
+  ): Promise<void> {
     if (this.config.timing.humanLikeDelays) {
       const delay = this.randomBetween(min, max);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -549,8 +572,7 @@ export class StealthMode {
 
   private updateMetrics(operation: string, success: boolean, timing?: number): void {
     if (timing) {
-      this.metrics.averagePageLoadTime = 
-        (this.metrics.averagePageLoadTime + timing) / 2;
+      this.metrics.averagePageLoadTime = (this.metrics.averagePageLoadTime + timing) / 2;
     }
 
     logger.debug('Stealth metrics updated', {

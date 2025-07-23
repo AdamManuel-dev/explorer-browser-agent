@@ -9,6 +9,7 @@ The test generation module converts recorded user interactions into comprehensiv
 The core test generation engine that transforms user paths into executable test code.
 
 **Features:**
+
 - **Multi-framework support**: Playwright, Cypress, Selenium WebDriver
 - **Multiple languages**: TypeScript, JavaScript, Python, Java
 - **Page Object Model**: Automatic generation of maintainable page objects
@@ -103,31 +104,31 @@ const advancedGenerator = new TestGenerator({
   framework: 'playwright',
   language: 'typescript',
   outputDirectory: './e2e-tests',
-  
+
   // Page Object Model configuration
   generatePageObjects: true,
   pageObjectsDirectory: './pages',
   pageObjectNaming: 'PascalCase',
-  
+
   // Test organization
   groupRelatedTests: true,
   testNamingConvention: 'describe-it',
   useAAAPattern: true, // Arrange-Act-Assert
-  
+
   // Code quality
   addComments: true,
   generateJSDoc: true,
   includeTypeDefinitions: true,
-  
+
   // Test data
   generateFixtures: true,
   fixturesDirectory: './fixtures',
   useRealisticData: true,
-  
+
   // Utilities
   generateHelpers: true,
   helpersDirectory: './helpers',
-  
+
   // Code formatting
   formatting: {
     indentSize: 2,
@@ -155,13 +156,13 @@ test.describe('User Login Flow', () => {
     // Arrange
     const loginPage = new LoginPage(page);
     const dashboardPage = new DashboardPage(page);
-    
+
     // Act
     await loginPage.navigate();
     await loginPage.fillEmail(testData.validUser.email);
     await loginPage.fillPassword(testData.validUser.password);
     await loginPage.clickLoginButton();
-    
+
     // Assert
     await expect(dashboardPage.dashboardContainer).toBeVisible();
     await expect(page).toHaveURL(/.*dashboard/);
@@ -180,17 +181,16 @@ import { DashboardPage } from '../pages/DashboardPage';
 describe('User Login Flow', () => {
   const loginPage = new LoginPage();
   const dashboardPage = new DashboardPage();
-  
+
   it('should successfully log in with valid credentials', () => {
     // Arrange
     cy.fixture('userData').then((testData) => {
-      
       // Act
       loginPage.visit();
       loginPage.fillEmail(testData.validUser.email);
       loginPage.fillPassword(testData.validUser.password);
       loginPage.clickLoginButton();
-      
+
       // Assert
       dashboardPage.getDashboardContainer().should('be.visible');
       cy.url().should('include', '/dashboard');
@@ -215,25 +215,25 @@ public class UserLoginFlowTest {
     private WebDriver driver;
     private LoginPage loginPage;
     private DashboardPage dashboardPage;
-    
+
     @BeforeEach
     void setUp() {
         driver = new ChromeDriver();
         loginPage = new LoginPage(driver);
         dashboardPage = new DashboardPage(driver);
     }
-    
+
     @Test
     void shouldSuccessfullyLogInWithValidCredentials() {
         // Arrange
         TestData testData = new TestData();
-        
+
         // Act
         loginPage.navigate();
         loginPage.fillEmail(testData.getValidUser().getEmail());
         loginPage.fillPassword(testData.getValidUser().getPassword());
         loginPage.clickLoginButton();
-        
+
         // Assert
         assertTrue(dashboardPage.isDashboardVisible());
         assertTrue(driver.getCurrentUrl().contains("/dashboard"));
@@ -332,7 +332,7 @@ import { TestDataGenerator } from './generation';
 const dataGenerator = new TestDataGenerator({
   locale: 'en_US',
   seed: 12345, // For reproducible data
-  
+
   customProviders: {
     companyEmail: (company: string) => `test@${company.toLowerCase()}.com`,
     phoneNumber: () => '+1-555-' + Math.random().toString().substr(2, 7),
@@ -356,13 +356,13 @@ const userData = {
       country: 'United States',
     },
   },
-  
+
   invalidUser: {
     email: 'invalid-email',
     password: '123', // Too short
     phone: 'not-a-phone',
   },
-  
+
   testProducts: [
     {
       name: 'Test Product 1',
@@ -433,10 +433,12 @@ await expect(page).toHaveTitle(/Dashboard - App/);
 
 // API assertions (if network monitoring enabled)
 await expect(response.status()).toBe(200);
-await expect(response.json()).toEqual(expect.objectContaining({
-  success: true,
-  userId: expect.any(Number),
-}));
+await expect(response.json()).toEqual(
+  expect.objectContaining({
+    success: true,
+    userId: expect.any(Number),
+  })
+);
 ```
 
 ## Code Organization
@@ -482,11 +484,11 @@ export class AuthHelper {
     await loginPage.fillPassword('admin123');
     await loginPage.clickLoginButton();
   }
-  
+
   static async loginAsUser(page: Page, userType: 'premium' | 'basic' = 'basic'): Promise<void> {
     const userData = await import('../fixtures/userData.json');
     const user = userData[userType + 'User'];
-    
+
     const loginPage = new LoginPage(page);
     await loginPage.navigate();
     await loginPage.fillEmail(user.email);
@@ -500,7 +502,7 @@ export class DataHelper {
     const timestamp = Date.now();
     return `test.user.${timestamp}@example.com`;
   }
-  
+
   static async createTestUser(): Promise<TestUser> {
     const faker = await import('@faker-js/faker');
     return {
@@ -522,43 +524,43 @@ interface GenerationOptions {
   // Framework and language
   framework: 'playwright' | 'cypress' | 'selenium';
   language: 'typescript' | 'javascript' | 'python' | 'java';
-  
+
   // Output configuration
   outputDirectory: string;
   overwriteExisting: boolean;
-  
+
   // Page objects
   generatePageObjects: boolean;
   pageObjectsDirectory: string;
   pageObjectNaming: 'camelCase' | 'PascalCase' | 'snake_case';
-  
+
   // Test organization
   groupRelatedTests: boolean;
   testNamingConvention: 'describe-it' | 'class-method' | 'function';
   useAAAPattern: boolean; // Arrange-Act-Assert
-  
+
   // Code quality
   addComments: boolean;
   generateJSDoc: boolean;
   includeTypeDefinitions: boolean;
   eslintCompliant: boolean;
-  
+
   // Test data
   generateFixtures: boolean;
   fixturesDirectory: string;
   useRealisticData: boolean;
   dataLocale: string;
-  
+
   // Utilities
   generateHelpers: boolean;
   helpersDirectory: string;
   includeApiHelpers: boolean;
-  
+
   // Assertions
   generateAssertions: boolean;
   assertionStrategy: 'conservative' | 'comprehensive' | 'minimal';
   includeVisualAssertions: boolean;
-  
+
   // Code formatting
   formatting: {
     indentSize: number;
@@ -688,7 +690,7 @@ test.describe('{{testSuite.name}}', () => {
 // Custom generation plugins
 class CustomAssertionPlugin {
   name = 'custom-assertions';
-  
+
   generateAssertions(step, context) {
     if (step.type === 'fill' && step.selector.includes('email')) {
       return `await expect(page.locator('${step.selector}')).toHaveValue(/${EMAIL_REGEX}/);`;
@@ -698,11 +700,7 @@ class CustomAssertionPlugin {
 }
 
 const generator = new TestGenerator({
-  plugins: [
-    new CustomAssertionPlugin(),
-    new CustomDataPlugin(),
-    new CustomPageObjectPlugin(),
-  ],
+  plugins: [new CustomAssertionPlugin(), new CustomDataPlugin(), new CustomPageObjectPlugin()],
 });
 ```
 
@@ -716,7 +714,7 @@ const aiGenerator = new TestGenerator({
     model: 'gpt-4',
     apiKey: 'your-api-key',
   },
-  
+
   enhancementFeatures: {
     smartAssertions: true, // AI suggests additional assertions
     testNaming: true, // AI generates descriptive test names
@@ -737,6 +735,7 @@ const aiGenerator = new TestGenerator({
 ### Common Issues
 
 #### Selector Issues
+
 ```typescript
 // Handle dynamic selectors
 const generator = new TestGenerator({
@@ -747,6 +746,7 @@ const generator = new TestGenerator({
 ```
 
 #### Code Quality
+
 ```typescript
 // Validate generated code
 const validator = new TestValidator({
@@ -762,6 +762,7 @@ if (!validationResult.isValid) {
 ```
 
 #### Performance Optimization
+
 ```typescript
 // Optimize for faster test generation
 const optimizedGenerator = new TestGenerator({

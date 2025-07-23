@@ -51,6 +51,9 @@ class TestDataGenerator {
                 return 'color';
             case 'file-upload':
                 return 'file';
+            default:
+                // Fall through to text analysis
+                break;
         }
         // Check attributes for hints
         const { attributes, metadata } = element;
@@ -65,8 +68,10 @@ class TestDataGenerator {
             return 'email';
         }
         // Phone patterns
-        if (combined.includes('phone') || combined.includes('tel') ||
-            combined.includes('mobile') || combined.includes('cell')) {
+        if (combined.includes('phone') ||
+            combined.includes('tel') ||
+            combined.includes('mobile') ||
+            combined.includes('cell')) {
             return 'phone';
         }
         // Name patterns
@@ -100,13 +105,14 @@ class TestDataGenerator {
             return 'zipCode';
         }
         // Date patterns
-        if (combined.includes('date') || combined.includes('dob') ||
-            combined.includes('birth')) {
+        if (combined.includes('date') || combined.includes('dob') || combined.includes('birth')) {
             return 'date';
         }
         // Number patterns
-        if (combined.includes('number') || combined.includes('amount') ||
-            combined.includes('quantity') || combined.includes('price')) {
+        if (combined.includes('number') ||
+            combined.includes('amount') ||
+            combined.includes('quantity') ||
+            combined.includes('price')) {
             return 'number';
         }
         // URL patterns
@@ -149,12 +155,14 @@ class TestDataGenerator {
     }
     generateSecurePassword() {
         // Generate a password that meets common requirements
-        const length = faker_1.faker.number.int({ min: 12, max: 16 });
+        // const length = faker.number.int({ min: 12, max: 16 });
         const lowercase = faker_1.faker.string.alpha({ length: 4, casing: 'lower' });
         const uppercase = faker_1.faker.string.alpha({ length: 4, casing: 'upper' });
         const numbers = faker_1.faker.string.numeric({ length: 2 });
         const special = faker_1.faker.helpers.arrayElement(['!', '@', '#', '$', '%', '^', '&', '*']);
-        const password = faker_1.faker.helpers.shuffle([...lowercase, ...uppercase, ...numbers, special].join('').split('')).join('');
+        const password = faker_1.faker.helpers
+            .shuffle([...lowercase, ...uppercase, ...numbers, special].join('').split(''))
+            .join('');
         return password;
     }
     generateMultipleValues(count, type) {
@@ -168,7 +176,7 @@ class TestDataGenerator {
     }
     generateMultipleOptionsSelection(options, min = 1, max = 3) {
         const count = faker_1.faker.number.int({ min, max: Math.min(max, options.length) });
-        return faker_1.faker.helpers.arrayElements(options, count).map(opt => opt.value);
+        return faker_1.faker.helpers.arrayElements(options, count).map((opt) => opt.value);
     }
 }
 exports.TestDataGenerator = TestDataGenerator;

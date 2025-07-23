@@ -95,6 +95,8 @@ class PageObjectGenerator {
         const formSteps = [];
         for (let i = 0; i < steps.length; i++) {
             const step = steps[i];
+            if (!step)
+                continue;
             if (step.type === 'type' || step.type === 'select' || step.type === 'check') {
                 formSteps.push(step);
             }
@@ -106,9 +108,9 @@ class PageObjectGenerator {
             }
         }
         // Identify login patterns
-        const passwordStep = steps.find(s => s.element?.type === 'password-input');
+        const passwordStep = steps.find((s) => s.element?.type === 'password-input');
         if (passwordStep) {
-            const loginSteps = steps.filter(s => s.element?.type === 'text-input' ||
+            const loginSteps = steps.filter((s) => s.element?.type === 'text-input' ||
                 s.element?.type === 'email-input' ||
                 s.element?.type === 'password-input' ||
                 (s.element?.type === 'button' && s.element.text?.toLowerCase().includes('login')));
@@ -123,16 +125,16 @@ class PageObjectGenerator {
             description: this.generateActionDescription(name, steps),
         };
         // Add parameters based on input fields
-        const inputs = steps.filter(s => s.type === 'type' || s.type === 'select');
+        const inputs = steps.filter((s) => s.type === 'type' || s.type === 'select');
         if (inputs.length > 0) {
-            action.parameters = inputs.map(input => ({
+            action.parameters = inputs.map((input) => ({
                 name: this.generateParameterName(input.element),
                 type: 'string',
                 required: true,
             }));
         }
         // Generate steps
-        action.steps = steps.map(step => this.generateActionStep(step));
+        action.steps = steps.map((step) => this.generateActionStep(step));
         return action;
     }
     generateActionStep(step) {
@@ -143,9 +145,10 @@ class PageObjectGenerator {
         switch (step.type) {
             case 'click':
                 return `await this.page.click(this.selectors.${selectorName});`;
-            case 'type':
+            case 'type': {
                 const paramName = this.generateParameterName(step.element);
                 return `await this.page.fill(this.selectors.${selectorName}, ${paramName});`;
+            }
             case 'select':
                 return `await this.page.selectOption(this.selectors.${selectorName}, value);`;
             case 'check':
@@ -215,10 +218,10 @@ class PageObjectGenerator {
         // Actions
         for (const [name, action] of Object.entries(pageObject.actions)) {
             const params = action.parameters
-                ? action.parameters.map(p => `${p.name}: ${p.type}`).join(', ')
+                ? action.parameters.map((p) => `${p.name}: ${p.type}`).join(', ')
                 : '';
             lines.push(`  async ${name}(${params}) {`);
-            action.steps.forEach(step => {
+            action.steps.forEach((step) => {
                 lines.push(`    ${step}`);
             });
             lines.push('  }');
@@ -244,7 +247,7 @@ class PageObjectGenerator {
             // Convert path to PascalCase
             return pathname
                 .split(/[-/_]/)
-                .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
                 .join('');
         }
         catch {
@@ -276,7 +279,7 @@ class PageObjectGenerator {
     }
     generateActionDescription(name, steps) {
         const actions = steps
-            .map(s => s.action)
+            .map((s) => s.action)
             .filter(Boolean)
             .join(', ');
         return `${name}: ${actions}`;

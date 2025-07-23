@@ -13,7 +13,7 @@ class DefaultStrategy {
                 throw new Error('Element not found');
             }
             // Try to determine the best interaction based on element properties
-            const tagName = await el.evaluate(e => e.tagName.toLowerCase());
+            const tagName = await el.evaluate((e) => e.tagName.toLowerCase());
             const role = await el.getAttribute('role');
             // Scroll into view if needed
             await el.scrollIntoViewIfNeeded();

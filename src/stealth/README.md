@@ -9,6 +9,7 @@ The stealth module provides comprehensive anti-bot detection evasion capabilitie
 A comprehensive stealth system that implements multiple layers of bot detection evasion techniques.
 
 **Features:**
+
 - **Fingerprint Spoofing**: Canvas, WebGL, Audio, and Font fingerprinting evasion
 - **Behavior Simulation**: Human-like typing patterns, mouse movements, and timing
 - **Browser Spoofing**: User agent rotation and browser property masking
@@ -20,6 +21,7 @@ A comprehensive stealth system that implements multiple layers of bot detection 
 ### Fingerprint Spoofing
 
 #### Canvas Fingerprinting
+
 ```typescript
 const stealth = new StealthMode({
   fingerprintSpoofing: {
@@ -33,6 +35,7 @@ await stealth.setupPage(page);
 ```
 
 #### WebGL Fingerprinting
+
 ```typescript
 const stealth = new StealthMode({
   fingerprintSpoofing: {
@@ -44,6 +47,7 @@ const stealth = new StealthMode({
 ```
 
 #### Audio Fingerprinting
+
 ```typescript
 const stealth = new StealthMode({
   fingerprintSpoofing: {
@@ -56,12 +60,13 @@ const stealth = new StealthMode({
 ### Behavior Simulation
 
 #### Human-like Typing
+
 ```typescript
 const stealth = new StealthMode({
   behaviorSimulation: {
     humanLikeDelays: true,
     typingSpeed: {
-      min: 50,  // Minimum delay between keystrokes (ms)
+      min: 50, // Minimum delay between keystrokes (ms)
       max: 150, // Maximum delay between keystrokes (ms)
       variance: 0.3, // Natural timing variance
     },
@@ -73,6 +78,7 @@ await stealth.typeStealthily(page, '#search-input', 'search query');
 ```
 
 #### Mouse Movement Simulation
+
 ```typescript
 const stealth = new StealthMode({
   behaviorSimulation: {
@@ -129,7 +135,7 @@ await stealth.navigateStealthily(page, 'https://example.com');
 ```typescript
 const advancedStealth = new StealthMode({
   enabled: true,
-  
+
   // Fingerprint spoofing configuration
   fingerprintSpoofing: {
     canvas: true,
@@ -145,7 +151,7 @@ const advancedStealth = new StealthMode({
     screenResolution: { width: 1920, height: 1080 },
     timezone: 'America/New_York',
   },
-  
+
   // Behavior simulation
   behaviorSimulation: {
     humanLikeDelays: true,
@@ -165,7 +171,7 @@ const advancedStealth = new StealthMode({
       randomPauses: true,
     },
   },
-  
+
   // Browser spoofing
   browserSpoofing: {
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -175,15 +181,15 @@ const advancedStealth = new StealthMode({
     deviceMemory: 8,
     maxTouchPoints: 0,
   },
-  
+
   // Network evasion
   networkEvasion: {
     headers: {
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.5',
       'Accept-Encoding': 'gzip, deflate',
       'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache',
+      Pragma: 'no-cache',
     },
     randomizeHeaders: true,
     requestDelay: { min: 1000, max: 5000 },
@@ -199,7 +205,7 @@ const advancedStealth = new StealthMode({
 // Automatic canvas noise injection
 await page.addInitScript(() => {
   const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-  HTMLCanvasElement.prototype.toDataURL = function(...args) {
+  HTMLCanvasElement.prototype.toDataURL = function (...args) {
     // Add subtle noise to canvas output
     const ctx = this.getContext('2d');
     if (ctx) {
@@ -217,11 +223,13 @@ await page.addInitScript(() => {
 // Override WebGL parameters
 await page.addInitScript(() => {
   const getParameter = WebGLRenderingContext.prototype.getParameter;
-  WebGLRenderingContext.prototype.getParameter = function(parameter) {
-    if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
+  WebGLRenderingContext.prototype.getParameter = function (parameter) {
+    if (parameter === 37445) {
+      // UNMASKED_VENDOR_WEBGL
       return 'Intel Inc.';
     }
-    if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
+    if (parameter === 37446) {
+      // UNMASKED_RENDERER_WEBGL
       return 'Intel Iris Pro OpenGL Engine';
     }
     return getParameter.apply(this, arguments);
@@ -323,6 +331,7 @@ const path = await recorder.stopRecording();
 ### Common Bot Detection Methods
 
 #### Mouse Movement Detection
+
 ```typescript
 // Simulate realistic mouse movements
 const stealth = new StealthMode({
@@ -335,6 +344,7 @@ const stealth = new StealthMode({
 ```
 
 #### Timing Analysis
+
 ```typescript
 // Randomize interaction timing
 const stealth = new StealthMode({
@@ -350,17 +360,18 @@ const stealth = new StealthMode({
 ```
 
 #### Browser Automation Detection
+
 ```typescript
 // Hide automation indicators
 await page.addInitScript(() => {
   // Remove webdriver property
   delete Object.getPrototypeOf(navigator).webdriver;
-  
+
   // Override plugins
   Object.defineProperty(navigator, 'plugins', {
     get: () => [1, 2, 3, 4, 5], // Fake plugin list
   });
-  
+
   // Override languages
   Object.defineProperty(navigator, 'languages', {
     get: () => ['en-US', 'en'],
@@ -371,6 +382,7 @@ await page.addInitScript(() => {
 ### Advanced Evasion Techniques
 
 #### Network Traffic Patterns
+
 ```typescript
 const stealth = new StealthMode({
   networkEvasion: {
@@ -384,12 +396,13 @@ const stealth = new StealthMode({
 ```
 
 #### JavaScript Execution Patterns
+
 ```typescript
 // Simulate human-like JavaScript execution
 await page.addInitScript(() => {
   // Override setTimeout to add slight delays
   const originalSetTimeout = window.setTimeout;
-  window.setTimeout = function(callback, delay, ...args) {
+  window.setTimeout = function (callback, delay, ...args) {
     const jitteredDelay = delay + Math.random() * 100;
     return originalSetTimeout(callback, jitteredDelay, ...args);
   };
@@ -432,7 +445,7 @@ console.log({
 ```typescript
 interface StealthConfig {
   enabled: boolean;
-  
+
   fingerprintSpoofing: {
     canvas: boolean;
     canvasNoise: number;
@@ -447,7 +460,7 @@ interface StealthConfig {
     screenResolution: { width: number; height: number };
     timezone: string;
   };
-  
+
   behaviorSimulation: {
     humanLikeDelays: boolean;
     typingSpeed: {
@@ -466,7 +479,7 @@ interface StealthConfig {
       randomPauses: boolean;
     };
   };
-  
+
   browserSpoofing: {
     userAgent: string | 'auto' | 'rotate';
     userAgentPool: string[];
@@ -476,7 +489,7 @@ interface StealthConfig {
     deviceMemory: number;
     maxTouchPoints: number;
   };
-  
+
   networkEvasion: {
     headers: Record<string, string>;
     randomizeHeaders: boolean;
@@ -501,6 +514,7 @@ interface StealthConfig {
 ### Common Issues
 
 #### Still Getting Detected
+
 ```typescript
 // Increase stealth level
 const stealth = new StealthMode({
@@ -511,6 +525,7 @@ const stealth = new StealthMode({
 ```
 
 #### Performance Impact
+
 ```typescript
 // Optimize for performance
 const stealth = new StealthMode({
@@ -523,6 +538,7 @@ const stealth = new StealthMode({
 ```
 
 #### Browser Compatibility
+
 ```typescript
 // Check browser support
 const isSupported = await stealth.checkBrowserSupport(browser);

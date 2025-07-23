@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class MultiSelectStrategy implements InteractionStrategy {
@@ -9,7 +13,7 @@ export class MultiSelectStrategy implements InteractionStrategy {
     element: InteractiveElement,
     context: InteractionContext
   ): Promise<InteractionResult> {
-    const { page, testData, options } = context;
+    const { page, options } = context;
 
     try {
       const el = await page.$(element.selector);
@@ -19,16 +23,16 @@ export class MultiSelectStrategy implements InteractionStrategy {
 
       // Get available options
       const availableOptions = element.metadata?.options || [];
-      
+
       // Select multiple random options
       const numToSelect = Math.min(3, Math.max(1, Math.floor(availableOptions.length / 2)));
       const selectedIndices = new Set<number>();
-      
+
       while (selectedIndices.size < numToSelect && selectedIndices.size < availableOptions.length) {
         selectedIndices.add(Math.floor(Math.random() * availableOptions.length));
       }
 
-      const valuesToSelect = Array.from(selectedIndices).map(i => availableOptions[i].value);
+      const valuesToSelect = Array.from(selectedIndices).map((i) => availableOptions[i].value);
 
       if (options?.delay) {
         await page.waitForTimeout(options.delay);

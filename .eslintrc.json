@@ -1,0 +1,49 @@
+{
+  "extends": [
+    "airbnb-base",
+    "airbnb-typescript/base",
+    "prettier"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json",
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "plugins": ["@typescript-eslint", "prettier"],
+  "root": true,
+  "env": {
+    "node": true,
+    "jest": true,
+    "es2022": true
+  },
+  "rules": {
+    "prettier/prettier": "error",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "import/prefer-default-export": "off",
+    "import/no-extraneous-dependencies": ["error", { "devDependencies": ["**/*.test.ts", "**/*.spec.ts", "jest.config.js"] }],
+    "import/extensions": ["error", "ignorePackages", { "ts": "never", "tsx": "never" }],
+    "class-methods-use-this": "off",
+    "no-console": "warn",
+    "no-param-reassign": ["error", { "props": false }],
+    "no-restricted-syntax": "off",
+    "no-await-in-loop": "off",
+    "no-plusplus": "off",
+    "no-continue": "off",
+    "global-require": "off",
+    "no-promise-executor-return": "off",
+    "no-useless-catch": "off",
+    "no-underscore-dangle": "off",
+    "@typescript-eslint/naming-convention": "off",
+    "radix": "off",
+    "arrow-body-style": "off",
+    "prefer-promise-reject-errors": "off",
+    "no-async-promise-executor": "off",
+    "@typescript-eslint/return-await": "off",
+    "import/order": "off"
+  },
+  "ignorePatterns": ["dist/**", "coverage/**", "node_modules/**", "*.js"]
+}

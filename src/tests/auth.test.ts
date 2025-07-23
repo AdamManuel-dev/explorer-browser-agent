@@ -1,9 +1,9 @@
-import { test, expect, describe, beforeEach, vi, MockedFunction } from '@jest/globals';
+import { test, expect, describe, beforeEach, jest } from '@jest/globals';
 import { Page, BrowserContext } from 'playwright';
-import { MultiStrategyAuthManager, AuthConfig, AuthCredentials } from '../auth/MultiStrategyAuthManager';
-import { logger } from '../utils/logger';
+import { readFile, writeFile } from 'fs/promises';
+import { MultiStrategyAuthManager, AuthConfig } from '../auth/MultiStrategyAuthManager';
 
-vi.mock('../utils/logger');
+jest.mock('../utils/logger');
 
 describe('MultiStrategyAuthManager', () => {
   let authManager: MultiStrategyAuthManager;
@@ -12,31 +12,31 @@ describe('MultiStrategyAuthManager', () => {
 
   beforeEach(() => {
     authManager = new MultiStrategyAuthManager();
-    
+
     mockContext = {
-      cookies: vi.fn().mockResolvedValue([]),
-      addCookies: vi.fn().mockResolvedValue(undefined),
-      clearCookies: vi.fn().mockResolvedValue(undefined),
+      cookies: jest.fn<() => Promise<[]>>(() => Promise.resolve([])),
+      addCookies: jest.fn<() => Promise<void>>(() => Promise.resolve()),
+      clearCookies: jest.fn<() => Promise<void>>(() => Promise.resolve()),
     };
 
     mockPage = {
-      goto: vi.fn().mockResolvedValue(undefined),
-      fill: vi.fn().mockResolvedValue(undefined),
-      click: vi.fn().mockResolvedValue(undefined),
-      waitForSelector: vi.fn().mockResolvedValue(undefined),
-      waitForNavigation: vi.fn().mockResolvedValue(undefined),
-      waitForURL: vi.fn().mockResolvedValue(undefined),
-      url: vi.fn().mockReturnValue('https://example.com/dashboard'),
-      locator: vi.fn().mockReturnValue({
-        isVisible: vi.fn().mockResolvedValue(false),
-        textContent: vi.fn().mockResolvedValue(''),
-        click: vi.fn().mockResolvedValue(undefined),
-      }),
-      context: vi.fn().mockReturnValue(mockContext),
-      evaluate: vi.fn().mockResolvedValue({}),
-      setExtraHTTPHeaders: vi.fn().mockResolvedValue(undefined),
-      reload: vi.fn().mockResolvedValue(undefined),
-      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+      goto: jest.fn<() => Promise<null>>(() => Promise.resolve(null)),
+      fill: jest.fn<() => Promise<void>>(() => Promise.resolve()),
+      click: jest.fn<() => Promise<void>>(() => Promise.resolve()),
+      waitForSelector: jest.fn<() => Promise<null>>(() => Promise.resolve(null)),
+      waitForNavigation: jest.fn<() => Promise<null>>(() => Promise.resolve(null)),
+      waitForURL: jest.fn<() => Promise<void>>(() => Promise.resolve()),
+      url: jest.fn<() => string>(() => 'https://example.com/dashboard'),
+      locator: jest.fn(() => ({
+        isVisible: jest.fn<() => Promise<boolean>>(() => Promise.resolve(false)),
+        textContent: jest.fn<() => Promise<string>>(() => Promise.resolve('')),
+        click: jest.fn<() => Promise<void>>(() => Promise.resolve()),
+      })),
+      context: jest.fn(() => mockContext as BrowserContext),
+      evaluate: jest.fn<() => Promise<Record<string, unknown>>>(() => Promise.resolve({})),
+      setExtraHTTPHeaders: jest.fn<() => Promise<void>>(() => Promise.resolve()),
+      reload: jest.fn<() => Promise<null>>(() => Promise.resolve(null)),
+      waitForTimeout: jest.fn<() => Promise<void>>(() => Promise.resolve()),
     };
   });
 
@@ -52,8 +52,8 @@ describe('MultiStrategyAuthManager', () => {
         sessionPersistence: false,
       };
 
-      (mockPage.waitForSelector as MockedFunction<any>).mockResolvedValue(undefined);
-      (mockPage.url as MockedFunction<any>).mockReturnValue('https://example.com/dashboard');
+      (mockPage.waitForSelector as jest.Mock).mockResolvedValue(null);
+      (mockPage.url as jest.Mock).mockReturnValue('https://example.com/dashboard');
 
       const result = await authManager.authenticate(mockPage as Page, config);
 
@@ -62,7 +62,10 @@ describe('MultiStrategyAuthManager', () => {
       expect(result.session?.strategy).toBe('basic');
       expect(mockPage.goto).toHaveBeenCalledWith('https://example.com/login', { timeout: 30000 });
       expect(mockPage.fill).toHaveBeenCalledWith(expect.stringContaining('username'), 'testuser');
-      expect(mockPage.fill).toHaveBeenCalledWith(expect.stringContaining('password'), 'password123');
+      expect(mockPage.fill).toHaveBeenCalledWith(
+        expect.stringContaining('password'),
+        'password123'
+      );
     });
 
     test('should fail with missing credentials', async () => {
@@ -107,13 +110,17 @@ describe('MultiStrategyAuthManager', () => {
         sessionPersistence: false,
       };
 
-      (mockPage.url as MockedFunction<any>).mockReturnValue('https://example.com/callback?code=auth-code-123');
+      (mockPage.url as jest.Mock<() => string>).mockReturnValue(
+        'https://example.com/callback?code=auth-code-123'
+      );
 
       const result = await authManager.authenticate(mockPage as Page, config);
 
       expect(result.success).toBe(true);
       expect(result.session?.strategy).toBe('oauth');
-      expect(mockPage.goto).toHaveBeenCalledWith('https://oauth.example.com/authorize', { timeout: 60000 });
+      expect(mockPage.goto).toHaveBeenCalledWith('https://oauth.example.com/authorize', {
+        timeout: 60000,
+      });
       expect(mockPage.waitForURL).toHaveBeenCalledWith(/callback|redirect/, { timeout: 60000 });
     });
 
@@ -148,7 +155,7 @@ describe('MultiStrategyAuthManager', () => {
       expect(result.session?.strategy).toBe('api');
       expect(result.session?.sessionToken).toBe('test-api-key-123');
       expect(mockPage.setExtraHTTPHeaders).toHaveBeenCalledWith({
-        'Authorization': 'Bearer test-api-key-123',
+        Authorization: 'Bearer test-api-key-123',
         'X-API-Key': 'test-api-key-123',
       });
     });
@@ -181,16 +188,18 @@ describe('MultiStrategyAuthManager', () => {
       };
 
       // Mock basic auth success
-      (mockPage.url as MockedFunction<any>)
+      (mockPage.url as jest.Mock<() => string>)
         .mockReturnValueOnce('https://example.com/login')
         .mockReturnValueOnce('https://example.com/mfa')
         .mockReturnValueOnce('https://example.com/dashboard');
 
       // Mock MFA field visibility
       const mockLocator = {
-        isVisible: vi.fn().mockResolvedValue(true),
+        isVisible: jest.fn(() => Promise.resolve(true)),
       };
-      (mockPage.locator as MockedFunction<any>).mockReturnValue(mockLocator);
+      (mockPage.locator as jest.Mock<(selector: string) => typeof mockLocator>).mockReturnValue(
+        mockLocator
+      );
 
       const result = await authManager.authenticate(mockPage as Page, config);
 
@@ -211,9 +220,11 @@ describe('MultiStrategyAuthManager', () => {
 
       // Mock MFA field visibility
       const mockLocator = {
-        isVisible: vi.fn().mockResolvedValue(true),
+        isVisible: jest.fn(() => Promise.resolve(true)),
       };
-      (mockPage.locator as MockedFunction<any>).mockReturnValue(mockLocator);
+      (mockPage.locator as jest.Mock<(selector: string) => typeof mockLocator>).mockReturnValue(
+        mockLocator
+      );
 
       const result = await authManager.authenticate(mockPage as Page, config);
 
@@ -225,7 +236,7 @@ describe('MultiStrategyAuthManager', () => {
 
   describe('custom authentication', () => {
     test('should execute custom flow', async () => {
-      const customFlow = vi.fn().mockResolvedValue(true);
+      const customFlow = jest.fn(() => Promise.resolve(true));
       const config: AuthConfig = {
         strategy: 'custom',
         credentials: { username: 'testuser' },
@@ -272,22 +283,25 @@ describe('MultiStrategyAuthManager', () => {
       expect(result1.success).toBe(true);
 
       // Mock existing session file
-      vi.doMock('fs/promises', () => ({
-        readFile: vi.fn().mockResolvedValue(JSON.stringify({
+      const mockReadFile = readFile as jest.MockedFunction<typeof readFile>;
+      const mockWriteFile = writeFile as jest.MockedFunction<typeof writeFile>;
+
+      mockReadFile.mockResolvedValue(
+        JSON.stringify({
           strategy: 'basic',
           authenticated: true,
           cookies: [],
           localStorage: {},
           sessionStorage: {},
           metadata: {},
-        })),
-        writeFile: vi.fn().mockResolvedValue(undefined),
-      }));
+        })
+      );
+      mockWriteFile.mockResolvedValue(undefined);
 
       // Second authentication should load existing session
       const authManager2 = new MultiStrategyAuthManager();
-      const result2 = await authManager2.authenticate(mockPage as Page, config);
-      
+      await authManager2.authenticate(mockPage as Page, config);
+
       expect(mockContext.addCookies).toHaveBeenCalled();
     });
 
@@ -302,7 +316,7 @@ describe('MultiStrategyAuthManager', () => {
         metadata: {},
       };
 
-      (mockPage.url as MockedFunction<any>).mockReturnValue('https://example.com/dashboard');
+      (mockPage.url as jest.Mock<() => string>).mockReturnValue('https://example.com/dashboard');
 
       const isValid = await authManager.validateSession(mockPage as Page, session);
       expect(isValid).toBe(true);
@@ -342,10 +356,12 @@ describe('MultiStrategyAuthManager', () => {
 
       // Mock logout button
       const mockLogoutElement = {
-        isVisible: vi.fn().mockResolvedValue(true),
-        click: vi.fn().mockResolvedValue(undefined),
+        isVisible: jest.fn(() => Promise.resolve(true)),
+        click: jest.fn(() => Promise.resolve()),
       };
-      (mockPage.locator as MockedFunction<any>).mockReturnValue(mockLogoutElement);
+      (
+        mockPage.locator as jest.Mock<(selector: string) => typeof mockLogoutElement>
+      ).mockReturnValue(mockLogoutElement);
 
       const result = await authManager.logout(mockPage as Page);
 
@@ -368,6 +384,7 @@ describe('MultiStrategyAuthManager', () => {
 
     test('should handle unsupported strategy', async () => {
       const config = {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         strategy: 'unsupported' as any,
         credentials: {},
         sessionPersistence: false,

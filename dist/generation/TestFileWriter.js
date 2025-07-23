@@ -87,7 +87,7 @@ class TestFileWriter {
         const report = {
             generatedAt: new Date().toISOString(),
             summary: result.summary,
-            files: result.files.map(f => ({
+            files: result.files.map((f) => ({
                 filename: f.filename,
                 path: f.path,
                 type: f.type,
@@ -174,23 +174,16 @@ class TestFileWriter {
     }
     formatFileType(type) {
         const typeNames = {
-            'test': 'Test Files',
+            test: 'Test Files',
             'page-object': 'Page Objects',
-            'fixture': 'Fixtures',
-            'helper': 'Helper Functions',
-            'config': 'Configuration Files',
+            fixture: 'Fixtures',
+            helper: 'Helper Functions',
+            config: 'Configuration Files',
         };
         return typeNames[type] || type;
     }
     async createProjectStructure() {
-        const directories = [
-            'tests',
-            'pages',
-            'fixtures',
-            'helpers',
-            'screenshots',
-            'reports',
-        ];
+        const directories = ['tests', 'pages', 'fixtures', 'helpers', 'screenshots', 'reports'];
         for (const dir of directories) {
             await this.ensureDirectory(path.join(this.baseDirectory, dir));
         }

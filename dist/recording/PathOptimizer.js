@@ -9,7 +9,7 @@ class PathOptimizer {
     optimize(path) {
         logger_1.logger.info('Optimizing user path', {
             originalSteps: path.steps.length,
-            originalAssertions: path.assertions.length
+            originalAssertions: path.assertions.length,
         });
         const optimizedPath = { ...path };
         // Optimize steps
@@ -44,14 +44,17 @@ class PathOptimizer {
                 continue;
             }
             // Remove unsuccessful interactions that were retried
-            if (current.error && next && !next.error &&
+            if (current.error &&
+                next &&
+                !next.error &&
                 current.element?.selector === next.element?.selector) {
                 // Skip the failed attempt
                 next.retries = (current.retries || 0) + 1;
                 continue;
             }
             // Merge rapid consecutive typing
-            if (current.type === 'type' && next?.type === 'type' &&
+            if (current.type === 'type' &&
+                next?.type === 'type' &&
                 current.element?.selector === next.element?.selector &&
                 next.timestamp - current.timestamp < 1000) {
                 // Combine the values
@@ -129,8 +132,7 @@ class PathOptimizer {
                 critical.add(step.id);
             }
             // Login/authentication steps are critical
-            if (step.element?.selector.includes('password') ||
-                step.element?.selector.includes('login')) {
+            if (step.element?.selector.includes('password') || step.element?.selector.includes('login')) {
                 critical.add(step.id);
             }
         }
@@ -150,8 +152,7 @@ class PathOptimizer {
             }
             currentGroup.push(step);
             // End group on form submission
-            if (step.element?.type === 'button' &&
-                step.element.text?.toLowerCase().includes('submit')) {
+            if (step.element?.type === 'button' && step.element.text?.toLowerCase().includes('submit')) {
                 groups.push(currentGroup);
                 currentGroup = [];
             }

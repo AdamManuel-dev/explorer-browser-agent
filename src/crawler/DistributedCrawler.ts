@@ -1,15 +1,15 @@
 import { Browser } from 'playwright';
-import { BreadthFirstCrawler, CrawlOptions } from './BreadthFirstCrawler';
-import { CrawlResult, UrlInfo } from '../types/crawler';
+import { BreadthFirstCrawler, CrawlOptions, CrawlConfiguration } from './BreadthFirstCrawler';
+import {
+  CrawlResult,
+  UrlInfo,
+  RedisConfig,
+  DistributedCrawlResultItem,
+  CrawlNode,
+  CrawlError,
+} from '../types/crawler';
 import { logger } from '../utils/logger';
-
-export interface RedisConfig {
-  host: string;
-  port: number;
-  password?: string;
-  db?: number;
-  keyPrefix?: string;
-}
+import { MockRedisClient } from './MockRedisClient';
 
 export interface DistributedCrawlConfig extends CrawlOptions {
   redis: RedisConfig;
@@ -46,7 +46,7 @@ export interface CrawlJob {
   retries: number;
   createdAt: Date;
   assignedTo?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface DistributedCrawlResult extends CrawlResult {
@@ -61,19 +61,38 @@ export interface DistributedCrawlResult extends CrawlResult {
 
 export class DistributedCrawler {
   private config: DistributedCrawlConfig;
+
   private baseCrawler: BreadthFirstCrawler;
+
   private redis: MockRedisClient; // In real implementation, use actual Redis client
+
   private isRunning = false;
+
   private heartbeatInterval?: NodeJS.Timeout;
+
   private syncInterval?: NodeJS.Timeout;
+
   private processedUrls = new Set<string>();
+
   private workerStats: WorkerStatus;
 
   constructor(browser: Browser, config: DistributedCrawlConfig) {
     this.config = config;
-    this.baseCrawler = new BreadthFirstCrawler(browser);
+    // Create CrawlConfiguration from DistributedCrawlConfig
+    const crawlConfig: CrawlConfiguration = {
+      startUrl: config.startUrl,
+      maxDepth: config.maxDepth,
+      maxPages: config.maxPages,
+      crawlDelay: config.crawlDelay,
+      allowedDomains: config.allowedDomains,
+      respectRobotsTxt: config.respectRobotsTxt,
+      userAgent: config.userAgent,
+      customHeaders: config.customHeaders,
+      parallelWorkers: config.parallelWorkers,
+    };
+    this.baseCrawler = new BreadthFirstCrawler(crawlConfig);
     this.redis = new MockRedisClient(config.redis);
-    
+
     this.workerStats = {
       workerId: config.workerId,
       status: 'idle',
@@ -85,7 +104,7 @@ export class DistributedCrawler {
   }
 
   async startWorker(): Promise<void> {
-    logger.info('Starting distributed crawler worker', { 
+    logger.info('Starting distributed crawler worker', {
       workerId: this.config.workerId,
       concurrency: this.config.concurrency,
     });
@@ -142,7 +161,7 @@ export class DistributedCrawler {
     url: string,
     depth: number = 0,
     priority: number = 1,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<string> {
     const job: CrawlJob = {
       id: this.generateJobId(),
@@ -157,11 +176,11 @@ export class DistributedCrawler {
     const queueKey = this.getQueueKey(priority);
     await this.redis.lpush(queueKey, JSON.stringify(job));
 
-    logger.debug('Job enqueued', { 
-      jobId: job.id, 
-      url, 
-      depth, 
-      priority 
+    logger.debug('Job enqueued', {
+      jobId: job.id,
+      url,
+      depth,
+      priority,
     });
 
     return job.id;
@@ -207,7 +226,7 @@ export class DistributedCrawler {
 
     // Count active workers
     const workers = await this.getWorkerStatuses();
-    stats.activeWorkers = workers.filter(w => w.status === 'active').length;
+    stats.activeWorkers = workers.filter((w) => w.status === 'active').length;
 
     // Count completed jobs
     const completedKey = `${this.config.redis.keyPrefix}:completed`;
@@ -219,7 +238,6 @@ export class DistributedCrawler {
   async distributedCrawl(startUrl: string): Promise<DistributedCrawlResult> {
     logger.info('Starting distributed crawl', { startUrl, workerId: this.config.workerId });
 
-    const startTime = Date.now();
     let redisOperations = 0;
 
     try {
@@ -234,7 +252,6 @@ export class DistributedCrawler {
       const results = await this.collectDistributedResults();
       redisOperations += results.length;
 
-      const totalTime = Date.now() - startTime;
       const queueStats = await this.getQueueStatistics();
       redisOperations += 4; // For queue statistics calls
 
@@ -248,7 +265,6 @@ export class DistributedCrawler {
           totalRedisOperations: redisOperations,
         },
       };
-
     } catch (error) {
       logger.error('Distributed crawl failed', error);
       throw error;
@@ -262,7 +278,7 @@ export class DistributedCrawler {
       try {
         // Process jobs concurrently
         const processingPromises: Promise<void>[] = [];
-        
+
         for (let i = 0; i < this.config.concurrency; i++) {
           processingPromises.push(this.processNextJob());
         }
@@ -271,7 +287,6 @@ export class DistributedCrawler {
 
         // Brief pause to prevent tight loop
         await this.sleep(100);
-
       } catch (error) {
         logger.error('Error in job queue processing', error);
         this.workerStats.errors++;
@@ -283,7 +298,7 @@ export class DistributedCrawler {
   private async processNextJob(): Promise<void> {
     // Get next job from highest priority queue
     const job = await this.dequeueJob();
-    
+
     if (!job) {
       // No jobs available, worker is idle
       this.workerStats.status = 'idle';
@@ -294,10 +309,10 @@ export class DistributedCrawler {
     this.workerStats.status = 'active';
     this.workerStats.currentUrl = job.url;
 
-    logger.debug('Processing job', { 
-      jobId: job.id, 
-      url: job.url, 
-      depth: job.depth 
+    logger.debug('Processing job', {
+      jobId: job.id,
+      url: job.url,
+      depth: job.depth,
     });
 
     try {
@@ -314,23 +329,21 @@ export class DistributedCrawler {
       if (result.success) {
         // Mark URL as processed
         await this.markUrlProcessed(job.url);
-        
+
         // Enqueue discovered URLs
         await this.enqueueDiscoveredUrls(result.discoveredUrls, job.depth + 1);
-        
+
         // Store results
         await this.storeResult(job.id, result);
-        
+
         // Mark job as completed
         await this.markJobCompleted(job);
-        
+
         this.workerStats.pagesProcessed++;
-        
       } else {
         // Handle job failure
         await this.handleJobFailure(job, result.error);
       }
-
     } catch (error) {
       logger.error('Job processing error', { jobId: job.id, error });
       await this.handleJobFailure(job, error instanceof Error ? error.message : String(error));
@@ -345,12 +358,12 @@ export class DistributedCrawler {
     for (let priority = this.config.queueConfig.priorityLevels; priority >= 1; priority--) {
       const queueKey = this.getQueueKey(priority);
       const jobData = await this.redis.rpop(queueKey);
-      
+
       if (jobData) {
         const job = JSON.parse(jobData);
         job.createdAt = new Date(job.createdAt);
         job.assignedTo = this.config.workerId;
-        
+
         return job;
       }
     }
@@ -374,11 +387,11 @@ export class DistributedCrawler {
       };
 
       const result = await this.baseCrawler.crawl(options);
-      
+
       // Extract discovered URLs from the result
       const discoveredUrls = result.crawledUrls
-        .flatMap(urlInfo => urlInfo.links || [])
-        .filter(url => !this.processedUrls.has(url))
+        .flatMap((urlInfo) => urlInfo.links || [])
+        .filter((url) => !this.processedUrls.has(url))
         .slice(0, 50); // Limit to prevent queue explosion
 
       return {
@@ -386,7 +399,6 @@ export class DistributedCrawler {
         discoveredUrls,
         pageInfo: result.crawledUrls[0],
       };
-
     } catch (error) {
       return {
         success: false,
@@ -401,7 +413,7 @@ export class DistributedCrawler {
       return;
     }
 
-    const promises = urls.map(url => 
+    const promises = urls.map((url) =>
       this.enqueueCrawlJob(url, depth, this.calculatePriority(url, depth))
     );
 
@@ -411,7 +423,7 @@ export class DistributedCrawler {
   private calculatePriority(url: string, depth: number): number {
     // Higher priority for shallower depths
     let priority = Math.max(1, this.config.queueConfig.priorityLevels - depth);
-    
+
     // Boost priority for certain URL patterns
     if (url.includes('/api/') || url.includes('/admin/')) {
       priority = Math.min(this.config.queueConfig.priorityLevels, priority + 1);
@@ -426,30 +438,32 @@ export class DistributedCrawler {
     if (job.retries < this.config.queueConfig.maxRetries) {
       // Re-queue with lower priority
       job.priority = Math.max(1, job.priority - 1);
-      
+
       const queueKey = this.getQueueKey(job.priority);
       await this.redis.lpush(queueKey, JSON.stringify(job));
-      
-      logger.debug('Job re-queued after failure', { 
-        jobId: job.id, 
+
+      logger.debug('Job re-queued after failure', {
+        jobId: job.id,
         retries: job.retries,
         newPriority: job.priority,
       });
 
       // Add delay before retry
       await this.sleep(this.config.queueConfig.retryDelay);
-      
     } else {
       // Mark as failed
       const failedKey = `${this.config.redis.keyPrefix}:failed`;
-      await this.redis.sadd(failedKey, JSON.stringify({
-        ...job,
-        finalError: error,
-        failedAt: new Date(),
-      }));
-      
-      logger.warn('Job failed permanently', { 
-        jobId: job.id, 
+      await this.redis.sadd(
+        failedKey,
+        JSON.stringify({
+          ...job,
+          finalError: error,
+          failedAt: new Date(),
+        })
+      );
+
+      logger.warn('Job failed permanently', {
+        jobId: job.id,
         retries: job.retries,
         error,
       });
@@ -498,7 +512,7 @@ export class DistributedCrawler {
 
   private async isUrlProcessed(url: string): Promise<boolean> {
     const processedKey = `${this.config.redis.keyPrefix}:processed`;
-    return await this.redis.sismember(processedKey, url);
+    return this.redis.sismember(processedKey, url);
   }
 
   private async markUrlProcessed(url: string): Promise<void> {
@@ -512,7 +526,7 @@ export class DistributedCrawler {
     await this.redis.sadd(completedKey, job.id);
   }
 
-  private async storeResult(jobId: string, result: any): Promise<void> {
+  private async storeResult(jobId: string, result: DistributedCrawlResultItem): Promise<void> {
     const resultKey = `${this.config.redis.keyPrefix}:result:${jobId}`;
     await this.redis.setex(resultKey, 3600, JSON.stringify(result)); // Store for 1 hour
   }
@@ -521,11 +535,11 @@ export class DistributedCrawler {
     // Wait until all queues are empty and no workers are active
     while (this.isRunning) {
       const stats = await this.getQueueStatistics();
-      
+
       if (stats.totalJobs === 0) {
         const workers = await this.getWorkerStatuses();
-        const activeWorkers = workers.filter(w => w.status === 'active');
-        
+        const activeWorkers = workers.filter((w) => w.status === 'active');
+
         if (activeWorkers.length === 0) {
           logger.info('Distributed crawl completed');
           break;
@@ -536,9 +550,9 @@ export class DistributedCrawler {
     }
   }
 
-  private async collectDistributedResults(): Promise<any[]> {
+  private async collectDistributedResults(): Promise<DistributedCrawlResultItem[]> {
     const resultKeys = await this.redis.keys(`${this.config.redis.keyPrefix}:result:*`);
-    const results: any[] = [];
+    const results: DistributedCrawlResultItem[] = [];
 
     for (const key of resultKeys) {
       const resultData = await this.redis.get(key);
@@ -550,33 +564,40 @@ export class DistributedCrawler {
     return results;
   }
 
-  private aggregateResults(results: any[]): CrawlResult {
+  private aggregateResults(results: DistributedCrawlResultItem[]): CrawlResult {
     // Aggregate all worker results into a single result
-    const aggregated: CrawlResult = {
-      crawledUrls: [],
-      errors: [],
-      statistics: {
-        totalPages: 0,
-        totalTime: 0,
-        averageLoadTime: 0,
-        maxDepthReached: 0,
-        errorCount: 0,
-      },
-    };
+    const allUrls: string[] = [];
+    const allErrors: CrawlError[] = [];
+    const crawlTree = new Map<string, CrawlNode[]>();
+    let totalTime = 0;
 
-    results.forEach(result => {
+    results.forEach((result) => {
       if (result.pageInfo) {
-        aggregated.crawledUrls.push(result.pageInfo);
+        allUrls.push(result.pageInfo.url);
+      }
+      if (result.crawledUrls) {
+        result.crawledUrls.forEach((urlInfo) => {
+          allUrls.push(urlInfo.url);
+        });
       }
       if (result.error) {
-        aggregated.errors.push(result.error);
+        allErrors.push(result.error);
+      }
+      if (result.errors) {
+        allErrors.push(...result.errors);
+      }
+      if (result.statistics) {
+        totalTime += result.statistics.totalTime;
       }
     });
 
-    aggregated.statistics.totalPages = aggregated.crawledUrls.length;
-    aggregated.statistics.errorCount = aggregated.errors.length;
-
-    return aggregated;
+    return {
+      pagesVisited: allUrls.length,
+      urls: [...new Set(allUrls)], // Remove duplicates
+      errors: allErrors,
+      duration: totalTime,
+      crawlTree,
+    };
   }
 
   private getQueueKey(priority: number): string {
@@ -588,81 +609,6 @@ export class DistributedCrawler {
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-}
-
-// Mock Redis client for demonstration (would use actual Redis client in production)
-class MockRedisClient {
-  private store = new Map<string, any>();
-  private lists = new Map<string, any[]>();
-  private sets = new Map<string, Set<any>>();
-
-  constructor(private config: RedisConfig) {}
-
-  async connect(): Promise<void> {
-    logger.debug('Mock Redis connected');
-  }
-
-  async disconnect(): Promise<void> {
-    logger.debug('Mock Redis disconnected');
-  }
-
-  async get(key: string): Promise<string | null> {
-    return this.store.get(key) || null;
-  }
-
-  async set(key: string, value: string): Promise<void> {
-    this.store.set(key, value);
-  }
-
-  async setex(key: string, seconds: number, value: string): Promise<void> {
-    this.store.set(key, value);
-    // In real implementation, would set expiration
-  }
-
-  async del(key: string): Promise<void> {
-    this.store.delete(key);
-    this.lists.delete(key);
-    this.sets.delete(key);
-  }
-
-  async keys(pattern: string): Promise<string[]> {
-    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-    return Array.from(this.store.keys()).filter(key => regex.test(key));
-  }
-
-  async lpush(key: string, value: string): Promise<void> {
-    if (!this.lists.has(key)) {
-      this.lists.set(key, []);
-    }
-    this.lists.get(key)!.unshift(value);
-  }
-
-  async rpop(key: string): Promise<string | null> {
-    const list = this.lists.get(key);
-    return list && list.length > 0 ? list.pop() || null : null;
-  }
-
-  async llen(key: string): Promise<number> {
-    const list = this.lists.get(key);
-    return list ? list.length : 0;
-  }
-
-  async sadd(key: string, value: string): Promise<void> {
-    if (!this.sets.has(key)) {
-      this.sets.set(key, new Set());
-    }
-    this.sets.get(key)!.add(value);
-  }
-
-  async sismember(key: string, value: string): Promise<boolean> {
-    const set = this.sets.get(key);
-    return set ? set.has(value) : false;
-  }
-
-  async scard(key: string): Promise<number> {
-    const set = this.sets.get(key);
-    return set ? set.size : 0;
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

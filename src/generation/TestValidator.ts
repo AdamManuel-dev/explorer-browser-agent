@@ -1,7 +1,11 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import { TestFile, TestFramework } from '../types/generation';
 import { logger } from '../utils/logger';
+import {
+  PlaywrightBestPracticesRule,
+  SelectorStabilityRule,
+  AssertionQualityRule,
+  TestStructureRule,
+} from './ValidationRules';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -39,6 +43,7 @@ export interface ValidationMetrics {
 
 export class TestValidator {
   private framework: TestFramework;
+
   private validationRules: ValidationRule[];
 
   constructor(framework: TestFramework = 'playwright') {
@@ -47,9 +52,9 @@ export class TestValidator {
   }
 
   async validateTestFile(testFile: TestFile): Promise<ValidationResult> {
-    logger.info('Validating test file', { 
+    logger.info('Validating test file', {
       filename: testFile.filename,
-      framework: this.framework 
+      framework: this.framework,
     });
 
     const errors: ValidationError[] = [];
@@ -59,7 +64,7 @@ export class TestValidator {
     try {
       // Parse the test content
       const parseResult = this.parseTestContent(testFile.content);
-      
+
       // Run validation rules
       for (const rule of this.validationRules) {
         const ruleResult = await rule.validate(testFile, parseResult);
@@ -86,7 +91,7 @@ export class TestValidator {
       const assertionErrors = this.validateAssertions(parseResult);
       errors.push(...assertionErrors);
 
-      const isValid = errors.filter(e => e.severity === 'error').length === 0;
+      const isValid = errors.filter((e) => e.severity === 'error').length === 0;
 
       return {
         isValid,
@@ -94,18 +99,19 @@ export class TestValidator {
         warnings,
         metrics,
       };
-
     } catch (error) {
       logger.error('Test validation failed', { filename: testFile.filename, error });
-      
+
       return {
         isValid: false,
-        errors: [{
-          type: 'syntax',
-          message: `Validation failed: ${error instanceof Error ? error.message : error}`,
-          severity: 'error',
-          file: testFile.filename,
-        }],
+        errors: [
+          {
+            type: 'syntax',
+            message: `Validation failed: ${error instanceof Error ? error.message : error}`,
+            severity: 'error',
+            file: testFile.filename,
+          },
+        ],
         warnings: [],
         metrics: this.getDefaultMetrics(),
       };
@@ -134,7 +140,7 @@ export class TestValidator {
     // Aggregate metrics
     const aggregatedMetrics = this.aggregateMetrics(fileMetrics);
 
-    const isValid = allErrors.filter(e => e.severity === 'error').length === 0;
+    const isValid = allErrors.filter((e) => e.severity === 'error').length === 0;
 
     return {
       isValid,
@@ -152,7 +158,7 @@ export class TestValidator {
       type: 'test',
       metadata: {
         generatedAt: new Date(),
-        sourcePath: {} as any,
+        sourcePath: '',
         framework: this.framework,
         language: 'typescript',
         dependencies: [],
@@ -194,20 +200,30 @@ export class TestValidator {
         tests.push(currentTest);
       }
 
-      // Parse selectors
-      const selectorMatches = trimmedLine.match(/page\.locator\(['"`]([^'"`]+)['"`]\)/g);
-      if (selectorMatches && currentTest) {
-        for (const match of selectorMatches) {
-          const selector = match.match(/['"`]([^'"`]+)['"`]/)?.[1];
-          if (selector) {
-            const selectorInfo: SelectorInfo = {
-              selector,
-              line: lineNumber,
-              testName: currentTest.name,
-              type: this.classifySelector(selector),
-            };
-            selectors.push(selectorInfo);
-            currentTest.selectors.push(selectorInfo);
+      // Parse selectors from multiple patterns
+      const selectorPatterns = [
+        /page\.locator\(['"`]([^'"`]+)['"`]\)/g,
+        /page\.click\(['"`]([^'"`]+)['"`]\)/g,
+        /page\.fill\(['"`]([^'"`]+)['"`]\)/g,
+        /page\.getByRole\(['"`]([^'"`]+)['"`]\)/g,
+        /locator\(['"`]([^'"`]+)['"`]\)/g,
+      ];
+
+      for (const pattern of selectorPatterns) {
+        const matches = trimmedLine.match(pattern);
+        if (matches && currentTest) {
+          for (const match of matches) {
+            const selector = match.match(/['"`]([^'"`]+)['"`]/)?.[1];
+            if (selector) {
+              const selectorInfo: SelectorInfo = {
+                selector,
+                line: lineNumber,
+                testName: currentTest.name,
+                type: this.classifySelector(selector),
+              };
+              selectors.push(selectorInfo);
+              currentTest.selectors.push(selectorInfo);
+            }
           }
         }
       }
@@ -248,9 +264,10 @@ export class TestValidator {
     try {
       // Check for common syntax issues
       const lines = testFile.content.split('\n');
-      
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        if (!line) continue;
         const lineNumber = i + 1;
 
         // Check for missing semicolons
@@ -267,14 +284,14 @@ export class TestValidator {
         // Check for mismatched brackets
         const openBrackets = (line.match(/[{[(]/g) || []).length;
         const closeBrackets = (line.match(/[}\])]/g) || []).length;
-        
+
         if (openBrackets !== closeBrackets && !this.isMultiLineStatement(line)) {
           errors.push({
             type: 'syntax',
             message: 'Potentially mismatched brackets',
             line: lineNumber,
             file: testFile.filename,
-            severity: 'warning',
+            severity: 'error',
           });
         }
 
@@ -289,7 +306,6 @@ export class TestValidator {
           });
         }
       }
-
     } catch (error) {
       errors.push({
         type: 'syntax',
@@ -305,7 +321,7 @@ export class TestValidator {
   private validateImports(testFile: TestFile, parsed: ParsedTestContent): ValidationError[] {
     const errors: ValidationError[] = [];
     const requiredImports = this.getRequiredImports();
-    const actualImports = parsed.imports.map(imp => imp.module);
+    const actualImports = parsed.imports.map((imp) => imp.module);
 
     // Check for missing required imports
     for (const required of requiredImports) {
@@ -405,9 +421,9 @@ export class TestValidator {
     const warnings: ValidationWarning[] = [];
 
     // Check for naming consistency
-    const namingPatterns = testFiles.map(f => f.filename.split('.')[0]);
+    const namingPatterns = testFiles.map((f) => f.filename.split('.')[0] || '');
     const hasConsistentNaming = this.checkNamingConsistency(namingPatterns);
-    
+
     if (!hasConsistentNaming) {
       warnings.push({
         type: 'best-practice',
@@ -431,19 +447,20 @@ export class TestValidator {
   private calculateMetrics(testFile: TestFile, parsed: ParsedTestContent): ValidationMetrics {
     const totalTests = parsed.tests.length;
     const totalAssertions = parsed.assertions.length;
-    const averageTestLength = totalTests > 0 
-      ? parsed.tests.reduce((sum, test) => sum + (test.endLine - test.startLine), 0) / totalTests 
-      : 0;
+    const averageTestLength =
+      totalTests > 0
+        ? parsed.tests.reduce((sum, test) => sum + (test.endLine - test.startLine), 0) / totalTests
+        : 0;
 
     // Calculate complexity score (based on assertions, selectors, and test length)
     const complexityScore = this.calculateComplexityScore(parsed);
-    
+
     // Calculate maintainability index
     const maintainabilityIndex = this.calculateMaintainabilityIndex(parsed);
 
     // Find duplicate selectors
     const selectorCounts = new Map<string, number>();
-    parsed.selectors.forEach(s => {
+    parsed.selectors.forEach((s) => {
       selectorCounts.set(s.selector, (selectorCounts.get(s.selector) || 0) + 1);
     });
     const duplicateSelectors = Array.from(selectorCounts.entries())
@@ -452,8 +469,8 @@ export class TestValidator {
 
     // Find unused imports
     const unusedImports = parsed.imports
-      .filter(imp => !this.isImportUsed(imp, testFile.content))
-      .map(imp => imp.module);
+      .filter((imp) => !this.isImportUsed(imp, testFile.content))
+      .map((imp) => imp.module);
 
     return {
       totalTests,
@@ -473,16 +490,19 @@ export class TestValidator {
 
     const totalTests = fileMetrics.reduce((sum, m) => sum + m.totalTests, 0);
     const totalAssertions = fileMetrics.reduce((sum, m) => sum + m.totalAssertions, 0);
-    const averageTestLength = fileMetrics.reduce((sum, m) => sum + m.averageTestLength, 0) / fileMetrics.length;
-    const complexityScore = fileMetrics.reduce((sum, m) => sum + m.complexityScore, 0) / fileMetrics.length;
-    const maintainabilityIndex = fileMetrics.reduce((sum, m) => sum + m.maintainabilityIndex, 0) / fileMetrics.length;
+    const averageTestLength =
+      fileMetrics.reduce((sum, m) => sum + m.averageTestLength, 0) / fileMetrics.length;
+    const complexityScore =
+      fileMetrics.reduce((sum, m) => sum + m.complexityScore, 0) / fileMetrics.length;
+    const maintainabilityIndex =
+      fileMetrics.reduce((sum, m) => sum + m.maintainabilityIndex, 0) / fileMetrics.length;
 
     const allDuplicateSelectors = new Set<string>();
     const allUnusedImports = new Set<string>();
 
-    fileMetrics.forEach(m => {
-      m.duplicateSelectors.forEach(s => allDuplicateSelectors.add(s));
-      m.unusedImports.forEach(i => allUnusedImports.add(i));
+    fileMetrics.forEach((m) => {
+      m.duplicateSelectors.forEach((s) => allDuplicateSelectors.add(s));
+      m.unusedImports.forEach((i) => allUnusedImports.add(i));
     });
 
     return {
@@ -509,10 +529,10 @@ export class TestValidator {
   private parseImport(line: string, lineNumber: number): ImportInfo {
     const moduleMatch = line.match(/from ['"`]([^'"`]+)['"`]/);
     const module = moduleMatch?.[1] || '';
-    
+
     const namedMatch = line.match(/import\s*{\s*([^}]+)\s*}/);
-    const named = namedMatch?.[1].split(',').map(s => s.trim()) || [];
-    
+    const named = namedMatch?.[1]?.split(',').map((s) => s.trim()) || [];
+
     const defaultMatch = line.match(/import\s+(\w+)\s+from/);
     const defaultImport = defaultMatch?.[1] || '';
 
@@ -547,11 +567,13 @@ export class TestValidator {
 
   private shouldHaveSemicolon(line: string): boolean {
     const trimmed = line.trim();
-    return trimmed.length > 0 && 
-           !trimmed.endsWith('{') && 
-           !trimmed.endsWith('}') && 
-           !trimmed.startsWith('//') &&
-           !trimmed.startsWith('/*');
+    return (
+      trimmed.length > 0 &&
+      !trimmed.endsWith('{') &&
+      !trimmed.endsWith('}') &&
+      !trimmed.startsWith('//') &&
+      !trimmed.startsWith('/*')
+    );
   }
 
   private isMultiLineStatement(line: string): boolean {
@@ -561,6 +583,7 @@ export class TestValidator {
   private isInAsyncFunction(lines: string[], currentIndex: number): boolean {
     for (let i = currentIndex; i >= 0; i--) {
       const line = lines[i];
+      if (!line) continue;
       if (line.includes('async')) return true;
       if (line.includes('function') && !line.includes('async')) return false;
     }
@@ -585,12 +608,12 @@ export class TestValidator {
     for (const named of importInfo.named) {
       if (content.includes(named)) return true;
     }
-    
+
     // Check if default import is used
     if (importInfo.default && content.includes(importInfo.default)) {
       return true;
     }
-    
+
     return false;
   }
 
@@ -602,65 +625,63 @@ export class TestValidator {
       /\.css-\w+/, // CSS-in-JS generated classes
       /\[class\*=".*\d+.*"\]/, // Classes with numbers (often generated)
     ];
-    
-    return fragilePatterns.some(pattern => pattern.test(selector));
+
+    return fragilePatterns.some((pattern) => pattern.test(selector));
   }
 
   private isWeakAssertion(assertion: AssertionInfo): boolean {
-    const weakPatterns = [
-      'toExist',
-      'toBeTruthy',
-      'toBeFalsy',
-    ];
-    
-    return weakPatterns.some(pattern => assertion.content.includes(pattern));
+    const weakPatterns = ['toExist', 'toBeTruthy', 'toBeFalsy'];
+
+    return weakPatterns.some((pattern) => assertion.content.includes(pattern));
   }
 
   private checkNamingConsistency(patterns: string[]): boolean {
     if (patterns.length <= 1) return true;
-    
-    const extensions = patterns.map(p => p.split('.').pop());
+
+    const extensions = patterns.map((p) => p.split('.').pop());
     const uniqueExtensions = new Set(extensions);
-    
+
     return uniqueExtensions.size <= 2; // Allow for .spec and .test variations
   }
 
   private calculateComplexityScore(parsed: ParsedTestContent): number {
     let score = 0;
-    
+
     // Base score from number of tests
     score += parsed.tests.length * 2;
-    
+
     // Add complexity for each assertion
     score += parsed.assertions.length;
-    
+
     // Add complexity for unique selectors
-    const uniqueSelectors = new Set(parsed.selectors.map(s => s.selector));
+    const uniqueSelectors = new Set(parsed.selectors.map((s) => s.selector));
     score += uniqueSelectors.size;
-    
+
     // Normalize to 0-100 scale
     return Math.min(100, score);
   }
 
   private calculateMaintainabilityIndex(parsed: ParsedTestContent): number {
     let score = 100; // Start with perfect score
-    
+
     // Reduce score for excessive test length
-    const avgTestLength = parsed.tests.length > 0 
-      ? parsed.tests.reduce((sum, test) => sum + (test.endLine - test.startLine), 0) / parsed.tests.length
-      : 0;
-    
+    const avgTestLength =
+      parsed.tests.length > 0
+        ? parsed.tests.reduce((sum, test) => sum + (test.endLine - test.startLine), 0) /
+          parsed.tests.length
+        : 0;
+
     if (avgTestLength > 50) score -= 20;
     else if (avgTestLength > 30) score -= 10;
-    
+
     // Reduce score for fragile selectors
-    const fragileSelectors = parsed.selectors.filter(s => this.isFragileSelector(s.selector));
+    const fragileSelectors = parsed.selectors.filter((s) => this.isFragileSelector(s.selector));
     score -= fragileSelectors.length * 5;
-    
+
     // Reduce score for weak assertions
-    const weakAssertions = parsed.assertions.filter(a => this.isWeakAssertion(a));
+    const weakAssertions = parsed.assertions.filter((a) => this.isWeakAssertion(a));
     score -= weakAssertions.length * 3;
-    
+
     return Math.max(0, score);
   }
 
@@ -716,95 +737,8 @@ interface AssertionInfo {
 }
 
 interface ValidationRule {
-  validate(testFile: TestFile, parsed: ParsedTestContent): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }>;
-}
-
-// Validation rules
-class PlaywrightBestPracticesRule implements ValidationRule {
-  async validate(testFile: TestFile, parsed: ParsedTestContent): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationWarning[] = [];
-
-    // Check for page.goto usage in tests (should be in beforeEach)
-    for (const test of parsed.tests) {
-      const testContent = this.getTestContent(testFile.content, test);
-      if (testContent.includes('page.goto')) {
-        warnings.push({
-          type: 'best-practice',
-          message: 'Consider moving page.goto to beforeEach hook',
-          line: test.startLine,
-          suggestion: 'Use beforeEach for navigation to improve test maintainability',
-        });
-      }
-    }
-
-    return { errors, warnings };
-  }
-
-  private getTestContent(fullContent: string, test: TestInfo): string {
-    const lines = fullContent.split('\n');
-    return lines.slice(test.startLine - 1, test.endLine).join('\n');
-  }
-}
-
-class SelectorStabilityRule implements ValidationRule {
-  async validate(testFile: TestFile, parsed: ParsedTestContent): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationWarning[] = [];
-
-    for (const selector of parsed.selectors) {
-      if (selector.type === 'class' && !selector.selector.includes('data-')) {
-        warnings.push({
-          type: 'maintainability',
-          message: `Consider using data-testid instead of class selector: ${selector.selector}`,
-          line: selector.line,
-          suggestion: 'Use [data-testid="..."] for more stable selectors',
-        });
-      }
-    }
-
-    return { errors, warnings };
-  }
-}
-
-class AssertionQualityRule implements ValidationRule {
-  async validate(testFile: TestFile, parsed: ParsedTestContent): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationWarning[] = [];
-
-    for (const assertion of parsed.assertions) {
-      if (assertion.type === 'generic') {
-        warnings.push({
-          type: 'best-practice',
-          message: 'Consider using more specific assertion',
-          line: assertion.line,
-          suggestion: 'Use specific assertions like toHaveText, toBeVisible, etc.',
-        });
-      }
-    }
-
-    return { errors, warnings };
-  }
-}
-
-class TestStructureRule implements ValidationRule {
-  async validate(testFile: TestFile, parsed: ParsedTestContent): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationWarning[] = [];
-
-    // Check for very long tests
-    for (const test of parsed.tests) {
-      const testLength = test.endLine - test.startLine;
-      if (testLength > 50) {
-        warnings.push({
-          type: 'maintainability',
-          message: `Test "${test.name}" is very long (${testLength} lines)`,
-          line: test.startLine,
-          suggestion: 'Consider breaking into smaller tests or extracting helper functions',
-        });
-      }
-    }
-
-    return { errors, warnings };
-  }
+  validate(
+    testFile: TestFile,
+    parsed: ParsedTestContent
+  ): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }>;
 }

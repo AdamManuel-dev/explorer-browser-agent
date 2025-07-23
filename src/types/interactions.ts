@@ -1,4 +1,5 @@
 import { InteractiveElement } from './elements';
+import { Page } from 'playwright';
 
 export interface InteractionStrategy {
   type: string;
@@ -7,8 +8,8 @@ export interface InteractionStrategy {
 }
 
 export interface InteractionContext {
-  page: any; // Playwright Page
-  testData?: any;
+  page: Page;
+  testData?: TestData;
   options?: InteractionOptions;
 }
 
@@ -22,7 +23,7 @@ export interface InteractionOptions {
 
 export interface InteractionResult {
   success: boolean;
-  value?: any;
+  value?: string | number | boolean | Record<string, unknown>;
   timing: number;
   screenshot?: string;
   error?: string;
@@ -39,14 +40,14 @@ export interface NetworkActivity {
 
 export interface StateChange {
   type: 'url' | 'storage' | 'cookie' | 'dom';
-  before: any;
-  after: any;
+  before: string | number | boolean | Record<string, unknown>;
+  after: string | number | boolean | Record<string, unknown>;
   timing: number;
 }
 
 export interface TestData {
-  value: any;
+  value: string | number | boolean | Record<string, unknown>;
   type: string;
   generated: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string | number | boolean>;
 }

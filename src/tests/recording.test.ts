@@ -1,12 +1,10 @@
-import { test, expect, describe, beforeEach, vi, MockedFunction } from '@jest/globals';
+import { test, expect, describe, beforeEach, jest } from '@jest/globals';
 import { Page } from 'playwright';
 import { UserPathRecorder } from '../recording/UserPathRecorder';
 import { InteractionResult } from '../types/interactions';
-import { UserPath, InteractionStep } from '../types/recording';
 import { DetectedElement } from '../types/detector';
-import { logger } from '../utils/logger';
 
-vi.mock('../utils/logger');
+jest.mock('../utils/logger');
 
 describe('UserPathRecorder', () => {
   let recorder: UserPathRecorder;
@@ -14,12 +12,12 @@ describe('UserPathRecorder', () => {
 
   beforeEach(() => {
     mockPage = {
-      url: vi.fn().mockReturnValue('https://example.com'),
-      title: vi.fn().mockResolvedValue('Test Page'),
-      screenshot: vi.fn().mockResolvedValue(Buffer.from('screenshot-data')),
-      evaluate: vi.fn().mockResolvedValue({}),
-      on: vi.fn(),
-      off: vi.fn(),
+      url: jest.fn().mockReturnValue('https://example.com'),
+      title: jest.fn().mockResolvedValue('Test Page'),
+      screenshot: jest.fn().mockResolvedValue(Buffer.from('screenshot-data')),
+      evaluate: jest.fn().mockResolvedValue({}),
+      on: jest.fn(),
+      off: jest.fn(),
     };
 
     recorder = new UserPathRecorder();
@@ -54,8 +52,9 @@ describe('UserPathRecorder', () => {
     test('should not allow starting recording twice', async () => {
       await recorder.startRecording(mockPage as Page, 'https://example.com', 'Test');
 
-      await expect(recorder.startRecording(mockPage as Page, 'https://example.com', 'Test2'))
-        .rejects.toThrow('Recording already in progress');
+      await expect(
+        recorder.startRecording(mockPage as Page, 'https://example.com', 'Test2')
+      ).rejects.toThrow('Recording already in progress');
     });
 
     test('should stop recording and return path', async () => {
@@ -145,7 +144,7 @@ describe('UserPathRecorder', () => {
 
       const currentPath = recorder.getCurrentPath();
       expect(currentPath?.steps).toHaveLength(1);
-      
+
       const step = currentPath?.steps[0];
       expect(step?.type).toBe('fill');
       expect(step?.selector).toBe('#username');
@@ -183,7 +182,7 @@ describe('UserPathRecorder', () => {
 
       const currentPath = recorder.getCurrentPath();
       expect(currentPath?.steps).toHaveLength(1);
-      
+
       const step = currentPath?.steps[0];
       expect(step?.type).toBe('click');
       expect(step?.success).toBe(false);
@@ -228,7 +227,7 @@ describe('UserPathRecorder', () => {
 
       const currentPath = recorder.getCurrentPath();
       const step = currentPath?.steps[0];
-      
+
       expect(step?.type).toBe('click');
       expect(step?.navigationOccurred).toBe(true);
       expect(step?.previousUrl).toBe('https://example.com');
@@ -261,8 +260,9 @@ describe('UserPathRecorder', () => {
         },
       };
 
-      await expect(recorder.recordInteraction(element, result))
-        .rejects.toThrow('No recording in progress');
+      await expect(recorder.recordInteraction(element, result)).rejects.toThrow(
+        'No recording in progress'
+      );
     });
   });
 
@@ -357,10 +357,12 @@ describe('UserPathRecorder', () => {
       await networkRecorder.startRecording(mockPage as Page, 'https://example.com', 'Network Test');
 
       // Simulate page events
-      const mockRequestHandler = (mockPage.on as MockedFunction<any>).mock.calls
-        .find(call => call[0] === 'request')?.[1];
-      const mockResponseHandler = (mockPage.on as MockedFunction<any>).mock.calls
-        .find(call => call[0] === 'response')?.[1];
+      const mockRequestHandler = (mockPage.on as jest.Mock).mock.calls.find(
+        (call) => call[0] === 'request'
+      )?.[1];
+      const mockResponseHandler = (mockPage.on as jest.Mock).mock.calls.find(
+        (call) => call[0] === 'response'
+      )?.[1];
 
       expect(mockRequestHandler).toBeDefined();
       expect(mockResponseHandler).toBeDefined();
@@ -590,7 +592,7 @@ describe('UserPathRecorder', () => {
     });
 
     test('should include user agent in metadata', async () => {
-      (mockPage.evaluate as MockedFunction<any>).mockResolvedValue('TestAgent/1.0');
+      (mockPage.evaluate as jest.Mock).mockResolvedValue('TestAgent/1.0');
 
       await recorder.startRecording(mockPage as Page, 'https://example.com', 'UserAgent Test');
       const path = await recorder.stopRecording();
@@ -635,8 +637,9 @@ describe('UserPathRecorder', () => {
         if (i < 2) {
           await limitedRecorder.recordInteraction(element, result);
         } else {
-          await expect(limitedRecorder.recordInteraction(element, result))
-            .rejects.toThrow('Maximum step limit reached');
+          await expect(limitedRecorder.recordInteraction(element, result)).rejects.toThrow(
+            'Maximum step limit reached'
+          );
         }
       }
 

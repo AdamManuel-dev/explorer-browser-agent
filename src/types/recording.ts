@@ -1,5 +1,5 @@
 import { InteractiveElement } from './elements';
-import { InteractionResult, StateChange, NetworkActivity } from './interactions';
+import { StateChange, NetworkActivity } from './interactions';
 
 export interface UserPath {
   id: string;
@@ -19,7 +19,7 @@ export interface InteractionStep {
   type: StepType;
   element?: InteractiveElement;
   action: string;
-  value?: any;
+  value?: string | number | boolean | Record<string, unknown>;
   timestamp: number;
   duration: number;
   screenshot?: string;
@@ -29,7 +29,7 @@ export interface InteractionStep {
   retries?: number;
 }
 
-export type StepType = 
+export type StepType =
   | 'navigation'
   | 'click'
   | 'type'
@@ -47,13 +47,13 @@ export interface Assertion {
   id: string;
   type: AssertionType;
   target: string;
-  expected: any;
+  expected: string | number | boolean | Record<string, unknown>;
   operator: AssertionOperator;
   message?: string;
   screenshot?: string;
 }
 
-export type AssertionType = 
+export type AssertionType =
   | 'url'
   | 'title'
   | 'text'
@@ -68,7 +68,7 @@ export type AssertionType =
   | 'storage'
   | 'custom';
 
-export type AssertionOperator = 
+export type AssertionOperator =
   | 'equals'
   | 'contains'
   | 'matches'
@@ -90,6 +90,7 @@ export interface PathMetadata {
   tags?: string[];
   purpose?: string;
   critical?: boolean;
+  totalSteps?: number;
 }
 
 export interface RecordingSession {

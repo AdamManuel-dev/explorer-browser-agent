@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { BrowserContext, Page } from 'playwright';
+import { Page, Cookie } from 'playwright';
 import { AuthSession, AuthStrategy } from './MultiStrategyAuthManager';
 import { logger } from '../utils/logger';
 
@@ -37,17 +37,20 @@ export interface StoredSession {
   metadata: {
     userAgent: string;
     fingerprint: string;
+    [key: string]: string | number | boolean;
   };
 }
 
 export class SessionManager {
   private config: SessionManagerConfig;
+
   private memoryStore = new Map<string, StoredSession>();
+
   private cleanupInterval?: NodeJS.Timeout;
 
   constructor(config?: Partial<SessionManagerConfig>) {
     this.config = this.mergeWithDefaults(config || {});
-    
+
     if (this.config.cleanup.enabled) {
       this.startCleanup();
     }
@@ -59,7 +62,7 @@ export class SessionManager {
     domain: string,
     options?: {
       ttl?: number;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, string | number | boolean>;
     }
   ): Promise<void> {
     logger.debug('Saving session', { sessionId, domain, strategy: session.strategy });
@@ -92,10 +95,10 @@ export class SessionManager {
         throw new Error(`Unsupported storage type: ${this.config.storage.type}`);
     }
 
-    logger.info('Session saved successfully', { 
-      sessionId, 
-      domain, 
-      storage: this.config.storage.type 
+    logger.info('Session saved successfully', {
+      sessionId,
+      domain,
+      storage: this.config.storage.type,
     });
   }
 
@@ -134,10 +137,10 @@ export class SessionManager {
     storedSession.lastAccessed = new Date();
     await this.saveSession(sessionId, storedSession.session, domain);
 
-    logger.info('Session loaded successfully', { 
-      sessionId, 
-      domain, 
-      strategy: storedSession.session.strategy 
+    logger.info('Session loaded successfully', {
+      sessionId,
+      domain,
+      strategy: storedSession.session.strategy,
     });
 
     return storedSession.session;
@@ -156,6 +159,8 @@ export class SessionManager {
       case 'redis':
         await this.deleteFromRedis(sessionId, domain);
         break;
+      default:
+        throw new Error(`Unknown storage type: ${this.config.storage.type}`);
     }
 
     logger.info('Session deleted successfully', { sessionId, domain });
@@ -174,20 +179,18 @@ export class SessionManager {
       case 'redis':
         sessions = await this.listFromRedis();
         break;
+      default:
+        throw new Error(`Unknown storage type: ${this.config.storage.type}`);
     }
 
     if (domain) {
-      sessions = sessions.filter(s => s.domain === domain);
+      sessions = sessions.filter((s) => s.domain === domain);
     }
 
     return sessions;
   }
 
-  async restoreSessionToPage(
-    page: Page,
-    sessionId: string,
-    domain: string
-  ): Promise<boolean> {
+  async restoreSessionToPage(page: Page, sessionId: string, domain: string): Promise<boolean> {
     const session = await this.loadSession(sessionId, domain);
     if (!session) {
       return false;
@@ -209,7 +212,7 @@ export class SessionManager {
             try {
               window.localStorage.setItem(key, value);
             } catch (error) {
-              console.warn('Failed to restore localStorage item:', key, error);
+              logger.warn('Failed to restore localStorage item:', { key, error });
             }
           });
 
@@ -218,7 +221,7 @@ export class SessionManager {
             try {
               window.sessionStorage.setItem(key, value);
             } catch (error) {
-              console.warn('Failed to restore sessionStorage item:', key, error);
+              logger.warn('Failed to restore sessionStorage item:', { key, error });
             }
           });
         },
@@ -230,7 +233,6 @@ export class SessionManager {
 
       logger.info('Session restored to page successfully', { sessionId, domain });
       return true;
-
     } catch (error) {
       logger.error('Failed to restore session to page', { sessionId, domain, error });
       return false;
@@ -246,7 +248,7 @@ export class SessionManager {
     logger.debug('Capturing session from page', { sessionId, domain, strategy });
 
     const context = page.context();
-    
+
     // Capture cookies
     const cookies = await context.cookies();
 
@@ -278,7 +280,11 @@ export class SessionManager {
       strategy,
       authenticated: true,
       userId: this.extractUserId(storageData.localStorage, cookies),
-      sessionToken: this.extractSessionToken(storageData.localStorage, storageData.sessionStorage, cookies),
+      sessionToken: this.extractSessionToken(
+        storageData.localStorage,
+        storageData.sessionStorage,
+        cookies
+      ),
       cookies,
       localStorage: storageData.localStorage,
       sessionStorage: storageData.sessionStorage,
@@ -291,7 +297,7 @@ export class SessionManager {
     };
 
     await this.saveSession(sessionId, session, domain);
-    
+
     logger.info('Session captured from page successfully', { sessionId, domain, strategy });
     return session;
   }
@@ -304,9 +310,9 @@ export class SessionManager {
     let cleanedCount = 0;
 
     for (const storedSession of sessions) {
-      const shouldCleanup = 
+      const shouldCleanup =
         (storedSession.expiresAt && storedSession.expiresAt < now) ||
-        (now.getTime() - storedSession.lastAccessed.getTime() > this.config.cleanup.maxAge);
+        now.getTime() - storedSession.lastAccessed.getTime() > this.config.cleanup.maxAge;
 
       if (shouldCleanup) {
         await this.deleteSession(storedSession.id, storedSession.domain);
@@ -337,12 +343,13 @@ export class SessionManager {
       expired: 0,
     };
 
-    sessions.forEach(session => {
+    sessions.forEach((session) => {
       // Count by domain
       stats.byDomain[session.domain] = (stats.byDomain[session.domain] || 0) + 1;
 
       // Count by strategy
-      stats.byStrategy[session.session.strategy] = (stats.byStrategy[session.session.strategy] || 0) + 1;
+      stats.byStrategy[session.session.strategy] =
+        (stats.byStrategy[session.session.strategy] || 0) + 1;
 
       // Count expired
       if (session.expiresAt && session.expiresAt < now) {
@@ -363,10 +370,10 @@ export class SessionManager {
   private async saveToFile(storedSession: StoredSession): Promise<void> {
     const filePath = this.getSessionFilePath(storedSession.id, storedSession.domain);
     const dir = path.dirname(filePath);
-    
+
     await fs.mkdir(dir, { recursive: true });
 
-    const data = this.config.encryption.enabled 
+    const data = this.config.encryption.enabled
       ? this.encrypt(JSON.stringify(storedSession))
       : JSON.stringify(storedSession, null, 2);
 
@@ -375,13 +382,13 @@ export class SessionManager {
 
   private async loadFromFile(sessionId: string, domain: string): Promise<StoredSession | null> {
     const filePath = this.getSessionFilePath(sessionId, domain);
-    
+
     try {
       const data = await fs.readFile(filePath, 'utf8');
       const content = this.config.encryption.enabled ? this.decrypt(data) : data;
-      
+
       const storedSession = JSON.parse(content);
-      
+
       // Convert date strings back to Date objects
       storedSession.createdAt = new Date(storedSession.createdAt);
       storedSession.lastAccessed = new Date(storedSession.lastAccessed);
@@ -393,7 +400,6 @@ export class SessionManager {
       }
 
       return storedSession;
-
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return null;
@@ -404,7 +410,7 @@ export class SessionManager {
 
   private async deleteFromFile(sessionId: string, domain: string): Promise<void> {
     const filePath = this.getSessionFilePath(sessionId, domain);
-    
+
     try {
       await fs.unlink(filePath);
     } catch (error) {
@@ -420,11 +426,11 @@ export class SessionManager {
 
     try {
       const domains = await fs.readdir(sessionsDir);
-      
+
       for (const domain of domains) {
         const domainDir = path.join(sessionsDir, domain);
         const sessionFiles = await fs.readdir(domainDir);
-        
+
         for (const file of sessionFiles) {
           if (file.endsWith('.json')) {
             const sessionId = path.basename(file, '.json');
@@ -499,17 +505,20 @@ export class SessionManager {
     const data = {
       strategy: session.strategy,
       userId: session.userId,
-      cookieNames: session.cookies?.map(c => c.name).sort(),
+      cookieNames: session.cookies?.map((c) => c.name).sort(),
       localStorageKeys: Object.keys(session.localStorage || {}).sort(),
     };
-    
+
     return Buffer.from(JSON.stringify(data)).toString('base64');
   }
 
-  private extractUserId(localStorage: Record<string, string>, cookies: any[]): string | undefined {
+  private extractUserId(
+    localStorage: Record<string, string>,
+    cookies: Cookie[]
+  ): string | undefined {
     // Try to find user ID in common locations
     const userIdKeys = ['userId', 'user_id', 'uid', 'id', 'sub', 'email'];
-    
+
     // Check localStorage
     for (const key of userIdKeys) {
       if (localStorage[key]) {
@@ -518,20 +527,18 @@ export class SessionManager {
     }
 
     // Check cookies
-    const userCookie = cookies.find(cookie => 
-      userIdKeys.includes(cookie.name.toLowerCase())
-    );
-    
+    const userCookie = cookies.find((cookie) => userIdKeys.includes(cookie.name.toLowerCase()));
+
     return userCookie?.value;
   }
 
   private extractSessionToken(
     localStorage: Record<string, string>,
     sessionStorage: Record<string, string>,
-    cookies: any[]
+    cookies: Cookie[]
   ): string | undefined {
     const tokenKeys = ['token', 'accessToken', 'authToken', 'sessionToken', 'jwt'];
-    
+
     // Check localStorage
     for (const key of tokenKeys) {
       if (localStorage[key]) return localStorage[key];
@@ -543,8 +550,8 @@ export class SessionManager {
     }
 
     // Check cookies
-    const tokenCookie = cookies.find(cookie => 
-      tokenKeys.some(key => cookie.name.toLowerCase().includes(key.toLowerCase()))
+    const tokenCookie = cookies.find((cookie) =>
+      tokenKeys.some((key) => cookie.name.toLowerCase().includes(key.toLowerCase()))
     );
 
     return tokenCookie?.value;

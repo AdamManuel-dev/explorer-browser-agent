@@ -28,6 +28,17 @@ export interface CrawlError {
     error: string;
     timestamp: Date;
 }
+export interface CrawlOptions {
+    startUrl: string;
+    maxDepth: number;
+    maxPages: number;
+    crawlDelay: number;
+    allowedDomains: string[];
+    respectRobotsTxt: boolean;
+    userAgent: string;
+    customHeaders?: Record<string, string>;
+    parallelWorkers?: number;
+}
 export declare class BreadthFirstCrawler {
     private config;
     private queue;
@@ -45,7 +56,7 @@ export declare class BreadthFirstCrawler {
     private normalizeUrl;
     private canCrawl;
     private isAllowedDomain;
-    extractUrls(page: Page, baseUrl: string): Promise<string[]>;
+    extractUrls(page: Page, _baseUrl: string): Promise<string[]>;
     private isValidUrl;
 }
 //# sourceMappingURL=BreadthFirstCrawler.d.ts.map

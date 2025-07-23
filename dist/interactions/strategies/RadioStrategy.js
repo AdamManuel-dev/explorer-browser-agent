@@ -19,7 +19,7 @@ class RadioStrategy {
                 await el.click({ force: options?.force });
                 return {
                     success: true,
-                    value: await el.getAttribute('value') || 'selected',
+                    value: (await el.getAttribute('value')) || 'selected',
                 };
             }
             // Find all radio buttons in the same group

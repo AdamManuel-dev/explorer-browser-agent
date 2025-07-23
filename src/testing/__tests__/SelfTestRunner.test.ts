@@ -1,7 +1,7 @@
-import { SelfTestRunner } from '../SelfTestRunner';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { mkdirSync, rmSync, existsSync } from 'fs';
+import { SelfTestRunner } from '../SelfTestRunner';
 
 // Mock external dependencies
 jest.mock('playwright', () => ({
@@ -18,7 +18,7 @@ jest.mock('playwright', () => ({
   },
 }));
 
-jest.mock('../utils/logger', () => ({
+jest.mock('../../utils/logger', () => ({
   logger: {
     info: jest.fn(),
     debug: jest.fn(),
@@ -100,11 +100,11 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
+
       expect(report).toBeDefined();
       expect(report.results.length).toBeGreaterThan(0);
-      
-      const configTest = report.results.find(r => r.name === 'Config Manager');
+
+      const configTest = report.results.find((r) => r.name === 'Config Manager');
       expect(configTest).toBeDefined();
     }, 10000);
 
@@ -127,8 +127,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const monitoringTest = report.results.find(r => r.name === 'Monitoring Service');
+
+      const monitoringTest = report.results.find((r) => r.name === 'Monitoring Service');
       expect(monitoringTest).toBeDefined();
       expect(monitoringTest?.success).toBe(true);
     }, 10000);
@@ -152,8 +152,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const detectorTest = report.results.find(r => r.name === 'Element Detector');
+
+      const detectorTest = report.results.find((r) => r.name === 'Element Detector');
       expect(detectorTest).toBeDefined();
       expect(detectorTest?.success).toBe(true);
     }, 10000);
@@ -177,8 +177,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const executorTest = report.results.find(r => r.name === 'Interaction Executor');
+
+      const executorTest = report.results.find((r) => r.name === 'Interaction Executor');
       expect(executorTest).toBeDefined();
       expect(executorTest?.success).toBe(true);
     }, 10000);
@@ -202,8 +202,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const authTest = report.results.find(r => r.name === 'Authentication Manager');
+
+      const authTest = report.results.find((r) => r.name === 'Authentication Manager');
       expect(authTest).toBeDefined();
       expect(authTest?.success).toBe(true);
     }, 10000);
@@ -227,8 +227,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const stealthTest = report.results.find(r => r.name === 'Stealth Mode');
+
+      const stealthTest = report.results.find((r) => r.name === 'Stealth Mode');
       expect(stealthTest).toBeDefined();
       expect(stealthTest?.success).toBe(true);
     }, 10000);
@@ -252,8 +252,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const captchaTest = report.results.find(r => r.name === 'CAPTCHA Handler');
+
+      const captchaTest = report.results.find((r) => r.name === 'CAPTCHA Handler');
       expect(captchaTest).toBeDefined();
       expect(captchaTest?.success).toBe(true);
     }, 10000);
@@ -279,8 +279,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const memoryTest = report.results.find(r => r.name === 'Memory Usage');
+
+      const memoryTest = report.results.find((r) => r.name === 'Memory Usage');
       expect(memoryTest).toBeDefined();
       expect(memoryTest?.success).toBe(true);
       expect(memoryTest?.metrics).toBeDefined();
@@ -306,8 +306,8 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await runner.runAllTests();
-      
-      const concurrentTest = report.results.find(r => r.name === 'Concurrent Operations');
+
+      const concurrentTest = report.results.find((r) => r.name === 'Concurrent Operations');
       expect(concurrentTest).toBeDefined();
       expect(concurrentTest?.success).toBe(true);
       expect(concurrentTest?.metrics?.operationsCompleted).toBe(10);
@@ -333,8 +333,9 @@ describe('SelfTestRunner', () => {
       const report = await testRunner.runAllTests();
 
       expect(report.summary.totalTests).toBeGreaterThan(0);
-      expect(report.summary.passedTests + report.summary.failedTests + report.summary.skippedTests)
-        .toBe(report.summary.totalTests);
+      expect(
+        report.summary.passedTests + report.summary.failedTests + report.summary.skippedTests
+      ).toBe(report.summary.totalTests);
       expect(report.summary.successRate).toBeGreaterThanOrEqual(0);
       expect(report.summary.successRate).toBeLessThanOrEqual(1);
       expect(report.summary.totalDuration).toBeGreaterThan(0);
@@ -381,9 +382,9 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await timeoutRunner.runAllTests();
-      
+
       expect(report.summary.failedTests).toBeGreaterThan(0);
-      const failedTest = report.results.find(r => !r.success);
+      const failedTest = report.results.find((r) => !r.success);
       expect(failedTest?.error).toContain('timeout');
     }, 10000);
 
@@ -407,9 +408,9 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await retryRunner.runAllTests();
-      
+
       // Even with retries, config test should eventually pass
-      const configTest = report.results.find(r => r.name === 'Config Manager');
+      const configTest = report.results.find((r) => r.name === 'Config Manager');
       expect(configTest).toBeDefined();
     }, 15000);
 
@@ -433,7 +434,7 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await partialFailureRunner.runAllTests();
-      
+
       // Should have run multiple tests even if some fail
       expect(report.results.length).toBeGreaterThan(1);
       expect(report.summary.totalTests).toBeGreaterThan(1);
@@ -459,14 +460,14 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await selectiveRunner.runAllTests();
-      
+
       // Should only run config test
-      const configTest = report.results.find(r => r.name === 'Config Manager');
+      const configTest = report.results.find((r) => r.name === 'Config Manager');
       expect(configTest).toBeDefined();
       expect(configTest?.success).toBe(true);
-      
+
       // Other tests should be skipped
-      const skippedTests = report.results.filter(r => r.details?.skipped);
+      const skippedTests = report.results.filter((r) => r.details?.skipped);
       expect(skippedTests.length).toBeGreaterThan(0);
     }, 10000);
 
@@ -488,12 +489,13 @@ describe('SelfTestRunner', () => {
       });
 
       const report = await noBrowserRunner.runAllTests();
-      
+
       // Should not contain any browser-specific tests
-      const browserTests = report.results.filter(r => 
-        r.name.includes('Basic Crawling') || 
-        r.name.includes('Element Detection') ||
-        r.name.includes('User Path Recording')
+      const browserTests = report.results.filter(
+        (r) =>
+          r.name.includes('Basic Crawling') ||
+          r.name.includes('Element Detection') ||
+          r.name.includes('User Path Recording')
       );
       expect(browserTests.length).toBe(0);
     }, 10000);

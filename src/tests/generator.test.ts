@@ -1,12 +1,11 @@
-import { test, expect, describe, beforeEach, vi } from '@jest/globals';
+import { test, expect, describe, beforeEach, jest } from '@jest/globals';
 import { TestGenerator } from '../generation/TestGenerator';
 import { TestValidator } from '../generation/TestValidator';
-import { UserPath, InteractionStep } from '../types/recording';
+import { UserPath } from '../types/recording';
 import { GenerationOptions, TestFramework } from '../types/generation';
-import { logger } from '../utils/logger';
 
-vi.mock('../utils/logger');
-vi.mock('../generation/TestValidator');
+jest.mock('../utils/logger');
+jest.mock('../generation/TestValidator');
 
 describe('TestGenerator', () => {
   let generator: TestGenerator;
@@ -14,25 +13,29 @@ describe('TestGenerator', () => {
 
   beforeEach(() => {
     mockValidator = {
-      validateTestFile: vi.fn().mockResolvedValue({
-        isValid: true,
-        errors: [],
-        warnings: [],
-        metrics: {
-          totalTests: 1,
-          totalAssertions: 3,
-          averageTestLength: 25,
-          complexityScore: 30,
-          maintainabilityIndex: 85,
-          duplicateSelectors: [],
-          unusedImports: [],
-        },
-      }),
-      validateTestSuite: vi.fn(),
-      validateGeneratedCode: vi.fn(),
-    } as any;
+      validateTestFile: jest.fn(() =>
+        Promise.resolve({
+          isValid: true,
+          errors: [],
+          warnings: [],
+          metrics: {
+            totalTests: 1,
+            totalAssertions: 3,
+            averageTestLength: 25,
+            complexityScore: 30,
+            maintainabilityIndex: 85,
+            duplicateSelectors: [],
+            unusedImports: [],
+          },
+        })
+      ),
+      validateTestSuite: jest.fn(),
+      validateGeneratedCode: jest.fn(),
+    } as TestValidator;
 
-    (TestValidator as jest.MockedClass<typeof TestValidator>).mockImplementation(() => mockValidator);
+    (TestValidator as jest.MockedClass<typeof TestValidator>).mockImplementation(
+      () => mockValidator
+    );
     generator = new TestGenerator();
   });
 
@@ -147,12 +150,14 @@ describe('TestGenerator', () => {
 
       expect(result.success).toBe(true);
       expect(result.files).toHaveLength(1);
-      expect(result.files[0].content).toContain('test(\'Login Flow\'');
-      expect(result.files[0].content).toContain('await page.goto(\'https://example.com/login\')');
-      expect(result.files[0].content).toContain('await page.fill(\'#username\', \'testuser\')');
-      expect(result.files[0].content).toContain('await page.fill(\'#password\', \'password123\')');
-      expect(result.files[0].content).toContain('await page.click(\'#login-btn\')');
-      expect(result.files[0].content).toContain('expect(page.url()).toBe(\'https://example.com/dashboard\')');
+      expect(result.files[0].content).toContain("test('Login Flow'");
+      expect(result.files[0].content).toContain("await page.goto('https://example.com/login')");
+      expect(result.files[0].content).toContain("await page.fill('#username', 'testuser')");
+      expect(result.files[0].content).toContain("await page.fill('#password', 'password123')");
+      expect(result.files[0].content).toContain("await page.click('#login-btn')");
+      expect(result.files[0].content).toContain(
+        "expect(page.url()).toBe('https://example.com/dashboard')"
+      );
     });
 
     test('should generate Cypress test with different syntax', async () => {
@@ -196,8 +201,8 @@ describe('TestGenerator', () => {
       const result = await cypressGenerator.generateFromPath(userPath);
 
       expect(result.success).toBe(true);
-      expect(result.files[0].content).toContain('cy.visit(\'https://example.com\')');
-      expect(result.files[0].content).toContain('cy.get(\'#menu-btn\').click()');
+      expect(result.files[0].content).toContain("cy.visit('https://example.com')");
+      expect(result.files[0].content).toContain("cy.get('#menu-btn').click()");
     });
 
     test('should handle complex interaction patterns', async () => {
@@ -250,9 +255,11 @@ describe('TestGenerator', () => {
       const result = await generator.generateFromPath(userPath);
 
       expect(result.success).toBe(true);
-      expect(result.files[0].content).toContain('await page.selectOption(\'#country\', \'US\')');
-      expect(result.files[0].content).toContain('await page.check(\'#agree-terms\')');
-      expect(result.files[0].content).toContain('await page.setInputFiles(\'#file-input\', \'test-file.pdf\')');
+      expect(result.files[0].content).toContain("await page.selectOption('#country', 'US')");
+      expect(result.files[0].content).toContain("await page.check('#agree-terms')");
+      expect(result.files[0].content).toContain(
+        "await page.setInputFiles('#file-input', 'test-file.pdf')"
+      );
     });
   });
 
@@ -296,8 +303,8 @@ describe('TestGenerator', () => {
 
       expect(result.success).toBe(true);
       expect(result.files).toHaveLength(2); // Test file + Page object file
-      
-      const pageObjectFile = result.files.find(f => f.filename.includes('.page.'));
+
+      const pageObjectFile = result.files.find((f) => f.filename.includes('.page.'));
       expect(pageObjectFile).toBeDefined();
       expect(pageObjectFile?.content).toContain('class LoginPage');
       expect(pageObjectFile?.content).toContain('usernameField');
@@ -385,10 +392,10 @@ describe('TestGenerator', () => {
       const result = await generator.generateFromPath(userPath, options);
 
       expect(result.success).toBe(true);
-      const content = result.files[0].content;
-      
+      const { content } = result.files[0];
+
       // Check for 4-space indentation
-      expect(content).toMatch(/\n    test\(/);
+      expect(content).toMatch(/\n {4}test\(/);
       // Check for double quotes
       expect(content).toContain('await page.fill("#input", "test")');
     });
@@ -519,7 +526,17 @@ describe('TestGenerator', () => {
         steps: [
           {
             id: '1',
-            type: 'invalid-action' as any,
+            type: 'invalid-action' as
+              | 'click'
+              | 'fill'
+              | 'select'
+              | 'check'
+              | 'navigate'
+              | 'wait'
+              | 'submit'
+              | 'hover'
+              | 'scroll'
+              | 'assert',
             selector: '#btn',
             timestamp: new Date(),
             duration: 200,
@@ -545,7 +562,7 @@ describe('TestGenerator', () => {
 
     test('should handle unsupported frameworks gracefully', async () => {
       const unsupportedGenerator = new TestGenerator('unsupported' as TestFramework);
-      
+
       const userPath: UserPath = {
         id: '1',
         startUrl: 'https://example.com',

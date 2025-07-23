@@ -1,4 +1,4 @@
-import { Page, BrowserContext } from 'playwright';
+import { Page, Cookie } from 'playwright';
 import * as fs from 'fs/promises';
 import { logger } from '../utils/logger';
 
@@ -45,10 +45,10 @@ export interface AuthSession {
   userId?: string;
   sessionToken?: string;
   expiresAt?: Date;
-  cookies: any[];
+  cookies: Cookie[];
   localStorage: Record<string, string>;
   sessionStorage: Record<string, string>;
-  metadata: Record<string, any>;
+  metadata: Record<string, string | number | boolean>;
 }
 
 export interface AuthResult {
@@ -61,6 +61,7 @@ export interface AuthResult {
 
 export class MultiStrategyAuthManager {
   private currentSession: AuthSession | null = null;
+
   private defaultSelectors: Record<AuthStrategy, AuthSelectors>;
 
   constructor() {
@@ -68,16 +69,16 @@ export class MultiStrategyAuthManager {
   }
 
   async authenticate(page: Page, config: AuthConfig): Promise<AuthResult> {
-    logger.info('Starting authentication', { 
+    logger.info('Starting authentication', {
       strategy: config.strategy,
-      loginUrl: config.loginUrl 
+      loginUrl: config.loginUrl,
     });
 
     try {
       // Load existing session if enabled
       if (config.sessionPersistence) {
         const existingSession = await this.loadSession(config);
-        if (existingSession && await this.validateSession(page, existingSession)) {
+        if (existingSession && (await this.validateSession(page, existingSession))) {
           await this.restoreSession(page, existingSession);
           this.currentSession = existingSession;
           return { success: true, session: existingSession };
@@ -94,7 +95,6 @@ export class MultiStrategyAuthManager {
 
       this.currentSession = result.session || null;
       return result;
-
     } catch (error) {
       logger.error('Authentication failed', { strategy: config.strategy, error });
       return {
@@ -154,10 +154,9 @@ export class MultiStrategyAuthManager {
     if (isSuccess) {
       const session = await this.createSession(page, 'basic', credentials);
       return { success: true, session };
-    } else {
-      const errorMessage = await this.getErrorMessage(page, selectors);
-      return { success: false, error: errorMessage || 'Login failed' };
     }
+    const errorMessage = await this.getErrorMessage(page, selectors);
+    return { success: false, error: errorMessage || 'Login failed' };
   }
 
   private async oauthAuth(page: Page, config: AuthConfig): Promise<AuthResult> {
@@ -186,37 +185,39 @@ export class MultiStrategyAuthManager {
     const token = urlParams.get('access_token');
 
     if (code || token) {
-      const session = await this.createSession(page, 'oauth', { 
-        ...credentials, 
-        token: token || code 
+      const session = await this.createSession(page, 'oauth', {
+        ...credentials,
+        token: token || code || undefined,
       });
       return { success: true, session };
-    } else {
-      return { success: false, error: 'OAuth flow failed - no authorization code received' };
     }
+    return { success: false, error: 'OAuth flow failed - no authorization code received' };
   }
 
   private async mfaAuth(page: Page, config: AuthConfig): Promise<AuthResult> {
     // First perform basic auth
     const basicResult = await this.basicAuth(page, config);
-    
+
     if (!basicResult.success) {
       return basicResult;
     }
 
     // Check if MFA is required
     const selectors = { ...this.defaultSelectors.mfa, ...config.selectors };
-    const mfaRequired = await page.locator(selectors.mfaField!).isVisible().catch(() => false);
+    const mfaRequired = await page
+      .locator(selectors.mfaField!)
+      .isVisible()
+      .catch(() => false);
 
     if (!mfaRequired) {
       return basicResult; // No MFA required
     }
 
     if (!config.credentials.mfaCode) {
-      return { 
-        success: false, 
-        requiresMFA: true, 
-        error: 'MFA code required but not provided' 
+      return {
+        success: false,
+        requiresMFA: true,
+        error: 'MFA code required but not provided',
       };
     }
 
@@ -232,9 +233,8 @@ export class MultiStrategyAuthManager {
     if (isSuccess) {
       const session = await this.createSession(page, 'mfa', config.credentials);
       return { success: true, session };
-    } else {
-      return { success: false, error: 'MFA verification failed' };
     }
+    return { success: false, error: 'MFA verification failed' };
   }
 
   private async apiAuth(page: Page, config: AuthConfig): Promise<AuthResult> {
@@ -246,7 +246,7 @@ export class MultiStrategyAuthManager {
 
     // Set API key in headers for subsequent requests
     await page.setExtraHTTPHeaders({
-      'Authorization': `Bearer ${credentials.apiKey}`,
+      Authorization: `Bearer ${credentials.apiKey}`,
       'X-API-Key': credentials.apiKey,
     });
 
@@ -274,14 +274,13 @@ export class MultiStrategyAuthManager {
     if (success) {
       const session = await this.createSession(page, 'custom', config.credentials);
       return { success: true, session };
-    } else {
-      return { success: false, error: 'Custom authentication flow failed' };
     }
+    return { success: false, error: 'Custom authentication flow failed' };
   }
 
   private async createSession(
-    page: Page, 
-    strategy: AuthStrategy, 
+    page: Page,
+    strategy: AuthStrategy,
     credentials: AuthCredentials
   ): Promise<AuthSession> {
     const cookies = await page.context().cookies();
@@ -362,7 +361,6 @@ export class MultiStrategyAuthManager {
       this.currentSession = null;
       logger.info('Logout completed successfully');
       return true;
-
     } catch (error) {
       logger.error('Logout failed', error);
       return false;
@@ -380,16 +378,14 @@ export class MultiStrategyAuthManager {
       await this.restoreSession(page, session);
 
       // Navigate to a protected page to test authentication
-      const currentUrl = page.url();
       await page.reload();
-      
+
       // If we're redirected to login page, session is invalid
       if (page.url().includes('login') || page.url().includes('signin')) {
         return false;
       }
 
       return true;
-
     } catch (error) {
       logger.debug('Session validation failed', error);
       return false;
@@ -402,17 +398,19 @@ export class MultiStrategyAuthManager {
       await page.context().addCookies(session.cookies);
 
       // Restore localStorage and sessionStorage
-      await page.evaluate((data) => {
-        Object.entries(data.localStorage).forEach(([key, value]) => {
-          localStorage.setItem(key, value);
-        });
-        Object.entries(data.sessionStorage).forEach(([key, value]) => {
-          sessionStorage.setItem(key, value);
-        });
-      }, { localStorage: session.localStorage, sessionStorage: session.sessionStorage });
+      await page.evaluate(
+        (data) => {
+          Object.entries(data.localStorage).forEach(([key, value]) => {
+            localStorage.setItem(key, value);
+          });
+          Object.entries(data.sessionStorage).forEach(([key, value]) => {
+            sessionStorage.setItem(key, value);
+          });
+        },
+        { localStorage: session.localStorage, sessionStorage: session.sessionStorage }
+      );
 
       logger.debug('Session restored successfully');
-
     } catch (error) {
       logger.error('Failed to restore session', error);
       throw error;
@@ -429,7 +427,6 @@ export class MultiStrategyAuthManager {
 
       await fs.writeFile(sessionFile, JSON.stringify(sessionData, null, 2));
       logger.debug('Session saved to file', { file: sessionFile });
-
     } catch (error) {
       logger.error('Failed to save session', error);
     }
@@ -448,7 +445,6 @@ export class MultiStrategyAuthManager {
 
       logger.debug('Session loaded from file', { file: sessionFile });
       return sessionData;
-
     } catch (error) {
       logger.debug('No existing session found', error);
       return null;
@@ -456,9 +452,9 @@ export class MultiStrategyAuthManager {
   }
 
   private async checkAuthSuccess(
-    page: Page, 
-    selectors: AuthSelectors, 
-    timeout: number
+    page: Page,
+    selectors: AuthSelectors,
+    _timeout: number
   ): Promise<boolean> {
     try {
       // Check for success indicator
@@ -476,7 +472,6 @@ export class MultiStrategyAuthManager {
       // Check if we're no longer on login page
       const currentUrl = page.url();
       return !currentUrl.includes('login') && !currentUrl.includes('signin');
-
     } catch {
       return false;
     }
@@ -512,7 +507,6 @@ export class MultiStrategyAuthManager {
       }
 
       return null;
-
     } catch {
       return null;
     }
@@ -533,11 +527,11 @@ export class MultiStrategyAuthManager {
   private extractSessionToken(
     localStorage: Record<string, string>,
     sessionStorage: Record<string, string>,
-    cookies: any[]
+    cookies: Cookie[]
   ): string | undefined {
     // Look for common token patterns
     const tokenKeys = ['token', 'accessToken', 'authToken', 'sessionToken', 'jwt'];
-    
+
     // Check localStorage
     for (const key of tokenKeys) {
       if (localStorage[key]) return localStorage[key];
@@ -549,8 +543,8 @@ export class MultiStrategyAuthManager {
     }
 
     // Check cookies
-    const tokenCookie = cookies.find(cookie => 
-      tokenKeys.some(key => cookie.name.toLowerCase().includes(key))
+    const tokenCookie = cookies.find((cookie) =>
+      tokenKeys.some((key) => cookie.name.toLowerCase().includes(key))
     );
 
     return tokenCookie?.value;
@@ -559,9 +553,11 @@ export class MultiStrategyAuthManager {
   private initializeDefaultSelectors(): Record<AuthStrategy, AuthSelectors> {
     return {
       basic: {
-        usernameField: 'input[name="username"], input[name="email"], input[type="email"], #username, #email',
+        usernameField:
+          'input[name="username"], input[name="email"], input[type="email"], #username, #email',
         passwordField: 'input[name="password"], input[type="password"], #password',
-        submitButton: 'button[type="submit"], input[type="submit"], .login-button, #login, button:has-text("Login")',
+        submitButton:
+          'button[type="submit"], input[type="submit"], .login-button, #login, button:has-text("Login")',
         successIndicator: '.dashboard, .welcome, [data-testid="home"]',
         errorIndicator: '.error, .alert-danger, .invalid-feedback',
       },
@@ -571,7 +567,8 @@ export class MultiStrategyAuthManager {
       },
       mfa: {
         mfaField: 'input[name="mfa"], input[name="code"], input[name="token"], #mfa-code',
-        mfaSubmitButton: 'button:has-text("Verify"), button:has-text("Submit"), button[type="submit"]',
+        mfaSubmitButton:
+          'button:has-text("Verify"), button:has-text("Submit"), button[type="submit"]',
         successIndicator: '.dashboard, .welcome, [data-testid="home"]',
         errorIndicator: '.error, .alert-danger, .invalid-code',
       },

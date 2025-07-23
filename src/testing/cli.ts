@@ -1,12 +1,26 @@
 #!/usr/bin/env node
+/* eslint-disable no-console */
 
 import { Command } from 'commander';
-import { SelfTestRunner, SelfTestConfig } from './SelfTestRunner';
-import { logger } from '../utils/logger';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { SelfTestRunner, SelfTestConfig } from './SelfTestRunner';
+import { logger } from '../utils/logger';
 
 const program = new Command();
+
+function getHealthEmoji(health: string): string {
+  switch (health) {
+    case 'healthy':
+      return '💚';
+    case 'degraded':
+      return '💛';
+    case 'unhealthy':
+      return '❤️';
+    default:
+      return '❓';
+  }
+}
 
 program
   .name('browser-explorer-self-test')
@@ -78,7 +92,7 @@ program
       }
 
       const runner = new SelfTestRunner(config);
-      
+
       console.log('🚀 Starting Browser Explorer Self-Test Suite...');
       console.log(`📁 Output directory: ${options.output}`);
       console.log(`⏱️  Test timeout: ${config.testTimeout}ms`);
@@ -90,22 +104,24 @@ program
       // Display results
       console.log('');
       console.log('📊 Test Results Summary:');
-      console.log('=' .repeat(50));
+      console.log('='.repeat(50));
       console.log(`Total Tests: ${report.summary.totalTests}`);
       console.log(`✅ Passed: ${report.summary.passedTests}`);
       console.log(`❌ Failed: ${report.summary.failedTests}`);
       console.log(`⏭️  Skipped: ${report.summary.skippedTests}`);
       console.log(`📈 Success Rate: ${(report.summary.successRate * 100).toFixed(1)}%`);
       console.log(`⏱️  Total Duration: ${(report.summary.totalDuration / 1000).toFixed(2)}s`);
-      console.log(`🏥 Overall Health: ${getHealthEmoji(report.summary.overallHealth)} ${report.summary.overallHealth.toUpperCase()}`);
+      console.log(
+        `🏥 Overall Health: ${getHealthEmoji(report.summary.overallHealth)} ${report.summary.overallHealth.toUpperCase()}`
+      );
       console.log('');
 
       if (report.summary.failedTests > 0) {
         console.log('❌ Failed Tests:');
         console.log('-'.repeat(30));
         report.results
-          .filter(r => !r.success)
-          .forEach(test => {
+          .filter((r) => !r.success)
+          .forEach((test) => {
             console.log(`  • ${test.name}: ${test.error || 'Unknown error'}`);
           });
         console.log('');
@@ -125,7 +141,9 @@ program
       console.log('-'.repeat(20));
       console.log(`Node.js: ${report.environment.nodeVersion}`);
       console.log(`Platform: ${report.environment.platform} (${report.environment.architecture})`);
-      console.log(`Memory: ${(report.environment.memoryUsed / 1024 / 1024).toFixed(0)}MB / ${(report.environment.memoryTotal / 1024 / 1024).toFixed(0)}MB`);
+      console.log(
+        `Memory: ${(report.environment.memoryUsed / 1024 / 1024).toFixed(0)}MB / ${(report.environment.memoryTotal / 1024 / 1024).toFixed(0)}MB`
+      );
       console.log('');
 
       const reportFile = join(options.output, `self-test-report-${Date.now()}.json`);
@@ -133,7 +151,6 @@ program
 
       // Exit with appropriate code
       process.exit(report.summary.failedTests > 0 ? 1 : 0);
-
     } catch (error) {
       console.error('❌ Self-test suite failed:', error);
       process.exit(1);
@@ -171,21 +188,22 @@ program
       };
 
       const runner = new SelfTestRunner(config);
-      
+
       console.log('⚡ Running quick health check...');
-      
+
       const report = await runner.runAllTests();
 
       console.log('');
-      console.log(`🏥 System Health: ${getHealthEmoji(report.summary.overallHealth)} ${report.summary.overallHealth.toUpperCase()}`);
+      console.log(
+        `🏥 System Health: ${getHealthEmoji(report.summary.overallHealth)} ${report.summary.overallHealth.toUpperCase()}`
+      );
       console.log(`📈 Tests: ${report.summary.passedTests}/${report.summary.totalTests} passed`);
-      
+
       if (report.summary.failedTests > 0) {
         console.log('⚠️  Issues detected. Run full test suite for details.');
       }
 
       process.exit(report.summary.failedTests > 0 ? 1 : 0);
-
     } catch (error) {
       console.error('❌ Quick health check failed:', error);
       process.exit(1);
@@ -228,10 +246,10 @@ program
       {
         name: 'Node.js Version',
         check: () => {
-          const version = process.version;
+          const { version } = process;
           const major = parseInt(version.substring(1).split('.')[0]);
           return { success: major >= 16, details: version };
-        }
+        },
       },
       {
         name: 'Available Memory',
@@ -240,11 +258,11 @@ program
           const freeMem = require('os').freemem();
           const totalGB = totalMem / 1024 / 1024 / 1024;
           const freeGB = freeMem / 1024 / 1024 / 1024;
-          return { 
-            success: totalGB >= 4, 
-            details: `${totalGB.toFixed(1)}GB total, ${freeGB.toFixed(1)}GB free` 
+          return {
+            success: totalGB >= 4,
+            details: `${totalGB.toFixed(1)}GB total, ${freeGB.toFixed(1)}GB free`,
           };
-        }
+        },
       },
       {
         name: 'Playwright Browsers',
@@ -257,7 +275,7 @@ program
           } catch (error) {
             return { success: false, details: 'Run: npx playwright install' };
           }
-        }
+        },
       },
       {
         name: 'Write Permissions',
@@ -270,8 +288,8 @@ program
           } catch (error) {
             return { success: false, details: 'No write access to current directory' };
           }
-        }
-      }
+        },
+      },
     ];
 
     let allPassed = true;
@@ -299,15 +317,6 @@ program
 
     process.exit(allPassed ? 0 : 1);
   });
-
-function getHealthEmoji(health: string): string {
-  switch (health) {
-    case 'healthy': return '💚';
-    case 'degraded': return '💛';
-    case 'unhealthy': return '❤️';
-    default: return '❓';
-  }
-}
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {

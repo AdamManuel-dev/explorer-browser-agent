@@ -1,5 +1,9 @@
 import { InteractiveElement } from '../../types/elements';
-import { InteractionStrategy, InteractionContext, InteractionResult } from '../../types/interactions';
+import {
+  InteractionStrategy,
+  InteractionContext,
+  InteractionResult,
+} from '../../types/interactions';
 import { logger } from '../../utils/logger';
 
 export class RadioStrategy implements InteractionStrategy {
@@ -25,13 +29,13 @@ export class RadioStrategy implements InteractionStrategy {
         await el.click({ force: options?.force });
         return {
           success: true,
-          value: await el.getAttribute('value') || 'selected',
+          value: (await el.getAttribute('value')) || 'selected',
         };
       }
 
       // Find all radio buttons in the same group
       const radioGroup = await page.$$(`input[type="radio"][name="${name}"]`);
-      
+
       // Select a random radio button from the group
       const randomIndex = Math.floor(Math.random() * radioGroup.length);
       const selectedRadio = radioGroup[randomIndex];

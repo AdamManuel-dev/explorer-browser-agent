@@ -17,7 +17,16 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],
   testTimeout: 30000,
   verbose: true,
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(p-queue|normalize-url|robots-parser|eventemitter3)/)',
+  ],
+  extensionsToTreatAsEsm: ['.ts'],
+  globals: {
+    'ts-jest': {
+      useESM: true,
+    },
   },
 };

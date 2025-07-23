@@ -60,7 +60,7 @@ class BreadthFirstCrawler {
     getNodesAtCurrentDepth() {
         const nodes = [];
         const currentDepth = this.queue[0]?.depth;
-        while (this.queue.length > 0 && this.queue[0].depth === currentDepth) {
+        while (this.queue.length > 0 && this.queue[0]?.depth === currentDepth) {
             const node = this.queue.shift();
             if (!this.visited.has(node.url) && this.crawlResult.pagesVisited < this.config.maxPages) {
                 nodes.push(node);
@@ -69,7 +69,7 @@ class BreadthFirstCrawler {
         return nodes;
     }
     async processNodesInParallel(nodes) {
-        const promises = nodes.map(node => this.pQueue.add(() => this.processNode(node)));
+        const promises = nodes.map((node) => this.pQueue.add(() => this.processNode(node)));
         await Promise.all(promises);
     }
     async processNode(node) {
@@ -90,7 +90,7 @@ class BreadthFirstCrawler {
                 this.crawlResult.crawlTree.set(node.url, []);
             }
             if (node.depth < this.config.maxDepth) {
-                const childNodes = childUrls.map(url => ({
+                const childNodes = childUrls.map((url) => ({
                     url,
                     depth: node.depth + 1,
                     parentUrl: node.url,
@@ -109,7 +109,7 @@ class BreadthFirstCrawler {
             });
         }
     }
-    async crawlPage(url) {
+    async crawlPage(_url) {
         // This is a placeholder - will be implemented with actual page crawling
         // Will be integrated with BrowserAgent
         return [];
@@ -152,22 +152,22 @@ class BreadthFirstCrawler {
         }
         try {
             const urlObj = new url_1.URL(url);
-            return this.config.allowedDomains.some(domain => urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`));
+            return this.config.allowedDomains.some((domain) => urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`));
         }
         catch {
             return false;
         }
     }
-    async extractUrls(page, baseUrl) {
+    async extractUrls(page, _baseUrl) {
         const urls = await page.evaluate(() => {
             const anchors = Array.from(document.querySelectorAll('a[href]'));
             return anchors
-                .map(anchor => anchor.href)
-                .filter(href => href && !href.startsWith('javascript:') && !href.startsWith('#'));
+                .map((anchor) => anchor.href)
+                .filter((href) => href && !href.startsWith('javascript:') && !href.startsWith('#'));
         });
         return urls
-            .map(url => this.normalizeUrl(url))
-            .filter(url => this.isValidUrl(url) && this.isAllowedDomain(url))
+            .map((url) => this.normalizeUrl(url))
+            .filter((url) => this.isValidUrl(url) && this.isAllowedDomain(url))
             .filter((url, index, self) => self.indexOf(url) === index);
     }
     isValidUrl(url) {

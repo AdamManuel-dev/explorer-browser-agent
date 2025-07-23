@@ -21,10 +21,12 @@ class LinkStrategy {
                 await page.waitForTimeout(options.delay);
             }
             // Prepare for navigation
-            const navigationPromise = page.waitForNavigation({
+            const navigationPromise = page
+                .waitForNavigation({
                 timeout: options?.timeout || 30000,
-                waitUntil: 'networkidle'
-            }).catch(() => null); // Some links might not navigate
+                waitUntil: 'networkidle',
+            })
+                .catch(() => null); // Some links might not navigate
             // Click the link
             await el.click({ force: options?.force });
             // Wait for navigation

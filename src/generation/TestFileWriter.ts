@@ -56,11 +56,11 @@ export class TestFileWriter {
 
   private async writeSummaryReport(result: GenerationResult): Promise<void> {
     const reportPath = path.join(this.baseDirectory, 'test-generation-report.json');
-    
+
     const report = {
       generatedAt: new Date().toISOString(),
       summary: result.summary,
-      files: result.files.map(f => ({
+      files: result.files.map((f) => ({
         filename: f.filename,
         path: f.path,
         type: f.type,
@@ -78,7 +78,7 @@ export class TestFileWriter {
 
   private async writeMarkdownSummary(result: GenerationResult): Promise<void> {
     const summaryPath = path.join(this.baseDirectory, 'README.md');
-    
+
     const lines: string[] = [
       '# Generated Tests',
       '',
@@ -99,11 +99,11 @@ export class TestFileWriter {
 
     // Group files by type
     const filesByType = this.groupFilesByType(result.files);
-    
+
     for (const [type, files] of Object.entries(filesByType)) {
       lines.push(`### ${this.formatFileType(type)}`);
       lines.push('');
-      
+
       for (const file of files) {
         const filePath = path.join(file.path, file.filename);
         lines.push(`- \`${filePath}\``);
@@ -115,7 +115,7 @@ export class TestFileWriter {
     if (result.errors.length > 0) {
       lines.push('## Generation Errors');
       lines.push('');
-      
+
       for (const error of result.errors) {
         lines.push(`- **${error.severity}**: ${error.error}`);
       }
@@ -149,38 +149,31 @@ export class TestFileWriter {
 
   private groupFilesByType(files: TestFile[]): Record<string, TestFile[]> {
     const groups: Record<string, TestFile[]> = {};
-    
+
     for (const file of files) {
       if (!groups[file.type]) {
         groups[file.type] = [];
       }
       groups[file.type].push(file);
     }
-    
+
     return groups;
   }
 
   private formatFileType(type: string): string {
     const typeNames: Record<string, string> = {
-      'test': 'Test Files',
+      test: 'Test Files',
       'page-object': 'Page Objects',
-      'fixture': 'Fixtures',
-      'helper': 'Helper Functions',
-      'config': 'Configuration Files',
+      fixture: 'Fixtures',
+      helper: 'Helper Functions',
+      config: 'Configuration Files',
     };
-    
+
     return typeNames[type] || type;
   }
 
   async createProjectStructure(): Promise<void> {
-    const directories = [
-      'tests',
-      'pages',
-      'fixtures',
-      'helpers',
-      'screenshots',
-      'reports',
-    ];
+    const directories = ['tests', 'pages', 'fixtures', 'helpers', 'screenshots', 'reports'];
 
     for (const dir of directories) {
       await this.ensureDirectory(path.join(this.baseDirectory, dir));
@@ -194,7 +187,7 @@ export class TestFileWriter {
 
   private async createPlaywrightConfig(): Promise<void> {
     const configPath = path.join(this.baseDirectory, 'playwright.config.ts');
-    
+
     const config = `import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
@@ -223,7 +216,7 @@ export default defineConfig({
 
   private async createPackageJson(): Promise<void> {
     const packagePath = path.join(this.baseDirectory, 'package.json');
-    
+
     // Check if already exists
     try {
       await fs.access(packagePath);
@@ -254,7 +247,7 @@ export default defineConfig({
 
   private async createGitignore(): Promise<void> {
     const gitignorePath = path.join(this.baseDirectory, '.gitignore');
-    
+
     const gitignore = `node_modules/
 /test-results/
 /playwright-report/

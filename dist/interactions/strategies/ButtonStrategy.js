@@ -6,6 +6,7 @@ class ButtonStrategy {
     type = 'button';
     async execute(element, context) {
         const { page, options } = context;
+        const startTime = Date.now();
         try {
             // Locate the element
             const el = await page.$(element.selector);
@@ -35,6 +36,7 @@ class ButtonStrategy {
             return {
                 success: true,
                 value: 'clicked',
+                timing: Date.now() - startTime,
             };
         }
         catch (error) {

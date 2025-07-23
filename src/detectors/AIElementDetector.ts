@@ -1,5 +1,6 @@
 import { Page, ElementHandle } from 'playwright';
 // import { Stagehand } from '@stagehand/playwright';
+import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
 import {
   InteractiveElement,
@@ -7,17 +8,17 @@ import {
   ElementDetectionResult,
   ElementClassification,
 } from '../types/elements';
-import { v4 as uuidv4 } from 'uuid';
 
 export class AIElementDetector {
-  private stagehand: any | null = null;
+  private stagehand: unknown = null;
+
   private selectorPatterns: Map<ElementType, string[]>;
 
   constructor() {
     this.selectorPatterns = this.initializeSelectorPatterns();
   }
 
-  async initialize(page: Page): Promise<void> {
+  async initialize(_page: Page): Promise<void> {
     try {
       // TODO: Initialize Stagehand when available
       // this.stagehand = new Stagehand({
@@ -39,15 +40,12 @@ export class AIElementDetector {
     try {
       // Use Stagehand's AI-powered detection
       const aiDetectedElements = await this.detectWithAI(page);
-      
+
       // Enhance with traditional selector-based detection
       const selectorDetectedElements = await this.detectBySelectors(page);
-      
+
       // Merge and deduplicate results
-      const mergedElements = this.mergeAndDeduplicate(
-        aiDetectedElements,
-        selectorDetectedElements
-      );
+      const mergedElements = this.mergeAndDeduplicate(aiDetectedElements, selectorDetectedElements);
 
       // Classify elements with AI assistance
       const classifiedElements = await this.classifyElements(mergedElements);
@@ -64,7 +62,7 @@ export class AIElementDetector {
     }
   }
 
-  private async detectWithAI(page: Page): Promise<InteractiveElement[]> {
+  private async detectWithAI(_page: Page): Promise<InteractiveElement[]> {
     const elements: InteractiveElement[] = [];
 
     try {
@@ -84,7 +82,7 @@ export class AIElementDetector {
       for (const selector of selectors) {
         try {
           const foundElements = await page.$$(selector);
-          
+
           for (const el of foundElements) {
             const element = await this.createElementFromHandle(el, elementType, selector);
             if (element) {
@@ -100,24 +98,24 @@ export class AIElementDetector {
     return elements;
   }
 
-  private async createElementFromObservation(
-    page: Page,
-    observation: any
-  ): Promise<InteractiveElement | null> {
-    try {
-      const selector = observation.selector || observation.xpath;
-      const element = await page.$(selector);
-      
-      if (!element) {
-        return null;
-      }
+  // private async createElementFromObservation(
+  //   page: Page,
+  //   observation: any
+  // ): Promise<InteractiveElement | null> {
+  //   try {
+  //     const selector = observation.selector || observation.xpath;
+  //     const element = await page.$(selector);
+  //
+  //     if (!element) {
+  //       return null;
+  //     }
 
-      return this.createElementFromHandle(element, 'unknown', selector);
-    } catch (error) {
-      logger.debug('Failed to create element from observation', { observation, error });
-      return null;
-    }
-  }
+  //     return this.createElementFromHandle(element, 'unknown', selector);
+  //   } catch (error) {
+  //     logger.debug('Failed to create element from observation', { observation, error });
+  //     return null;
+  //   }
+  // }
 
   private async createElementFromHandle(
     element: ElementHandle,
@@ -125,19 +123,16 @@ export class AIElementDetector {
     selector: string
   ): Promise<InteractiveElement | null> {
     try {
-      const [
-        tagName,
-        attributes,
-        isVisible,
-        isEnabled,
-        boundingBox,
-        text,
-      ] = await Promise.all([
-        element.evaluate(el => el.tagName.toLowerCase()),
-        element.evaluate(el => {
+      const [tagName, attributes, isVisible, isEnabled, boundingBox, text] = await Promise.all([
+        element.evaluate((el) => (el as Element).tagName.toLowerCase()),
+        element.evaluate((el) => {
           const attrs: Record<string, string> = {};
-          for (const attr of el.attributes) {
-            attrs[attr.name] = attr.value;
+          const elem = el as Element;
+          for (let i = 0; i < elem.attributes.length; i++) {
+            const attr = elem.attributes[i];
+            if (attr) {
+              attrs[attr.name] = attr.value;
+            }
           }
           return attrs;
         }),
@@ -147,9 +142,8 @@ export class AIElementDetector {
         element.textContent(),
       ]);
 
-      const type = suggestedType === 'unknown' 
-        ? this.inferElementType(tagName, attributes)
-        : suggestedType;
+      const type =
+        suggestedType === 'unknown' ? this.inferElementType(tagName, attributes) : suggestedType;
 
       const metadata = await this.extractMetadata(element, type);
 
@@ -175,21 +169,35 @@ export class AIElementDetector {
     if (tagName === 'input') {
       const type = attributes.type?.toLowerCase() || 'text';
       switch (type) {
-        case 'text': return 'text-input';
-        case 'password': return 'password-input';
-        case 'email': return 'email-input';
-        case 'number': return 'number-input';
-        case 'tel': return 'tel-input';
-        case 'checkbox': return 'checkbox';
-        case 'radio': return 'radio';
-        case 'date': return 'date-picker';
-        case 'time': return 'time-picker';
-        case 'color': return 'color-picker';
-        case 'range': return 'range-slider';
-        case 'file': return 'file-upload';
+        case 'text':
+          return 'text-input';
+        case 'password':
+          return 'password-input';
+        case 'email':
+          return 'email-input';
+        case 'number':
+          return 'number-input';
+        case 'tel':
+          return 'tel-input';
+        case 'checkbox':
+          return 'checkbox';
+        case 'radio':
+          return 'radio';
+        case 'date':
+          return 'date-picker';
+        case 'time':
+          return 'time-picker';
+        case 'color':
+          return 'color-picker';
+        case 'range':
+          return 'range-slider';
+        case 'file':
+          return 'file-upload';
         case 'submit':
-        case 'button': return 'button';
-        default: return 'text-input';
+        case 'button':
+          return 'button';
+        default:
+          return 'text-input';
       }
     }
 
@@ -204,13 +212,23 @@ export class AIElementDetector {
     // Check for custom components by attributes
     if (attributes.role) {
       switch (attributes.role) {
-        case 'button': return 'button';
-        case 'link': return 'link';
-        case 'checkbox': return 'checkbox';
-        case 'radio': return 'radio';
-        case 'tab': return 'tab';
-        case 'switch': return 'toggle';
-        case 'combobox': return 'select';
+        case 'button':
+          return 'button';
+        case 'link':
+          return 'link';
+        case 'checkbox':
+          return 'checkbox';
+        case 'radio':
+          return 'radio';
+        case 'tab':
+          return 'tab';
+        case 'switch':
+          return 'toggle';
+        case 'combobox':
+          return 'select';
+        default:
+          // Unknown role, fall through to other detection methods
+          break;
       }
     }
 
@@ -225,13 +243,14 @@ export class AIElementDetector {
       const metadata: InteractiveElement['metadata'] = {};
 
       // Extract label
-      const label = await element.evaluate(el => {
-        const id = el.getAttribute('id');
+      const label = await element.evaluate((el) => {
+        const elem = el as Element;
+        const id = elem.getAttribute('id');
         if (id) {
           const labelEl = document.querySelector(`label[for="${id}"]`);
           if (labelEl) return labelEl.textContent?.trim();
         }
-        const closestLabel = el.closest('label');
+        const closestLabel = elem.closest('label');
         return closestLabel?.textContent?.trim();
       });
 
@@ -247,10 +266,10 @@ export class AIElementDetector {
 
       // Extract options for select elements
       if (type === 'select' || type === 'multi-select') {
-        const options = await element.evaluate(el => {
-          if (el.tagName.toLowerCase() === 'select') {
+        const options = await element.evaluate((el) => {
+          if ((el as Element).tagName.toLowerCase() === 'select') {
             const selectEl = el as HTMLSelectElement;
-            return Array.from(selectEl.options).map(opt => ({
+            return Array.from(selectEl.options).map((opt) => ({
               value: opt.value,
               text: opt.text,
             }));
@@ -267,9 +286,7 @@ export class AIElementDetector {
     }
   }
 
-  private async classifyElements(
-    elements: InteractiveElement[]
-  ): Promise<InteractiveElement[]> {
+  private async classifyElements(elements: InteractiveElement[]): Promise<InteractiveElement[]> {
     if (!this.stagehand) {
       return elements;
     }
@@ -352,34 +369,17 @@ export class AIElementDetector {
       '[role="button"]',
     ]);
 
-    patterns.set('link', [
-      'a[href]',
-      '[role="link"]',
-    ]);
+    patterns.set('link', ['a[href]', '[role="link"]']);
 
-    patterns.set('checkbox', [
-      'input[type="checkbox"]',
-      '[role="checkbox"]',
-    ]);
+    patterns.set('checkbox', ['input[type="checkbox"]', '[role="checkbox"]']);
 
-    patterns.set('radio', [
-      'input[type="radio"]',
-      '[role="radio"]',
-    ]);
+    patterns.set('radio', ['input[type="radio"]', '[role="radio"]']);
 
-    patterns.set('select', [
-      'select:not([multiple])',
-      '[role="combobox"]',
-      '[role="listbox"]',
-    ]);
+    patterns.set('select', ['select:not([multiple])', '[role="combobox"]', '[role="listbox"]']);
 
-    patterns.set('textarea', [
-      'textarea',
-    ]);
+    patterns.set('textarea', ['textarea']);
 
-    patterns.set('file-upload', [
-      'input[type="file"]',
-    ]);
+    patterns.set('file-upload', ['input[type="file"]']);
 
     return patterns;
   }

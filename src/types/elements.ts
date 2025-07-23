@@ -1,4 +1,4 @@
-export type ElementType = 
+export type ElementType =
   | 'text-input'
   | 'password-input'
   | 'email-input'
@@ -27,6 +27,14 @@ export type ElementType =
   | 'video-player'
   | 'audio-player'
   | 'rich-text-editor'
+  | 'input'
+  | 'file'
+  | 'navigation'
+  | 'dialog'
+  | 'hidden'
+  | 'form'
+  | 'fieldset'
+  | 'custom'
   | 'unknown';
 
 export interface InteractiveElement {
@@ -35,7 +43,23 @@ export interface InteractiveElement {
   selector: string;
   xpath?: string;
   text?: string;
-  attributes: Record<string, string>;
+  attributes: Record<string, string | boolean | number> & {
+    inputType?: string;
+    buttonType?: string;
+    href?: string;
+    opensInNewTab?: boolean;
+    isAnchor?: boolean;
+    role?: string;
+    ariaLabel?: string;
+    ariaLabelledby?: string;
+    ariaModal?: boolean;
+    ariaControls?: string;
+    isAccessible?: boolean;
+    accept?: string;
+    multiple?: boolean;
+    maxLength?: number;
+    action?: string;
+  };
   isVisible: boolean;
   isEnabled: boolean;
   boundingBox?: {
@@ -52,7 +76,40 @@ export interface InteractiveElement {
     required?: boolean;
     validationRules?: string[];
     options?: Array<{ value: string; text: string }>;
+    name?: string;
+    pattern?: string;
+    hasClickHandler?: boolean;
+    childCount?: number;
+    ariaLive?: string;
+    ariaAtomic?: boolean;
+    legend?: string;
+    isWebComponent?: boolean;
+    hasShadowRoot?: boolean;
+    dataAttributes?: Record<string, string>;
+    context?: string;
+    inIframe?: boolean;
+    iframeSrc?: string;
+    aiDetected?: boolean;
+    aiConfidence?: number;
   };
+  interactionType?: string[];
+  state?: {
+    checked?: boolean;
+    visible?: boolean;
+    expanded?: boolean;
+    selected?: boolean;
+    enabled?: boolean;
+    readonly?: boolean;
+  };
+  interactionHints?: string[];
+  classification?: {
+    purpose?: string;
+    action?: string;
+    formRelated?: boolean;
+    navigationType?: string;
+  };
+  complexity?: 'simple' | 'complex' | 'multi-step';
+  interactionSteps?: string[];
 }
 
 export interface ElementDetectionResult {

@@ -63,9 +63,7 @@ program
   });
 
 // Config commands
-const configCmd = program
-  .command('config')
-  .description('Configuration management');
+const configCmd = program.command('config').description('Configuration management');
 
 configCmd
   .command('create')

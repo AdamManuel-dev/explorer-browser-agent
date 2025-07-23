@@ -15,9 +15,7 @@ class CheckboxStrategy {
             // Get current state
             const isChecked = await el.isChecked();
             // Determine desired state
-            const shouldBeChecked = testData?.value !== undefined
-                ? Boolean(testData.value)
-                : !isChecked; // Toggle if no specific value provided
+            const shouldBeChecked = testData?.value !== undefined ? Boolean(testData.value) : !isChecked; // Toggle if no specific value provided
             // Only click if state needs to change
             if (isChecked !== shouldBeChecked) {
                 // Add delay if specified

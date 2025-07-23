@@ -20,6 +20,10 @@ export type {
   GenerationResult,
   GenerationSummary,
   GenerationError,
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+  ValidationMetrics,
 } from '../types/generation';
 export type {
   TestReportConfig,

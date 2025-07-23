@@ -37,9 +37,9 @@ exports.BrowserExplorerCLI = void 0;
 const fs = __importStar(require("fs/promises"));
 const config_1 = require("../config");
 const CrawlerService_1 = require("../crawler/CrawlerService");
-const detectors_1 = require("../detectors");
-const InteractionExecutor_1 = require("../interactions/InteractionExecutor");
-const recording_1 = require("../recording");
+// import { AIElementDetector } from '../detectors';
+// import { InteractionExecutor } from '../interactions/InteractionExecutor';
+// import { UserPathRecorder } from '../recording';
 const generation_1 = require("../generation");
 const logger_1 = require("../utils/logger");
 class BrowserExplorerCLI {
@@ -68,14 +68,14 @@ class BrowserExplorerCLI {
                 userAgent: config.crawling.userAgent,
             });
             // Initialize detector and executor
-            const detector = new detectors_1.AIElementDetector();
-            const executor = new InteractionExecutor_1.InteractionExecutor();
-            const recorder = new recording_1.UserPathRecorder({
-                captureScreenshots: true,
-                captureNetwork: true,
-                generateAssertions: true,
-                assertionTypes: ['url', 'visible', 'text', 'value'],
-            });
+            // const detector = new AIElementDetector();
+            // const executor = new InteractionExecutor();
+            // const recorder = new UserPathRecorder({
+            //   captureScreenshots: true,
+            //   captureNetwork: true,
+            //   generateAssertions: true,
+            //   assertionTypes: ['url', 'visible', 'text', 'value'],
+            // });
             // Setup authentication if needed
             if (options.auth && options.username && options.password) {
                 await this.setupAuthentication(crawlerService, {
@@ -151,7 +151,7 @@ class BrowserExplorerCLI {
             console.log(`⏱️  Duration: ${Math.round(result.duration / 1000)}s`);
             if (result.errors.length > 0) {
                 console.log(`⚠️  Errors encountered: ${result.errors.length}`);
-                result.errors.forEach(error => {
+                result.errors.forEach((error) => {
                     console.log(`   - ${error.url}: ${error.error}`);
                 });
             }
@@ -166,12 +166,7 @@ class BrowserExplorerCLI {
         try {
             console.log('🚀 Initializing Browser Explorer project...');
             // Create directory structure
-            const directories = [
-                'config',
-                'generated-tests',
-                'screenshots',
-                'reports',
-            ];
+            const directories = ['config', 'generated-tests', 'screenshots', 'reports'];
             for (const dir of directories) {
                 await fs.mkdir(dir, { recursive: true });
                 console.log(`📁 Created directory: ${dir}`);
@@ -315,7 +310,7 @@ npm test
         }
     }
     async loadConfig(configPath) {
-        return await this.configManager.loadConfig(configPath);
+        return this.configManager.loadConfig(configPath);
     }
     setupLogging(verbose) {
         if (verbose) {
@@ -347,11 +342,11 @@ npm test
             };
         }
     }
-    async setupAuthentication(crawlerService, auth) {
+    async setupAuthentication(_crawlerService, _auth) {
         // TODO: Implement authentication setup
         console.log('🔐 Authentication setup (not yet implemented)');
     }
-    createSampleUserPath(url, crawlResult) {
+    createSampleUserPath(url, _crawlResult) {
         // Create a basic user path for demonstration
         return {
             id: 'sample-path-1',
@@ -367,7 +362,7 @@ npm test
                     duration: 1000,
                     networkActivity: [],
                     stateChanges: [],
-                }
+                },
             ],
             assertions: [
                 {
@@ -376,7 +371,7 @@ npm test
                     target: 'page',
                     expected: url,
                     operator: 'equals',
-                }
+                },
             ],
             duration: 1000,
             metadata: {
@@ -396,15 +391,15 @@ npm test
             return false;
         }
     }
-    async debugCrawler(url, options) {
+    async debugCrawler(_url, _options) {
         console.log('🕷️  Running crawler debug...');
         // TODO: Implement crawler debugging
     }
-    async debugDetector(url, options) {
+    async debugDetector(_url, _options) {
         console.log('🔍 Running detector debug...');
         // TODO: Implement detector debugging
     }
-    async debugGenerator(url, options) {
+    async debugGenerator(_url, _options) {
         console.log('⚙️  Running generator debug...');
         // TODO: Implement generator debugging
     }

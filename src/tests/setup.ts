@@ -1,48 +1,56 @@
-import { vi } from '@jest/globals';
-
 // Mock console methods to reduce noise in tests
 global.console = {
   ...console,
-  log: vi.fn(),
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
+  log: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
 };
+
+// Mock logger to reduce noise in tests
+jest.mock('../utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    debug: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
 
 // Mock process.env for tests
 process.env.NODE_ENV = 'test';
 
 // Set up global test timeout
-vi.setConfig({ testTimeout: 30000 });
+jest.setTimeout(30000);
 
 // Mock file system operations
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-  access: vi.fn(),
-  stat: vi.fn(),
+jest.mock('fs/promises', () => ({
+  readFile: jest.fn().mockResolvedValue(''),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  access: jest.fn().mockResolvedValue(undefined),
+  stat: jest.fn().mockResolvedValue({}),
 }));
 
 // Mock path operations
-vi.mock('path', async () => {
-  const actual = await vi.importActual('path');
+jest.mock('path', () => {
+  const actual = jest.requireActual('path');
   return {
     ...actual,
-    join: vi.fn((...paths: string[]) => paths.join('/')),
-    resolve: vi.fn((...paths: string[]) => paths.join('/')),
-    dirname: vi.fn((path: string) => path.split('/').slice(0, -1).join('/')),
-    basename: vi.fn((path: string) => path.split('/').pop() || ''),
+    join: jest.fn((...paths: string[]) => paths.join('/')),
+    resolve: jest.fn((...paths: string[]) => paths.join('/')),
+    dirname: jest.fn((path: string) => path.split('/').slice(0, -1).join('/')),
+    basename: jest.fn((path: string) => path.split('/').pop() || ''),
   };
 });
 
 // Global test setup
 beforeEach(() => {
-  vi.clearAllMocks();
+  jest.clearAllMocks();
 });
 
 // Global test teardown
 afterEach(() => {
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
 });

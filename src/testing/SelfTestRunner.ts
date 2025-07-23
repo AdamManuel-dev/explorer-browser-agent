@@ -1,5 +1,8 @@
-import { chromium, Browser, Page } from 'playwright';
-import { BrowserExplorer } from '../index';
+import { chromium, Browser } from 'playwright';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { BrowserExplorer } from '../agents/BrowserAgent';
 import { BreadthFirstCrawler } from '../crawler/BreadthFirstCrawler';
 import { AIElementDetector } from '../detectors/AIElementDetector';
 import { InteractionExecutor } from '../interactions/InteractionExecutor';
@@ -12,9 +15,6 @@ import { StealthMode } from '../stealth/StealthMode';
 import { CaptchaHandler } from '../captcha/CaptchaHandler';
 import { ConfigManager } from '../config/ConfigManager';
 import { logger } from '../utils/logger';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 
 export interface SelfTestConfig {
   testTimeout: number;
@@ -50,7 +50,7 @@ export interface TestResult {
   success: boolean;
   duration: number;
   error?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   metrics?: Record<string, number>;
 }
 
@@ -79,9 +79,13 @@ export interface SelfTestReport {
 
 export class SelfTestRunner {
   private config: SelfTestConfig;
+
   private browser?: Browser;
+
   private tempDir: string;
+
   private monitoring?: MonitoringService;
+
   private testResults: TestResult[] = [];
 
   constructor(config?: Partial<SelfTestConfig>) {
@@ -97,14 +101,13 @@ export class SelfTestRunner {
     try {
       await this.initializeTestEnvironment();
       await this.runComponentTests();
-      
+
       if (!this.config.skipBrowserTests) {
         await this.runBrowserTests();
         await this.runEndToEndTests();
       }
 
       await this.runPerformanceTests();
-
     } catch (error) {
       logger.error('Self-test suite encountered critical error', error);
       this.testResults.push({
@@ -119,7 +122,7 @@ export class SelfTestRunner {
 
     const report = this.generateReport(Date.now() - startTime);
     await this.saveReport(report);
-    
+
     logger.info('Self-test suite completed', {
       totalTests: report.summary.totalTests,
       successRate: report.summary.successRate,
@@ -133,14 +136,46 @@ export class SelfTestRunner {
     logger.info('Running component tests');
 
     const componentTests = [
-      { name: 'Config Manager', test: () => this.testConfigManager(), enabled: this.config.componentTests.config },
-      { name: 'Monitoring Service', test: () => this.testMonitoringService(), enabled: this.config.componentTests.monitoring },
-      { name: 'Element Detector', test: () => this.testElementDetector(), enabled: this.config.componentTests.detector },
-      { name: 'Interaction Executor', test: () => this.testInteractionExecutor(), enabled: this.config.componentTests.executor },
-      { name: 'Authentication Manager', test: () => this.testAuthManager(), enabled: this.config.componentTests.auth },
-      { name: 'Session Manager', test: () => this.testSessionManager(), enabled: this.config.componentTests.auth },
-      { name: 'Stealth Mode', test: () => this.testStealthMode(), enabled: this.config.componentTests.stealth },
-      { name: 'CAPTCHA Handler', test: () => this.testCaptchaHandler(), enabled: this.config.componentTests.captcha },
+      {
+        name: 'Config Manager',
+        test: () => this.testConfigManager(),
+        enabled: this.config.componentTests.config,
+      },
+      {
+        name: 'Monitoring Service',
+        test: () => this.testMonitoringService(),
+        enabled: this.config.componentTests.monitoring,
+      },
+      {
+        name: 'Element Detector',
+        test: () => this.testElementDetector(),
+        enabled: this.config.componentTests.detector,
+      },
+      {
+        name: 'Interaction Executor',
+        test: () => this.testInteractionExecutor(),
+        enabled: this.config.componentTests.executor,
+      },
+      {
+        name: 'Authentication Manager',
+        test: () => this.testAuthManager(),
+        enabled: this.config.componentTests.auth,
+      },
+      {
+        name: 'Session Manager',
+        test: () => this.testSessionManager(),
+        enabled: this.config.componentTests.auth,
+      },
+      {
+        name: 'Stealth Mode',
+        test: () => this.testStealthMode(),
+        enabled: this.config.componentTests.stealth,
+      },
+      {
+        name: 'CAPTCHA Handler',
+        test: () => this.testCaptchaHandler(),
+        enabled: this.config.componentTests.captcha,
+      },
     ];
 
     for (const { name, test, enabled } of componentTests) {
@@ -202,17 +237,17 @@ export class SelfTestRunner {
     }
   }
 
-  private async runSingleTest(name: string, test: () => Promise<any>): Promise<void> {
+  private async runSingleTest(name: string, test: () => Promise<unknown>): Promise<void> {
     const startTime = Date.now();
     let attempts = 0;
 
     while (attempts <= this.config.retryAttempts) {
       try {
         logger.debug(`Running test: ${name} (attempt ${attempts + 1})`);
-        
+
         const result = await Promise.race([
           test(),
-          new Promise((_, reject) => 
+          new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Test timeout')), this.config.testTimeout)
           ),
         ]);
@@ -227,11 +262,10 @@ export class SelfTestRunner {
 
         logger.debug(`Test passed: ${name}`);
         return;
-
       } catch (error) {
         attempts++;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        
+
         if (attempts > this.config.retryAttempts) {
           this.testResults.push({
             name,
@@ -239,21 +273,21 @@ export class SelfTestRunner {
             duration: Date.now() - startTime,
             error: errorMessage,
           });
-          
+
           logger.warn(`Test failed: ${name} - ${errorMessage}`);
           return;
         }
 
         logger.debug(`Test failed (attempt ${attempts}): ${name} - ${errorMessage}, retrying...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
   }
 
   // Component Tests
-  private async testConfigManager(): Promise<any> {
+  private async testConfigManager(): Promise<Record<string, unknown>> {
     const configManager = new ConfigManager();
-    
+
     // Test default config loading
     const defaultConfig = configManager.getDefaultConfig();
     if (!defaultConfig.crawling || !defaultConfig.browser || !defaultConfig.generation) {
@@ -274,7 +308,7 @@ export class SelfTestRunner {
     return { configStructure: Object.keys(defaultConfig) };
   }
 
-  private async testMonitoringService(): Promise<any> {
+  private async testMonitoringService(): Promise<Record<string, unknown>> {
     const monitoring = new MonitoringService({
       enabled: true,
       reporting: { enabled: false },
@@ -295,7 +329,7 @@ export class SelfTestRunner {
 
       // Verify metrics
       const metrics = monitoring.getMetrics();
-      if (!metrics['test_counter'] || !metrics['test_gauge'] || !metrics['test_timer']) {
+      if (!metrics.test_counter || !metrics.test_gauge || !metrics.test_timer) {
         throw new Error('Metrics not recorded correctly');
       }
 
@@ -309,16 +343,15 @@ export class SelfTestRunner {
         metricsRecorded: Object.keys(metrics).length,
         tracesRecorded: traces.length,
       };
-
     } finally {
       await monitoring.shutdown();
     }
   }
 
-  private async testElementDetector(): Promise<any> {
+  private async testElementDetector(): Promise<Record<string, unknown>> {
     // Test without browser for basic functionality
     const detector = new AIElementDetector();
-    
+
     // Test element type classification
     const mockElements = [
       { tagName: 'button', type: 'submit' },
@@ -329,7 +362,7 @@ export class SelfTestRunner {
 
     let detectedTypes = 0;
     for (const element of mockElements) {
-      const type = detector.classifyElementType(element as any);
+      const type = detector.classifyElementType(element as Element);
       if (type !== 'unknown') {
         detectedTypes++;
       }
@@ -342,9 +375,9 @@ export class SelfTestRunner {
     return { elementsClassified: detectedTypes };
   }
 
-  private async testInteractionExecutor(): Promise<any> {
+  private async testInteractionExecutor(): Promise<Record<string, unknown>> {
     const executor = new InteractionExecutor();
-    
+
     // Test strategy selection
     const strategies = executor.getAvailableStrategies();
     if (strategies.length === 0) {
@@ -366,7 +399,7 @@ export class SelfTestRunner {
     return { availableStrategies: strategies };
   }
 
-  private async testAuthManager(): Promise<any> {
+  private async testAuthManager(): Promise<Record<string, unknown>> {
     const authManager = new MultiStrategyAuthManager({
       strategies: {
         basic: { enabled: true },
@@ -383,7 +416,7 @@ export class SelfTestRunner {
     return { availableStrategies };
   }
 
-  private async testSessionManager(): Promise<any> {
+  private async testSessionManager(): Promise<Record<string, unknown>> {
     const sessionManager = new SessionManager({
       storage: { type: 'memory' },
       encryption: { enabled: false },
@@ -408,7 +441,7 @@ export class SelfTestRunner {
     return { sessionSaved: true };
   }
 
-  private async testStealthMode(): Promise<any> {
+  private async testStealthMode(): Promise<Record<string, unknown>> {
     const stealth = new StealthMode({
       enabled: true,
       fingerprintSpoofing: { canvas: true, webgl: true },
@@ -430,7 +463,7 @@ export class SelfTestRunner {
     return { userAgentGenerated: true };
   }
 
-  private async testCaptchaHandler(): Promise<any> {
+  private async testCaptchaHandler(): Promise<Record<string, unknown>> {
     const captchaHandler = new CaptchaHandler({
       autoDetect: true,
       solveAttempts: 2,
@@ -446,7 +479,7 @@ export class SelfTestRunner {
   }
 
   // Browser Tests
-  private async testBasicCrawling(): Promise<any> {
+  private async testBasicCrawling(): Promise<Record<string, unknown>> {
     if (!this.browser) throw new Error('Browser not initialized');
 
     const crawler = new BreadthFirstCrawler(this.browser);
@@ -469,13 +502,12 @@ export class SelfTestRunner {
         urlsCrawled: result.crawledUrls.length,
         duration: result.statistics.totalTime,
       };
-
     } finally {
       testServer.server.close();
     }
   }
 
-  private async testBrowserElementDetection(): Promise<any> {
+  private async testBrowserElementDetection(): Promise<Record<string, unknown>> {
     if (!this.browser) throw new Error('Browser not initialized');
 
     const page = await this.browser.newPage();
@@ -497,14 +529,14 @@ export class SelfTestRunner {
       `);
 
       const elements = await detector.detectElements(page);
-      
+
       if (elements.length < 4) {
         throw new Error(`Expected at least 4 elements, found ${elements.length}`);
       }
 
-      const buttonElements = elements.filter(el => el.type === 'button');
-      const inputElements = elements.filter(el => el.type === 'input');
-      const linkElements = elements.filter(el => el.type === 'link');
+      const buttonElements = elements.filter((el) => el.type === 'button');
+      const inputElements = elements.filter((el) => el.type === 'input');
+      const linkElements = elements.filter((el) => el.type === 'link');
 
       return {
         totalElements: elements.length,
@@ -512,13 +544,12 @@ export class SelfTestRunner {
         inputElements: inputElements.length,
         linkElements: linkElements.length,
       };
-
     } finally {
       await page.close();
     }
   }
 
-  private async testUserPathRecording(): Promise<any> {
+  private async testUserPathRecording(): Promise<Record<string, unknown>> {
     if (!this.browser) throw new Error('Browser not initialized');
 
     const page = await this.browser.newPage();
@@ -535,10 +566,10 @@ export class SelfTestRunner {
       `);
 
       recorder.startRecording(page, 'test-recording');
-      
+
       await page.fill('#name-input', 'Test User');
       await page.click('#submit-btn');
-      
+
       const userPath = await recorder.stopRecording();
 
       if (userPath.steps.length < 2) {
@@ -549,13 +580,12 @@ export class SelfTestRunner {
         stepsRecorded: userPath.steps.length,
         duration: userPath.duration,
       };
-
     } finally {
       await page.close();
     }
   }
 
-  private async testTestGeneration(): Promise<any> {
+  private async testTestGeneration(): Promise<Record<string, unknown>> {
     const generator = new TestGenerator({
       framework: 'playwright',
       language: 'typescript',
@@ -598,10 +628,10 @@ export class SelfTestRunner {
   }
 
   // End-to-End Tests
-  private async testCompleteWorkflow(): Promise<any> {
+  private async testCompleteWorkflow(): Promise<Record<string, unknown>> {
     const explorer = new BrowserExplorer();
     const configPath = join(this.tempDir, 'test-config.yaml');
-    
+
     // Create test configuration
     const testConfig = `
 crawling:
@@ -633,13 +663,12 @@ generation:
         testsGenerated: result.testsGenerated,
         filesCreated: result.filesCreated,
       };
-
     } finally {
       await explorer.cleanup();
     }
   }
 
-  private async testAuthenticationWorkflow(): Promise<any> {
+  private async testAuthenticationWorkflow(): Promise<Record<string, unknown>> {
     // Simplified auth test without actual browser interaction
     const authManager = new MultiStrategyAuthManager({
       strategies: {
@@ -650,9 +679,9 @@ generation:
       },
     });
 
-    const sessionManager = new SessionManager({
-      storage: { type: 'memory' },
-    });
+    // const sessionManager = new SessionManager({
+    //   storage: { type: 'memory' },
+    // });
 
     // Test basic functionality without browser
     const strategies = authManager.getAvailableStrategies();
@@ -663,7 +692,7 @@ generation:
     return { strategiesAvailable: strategies.length };
   }
 
-  private async testErrorRecovery(): Promise<any> {
+  private async testErrorRecovery(): Promise<Record<string, unknown>> {
     if (!this.browser) throw new Error('Browser not initialized');
 
     const crawler = new BreadthFirstCrawler(this.browser);
@@ -687,7 +716,6 @@ generation:
         errorsHandled: result.errors.length,
         crawlCompleted: true,
       };
-
     } catch (error) {
       // This is expected for network errors
       return {
@@ -698,23 +726,25 @@ generation:
   }
 
   // Performance Tests
-  private async testMemoryUsage(): Promise<any> {
+  private async testMemoryUsage(): Promise<Record<string, unknown>> {
     const initialMemory = process.memoryUsage().heapUsed;
-    
+
     // Perform memory-intensive operations
     const largeArray = new Array(100000).fill('test data');
     const memoryAfterAllocation = process.memoryUsage().heapUsed;
-    
+
     // Clean up
     largeArray.length = 0;
-    global.gc && global.gc();
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
+    if (global.gc) {
+      global.gc();
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
     const finalMemory = process.memoryUsage().heapUsed;
-    
+
     const memoryIncrease = (memoryAfterAllocation - initialMemory) / 1024 / 1024; // MB
     const memoryRecovered = (memoryAfterAllocation - finalMemory) / 1024 / 1024; // MB
-    
+
     if (finalMemory > this.config.performanceThresholds.maxMemoryUsage) {
       throw new Error(`Memory usage exceeded threshold: ${finalMemory / 1024 / 1024}MB`);
     }
@@ -728,7 +758,7 @@ generation:
     };
   }
 
-  private async testCrawlPerformance(): Promise<any> {
+  private async testCrawlPerformance(): Promise<Record<string, unknown>> {
     if (!this.browser) throw new Error('Browser not initialized');
 
     const crawler = new BreadthFirstCrawler(this.browser);
@@ -745,7 +775,7 @@ generation:
       });
 
       const duration = Date.now() - startTime;
-      
+
       if (duration > this.config.performanceThresholds.maxCrawlTime) {
         throw new Error(`Crawl time exceeded threshold: ${duration}ms`);
       }
@@ -755,13 +785,12 @@ generation:
         urlsCrawled: result.crawledUrls.length,
         avgTimePerUrl: duration / result.crawledUrls.length,
       };
-
     } finally {
       testServer.server.close();
     }
   }
 
-  private async testGenerationPerformance(): Promise<any> {
+  private async testGenerationPerformance(): Promise<Record<string, unknown>> {
     const generator = new TestGenerator({
       framework: 'playwright',
       language: 'typescript',
@@ -799,19 +828,16 @@ generation:
     };
   }
 
-  private async testConcurrentOperations(): Promise<any> {
+  private async testConcurrentOperations(): Promise<Record<string, unknown>> {
     if (!this.monitoring) {
       throw new Error('Monitoring service not initialized');
     }
 
-    const operations = Array.from({ length: 10 }, (_, i) => 
-      this.monitoring!.timeFunction(
-        `concurrent_test_${i}`,
-        async () => {
-          await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
-          return `result_${i}`;
-        }
-      )
+    const operations = Array.from({ length: 10 }, (_, i) =>
+      this.monitoring!.timeFunction(`concurrent_test_${i}`, async () => {
+        await new Promise((resolve) => setTimeout(resolve, Math.random() * 100));
+        return `result_${i}`;
+      })
     );
 
     const startTime = Date.now();
@@ -866,11 +892,11 @@ generation:
     }
   }
 
-  private async startTestServer(): Promise<{ server: any; port: number }> {
+  private async startTestServer(): Promise<{ server: { close: () => void }; port: number }> {
     const express = require('express');
     const app = express();
 
-    app.get('/', (req: any, res: any) => {
+    app.get('/', (_req: unknown, res: { send: (content: string) => void }) => {
       res.send(`
         <html>
           <body>
@@ -883,7 +909,7 @@ generation:
       `);
     });
 
-    app.get('/page1', (req: any, res: any) => {
+    app.get('/page1', (_req: unknown, res: { send: (content: string) => void }) => {
       res.send(`
         <html>
           <body>
@@ -898,7 +924,7 @@ generation:
       `);
     });
 
-    app.get('/page2', (req: any, res: any) => {
+    app.get('/page2', (_req: unknown, res: { send: (content: string) => void }) => {
       res.send(`
         <html>
           <body>
@@ -912,17 +938,17 @@ generation:
 
     const port = 3000 + Math.floor(Math.random() * 1000);
     const server = app.listen(port);
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     return { server, port };
   }
 
-  private extractMetrics(result: any): Record<string, number> {
+  private extractMetrics(result: Record<string, unknown>): Record<string, number> {
     if (!result || typeof result !== 'object') return {};
 
     const metrics: Record<string, number> = {};
-    
+
     for (const [key, value] of Object.entries(result)) {
       if (typeof value === 'number') {
         metrics[key] = value;
@@ -933,12 +959,12 @@ generation:
   }
 
   private generateReport(totalDuration: number): SelfTestReport {
-    const passedTests = this.testResults.filter(r => r.success);
-    const failedTests = this.testResults.filter(r => !r.success);
-    const skippedTests = this.testResults.filter(r => r.details?.skipped);
+    const passedTests = this.testResults.filter((r) => r.success);
+    const failedTests = this.testResults.filter((r) => !r.success);
+    const skippedTests = this.testResults.filter((r) => r.details?.skipped);
 
-    const successRate = this.testResults.length > 0 ? 
-      (passedTests.length / this.testResults.length) : 0;
+    const successRate =
+      this.testResults.length > 0 ? passedTests.length / this.testResults.length : 0;
 
     const overallHealth = this.determineOverallHealth(successRate, failedTests);
     const recommendations = this.generateRecommendations(failedTests, successRate);
@@ -975,10 +1001,11 @@ generation:
       return 'healthy';
     }
 
-    const criticalFailures = failedTests.filter(test => 
-      test.name.includes('Critical') || 
-      test.name.includes('Complete Workflow') ||
-      test.name.includes('Memory Usage')
+    const criticalFailures = failedTests.filter(
+      (test) =>
+        test.name.includes('Critical') ||
+        test.name.includes('Complete Workflow') ||
+        test.name.includes('Memory Usage')
     );
 
     if (criticalFailures.length > 0 || successRate < 0.5) {
@@ -988,10 +1015,7 @@ generation:
     return 'degraded';
   }
 
-  private generateRecommendations(
-    failedTests: TestResult[],
-    successRate: number
-  ): string[] {
+  private generateRecommendations(failedTests: TestResult[], successRate: number): string[] {
     const recommendations: string[] = [];
 
     if (successRate < this.config.performanceThresholds.minSuccessRate) {
@@ -1000,25 +1024,33 @@ generation:
       );
     }
 
-    const memoryFailures = failedTests.filter(t => t.name.includes('Memory'));
+    const memoryFailures = failedTests.filter((t) => t.name.includes('Memory'));
     if (memoryFailures.length > 0) {
-      recommendations.push('Memory usage tests failed. Consider optimizing memory management or increasing system resources.');
+      recommendations.push(
+        'Memory usage tests failed. Consider optimizing memory management or increasing system resources.'
+      );
     }
 
-    const browserFailures = failedTests.filter(t => 
-      t.name.includes('Crawling') || t.name.includes('Element Detection')
+    const browserFailures = failedTests.filter(
+      (t) => t.name.includes('Crawling') || t.name.includes('Element Detection')
     );
     if (browserFailures.length > 0) {
-      recommendations.push('Browser-dependent tests failed. Verify Playwright installation and browser availability.');
+      recommendations.push(
+        'Browser-dependent tests failed. Verify Playwright installation and browser availability.'
+      );
     }
 
-    const performanceFailures = failedTests.filter(t => t.name.includes('Performance'));
+    const performanceFailures = failedTests.filter((t) => t.name.includes('Performance'));
     if (performanceFailures.length > 0) {
-      recommendations.push('Performance tests failed. System may be under load or configuration thresholds may need adjustment.');
+      recommendations.push(
+        'Performance tests failed. System may be under load or configuration thresholds may need adjustment.'
+      );
     }
 
     if (failedTests.length === 0 && successRate === 1) {
-      recommendations.push('All tests passed! The Browser Explorer system is functioning optimally.');
+      recommendations.push(
+        'All tests passed! The Browser Explorer system is functioning optimally.'
+      );
     }
 
     return recommendations;
@@ -1026,7 +1058,7 @@ generation:
 
   private async saveReport(report: SelfTestReport): Promise<void> {
     const reportPath = join(this.config.outputDirectory, `self-test-report-${Date.now()}.json`);
-    
+
     try {
       writeFileSync(reportPath, JSON.stringify(report, null, 2));
       logger.info(`Self-test report saved to: ${reportPath}`);

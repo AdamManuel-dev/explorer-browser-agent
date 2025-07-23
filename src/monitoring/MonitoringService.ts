@@ -36,12 +36,12 @@ export interface TraceSpan {
   startTime: Date;
   endTime?: Date;
   duration?: number;
-  tags: Record<string, any>;
+  tags: Record<string, unknown>;
   logs: Array<{
     timestamp: Date;
     level: 'info' | 'warn' | 'error' | 'debug';
     message: string;
-    fields?: Record<string, any>;
+    fields?: Record<string, unknown>;
   }>;
   status: 'active' | 'completed' | 'error';
   error?: string;
@@ -135,19 +135,26 @@ export interface MonitoringReport {
 
 export class MonitoringService extends EventEmitter {
   private config: MonitoringConfig;
+
   private metrics = new Map<string, Metric[]>();
+
   private traces = new Map<string, TraceSpan>();
+
   private activeSpans = new Map<string, TraceSpan>();
+
   private systemStartTime = Date.now();
+
   private metricsFlushInterval?: NodeJS.Timeout;
+
   private reportingInterval?: NodeJS.Timeout;
+
   private crawlMetrics: CrawlMetrics;
 
   constructor(config?: Partial<MonitoringConfig>) {
     super();
     this.config = this.mergeWithDefaults(config || {});
     this.crawlMetrics = this.initializeCrawlMetrics();
-    
+
     if (this.config.enabled) {
       this.initialize();
     }
@@ -226,7 +233,12 @@ export class MonitoringService extends EventEmitter {
     this.addMetric(name, metric);
   }
 
-  recordHistogram(name: string, value: number, buckets?: number[], labels?: Record<string, string>): void {
+  recordHistogram(
+    name: string,
+    value: number,
+    buckets?: number[],
+    labels?: Record<string, string>
+  ): void {
     if (!this.config.metricsCollection.enabled) return;
 
     const metric: HistogramMetric = {
@@ -257,14 +269,18 @@ export class MonitoringService extends EventEmitter {
   // Timing utilities
   startTimer(name: string): () => void {
     const startTime = performance.now();
-    
+
     return () => {
       const duration = performance.now() - startTime;
       this.recordTimer(name, duration);
     };
   }
 
-  async timeFunction<T>(name: string, fn: () => Promise<T> | T, labels?: Record<string, string>): Promise<T> {
+  async timeFunction<T>(
+    name: string,
+    fn: () => Promise<T> | T,
+    labels?: Record<string, string>
+  ): Promise<T> {
     const startTime = performance.now();
     let error: Error | null = null;
 
@@ -282,7 +298,7 @@ export class MonitoringService extends EventEmitter {
   }
 
   // Distributed Tracing
-  startSpan(operationName: string, parentSpanId?: string, tags?: Record<string, any>): string {
+  startSpan(operationName: string, parentSpanId?: string, tags?: Record<string, unknown>): string {
     if (!this.config.tracing.enabled) return '';
 
     // Simple sampling based on rate
@@ -290,10 +306,10 @@ export class MonitoringService extends EventEmitter {
       return '';
     }
 
-    const traceId = parentSpanId ? 
-      this.activeSpans.get(parentSpanId)?.traceId || this.generateTraceId() : 
-      this.generateTraceId();
-    
+    const traceId = parentSpanId
+      ? this.activeSpans.get(parentSpanId)?.traceId || this.generateTraceId()
+      : this.generateTraceId();
+
     const spanId = this.generateSpanId();
 
     const span: TraceSpan = {
@@ -320,7 +336,7 @@ export class MonitoringService extends EventEmitter {
     return spanId;
   }
 
-  finishSpan(spanId: string, tags?: Record<string, any>): void {
+  finishSpan(spanId: string, tags?: Record<string, unknown>): void {
     if (!this.config.tracing.enabled || !spanId) return;
 
     const span = this.activeSpans.get(spanId);
@@ -347,11 +363,18 @@ export class MonitoringService extends EventEmitter {
     // Clean up old traces if limit exceeded
     if (this.traces.size > this.config.tracing.maxSpans) {
       const oldestSpanId = Array.from(this.traces.keys())[0];
-      this.traces.delete(oldestSpanId);
+      if (oldestSpanId) {
+        this.traces.delete(oldestSpanId);
+      }
     }
   }
 
-  addSpanLog(spanId: string, level: 'info' | 'warn' | 'error' | 'debug', message: string, fields?: Record<string, any>): void {
+  addSpanLog(
+    spanId: string,
+    level: 'info' | 'warn' | 'error' | 'debug',
+    message: string,
+    fields?: Record<string, unknown>
+  ): void {
     if (!this.config.tracing.enabled || !spanId) return;
 
     const span = this.activeSpans.get(spanId);
@@ -365,7 +388,7 @@ export class MonitoringService extends EventEmitter {
     });
   }
 
-  addSpanTag(spanId: string, key: string, value: any): void {
+  addSpanTag(spanId: string, key: string, value: unknown): void {
     if (!this.config.tracing.enabled || !spanId) return;
 
     const span = this.activeSpans.get(spanId);
@@ -375,9 +398,14 @@ export class MonitoringService extends EventEmitter {
   }
 
   // Crawl-specific metrics tracking
-  trackPageRequest(url: string, success: boolean, responseTime: number, bytesDownloaded: number): void {
+  trackPageRequest(
+    url: string,
+    success: boolean,
+    responseTime: number,
+    bytesDownloaded: number
+  ): void {
     this.crawlMetrics.totalRequests++;
-    
+
     if (success) {
       this.crawlMetrics.successfulRequests++;
       this.crawlMetrics.bytesDownloaded += bytesDownloaded;
@@ -388,8 +416,9 @@ export class MonitoringService extends EventEmitter {
     }
 
     // Update average response time (simple moving average)
-    this.crawlMetrics.averageResponseTime = 
-      (this.crawlMetrics.averageResponseTime * (this.crawlMetrics.totalRequests - 1) + responseTime) / 
+    this.crawlMetrics.averageResponseTime =
+      (this.crawlMetrics.averageResponseTime * (this.crawlMetrics.totalRequests - 1) +
+        responseTime) /
       this.crawlMetrics.totalRequests;
 
     // Record metrics
@@ -403,14 +432,20 @@ export class MonitoringService extends EventEmitter {
       this.crawlMetrics.captchasSolved++;
     }
 
-    this.recordCounter('captcha_attempts_total', 1, { type, status: success ? 'solved' : 'failed' });
+    this.recordCounter('captcha_attempts_total', 1, {
+      type,
+      status: success ? 'solved' : 'failed',
+    });
     this.recordTimer('captcha_solve_duration', timeToSolve, { type });
   }
 
   trackAuthenticationAttempt(strategy: string, success: boolean): void {
     this.crawlMetrics.authenticationAttempts++;
 
-    this.recordCounter('auth_attempts_total', 1, { strategy, status: success ? 'success' : 'failed' });
+    this.recordCounter('auth_attempts_total', 1, {
+      strategy,
+      status: success ? 'success' : 'failed',
+    });
   }
 
   // System metrics collection
@@ -445,8 +480,10 @@ export class MonitoringService extends EventEmitter {
   // Reporting and alerts
   async generateReport(): Promise<MonitoringReport> {
     const systemMetrics = await this.collectSystemMetrics();
-    const errorRate = this.crawlMetrics.totalRequests > 0 ? 
-      this.crawlMetrics.failedRequests / this.crawlMetrics.totalRequests : 0;
+    const errorRate =
+      this.crawlMetrics.totalRequests > 0
+        ? this.crawlMetrics.failedRequests / this.crawlMetrics.totalRequests
+        : 0;
 
     // Calculate requests per second
     const uptime = (Date.now() - this.systemStartTime) / 1000;
@@ -481,7 +518,7 @@ export class MonitoringService extends EventEmitter {
 
   getTraces(traceId?: string): TraceSpan[] {
     if (traceId) {
-      return Array.from(this.traces.values()).filter(span => span.traceId === traceId);
+      return Array.from(this.traces.values()).filter((span) => span.traceId === traceId);
     }
 
     return Array.from(this.traces.values());
@@ -520,7 +557,7 @@ export class MonitoringService extends EventEmitter {
       try {
         const report = await this.generateReport();
         this.emit('report', report);
-        
+
         if (this.config.reporting.includeSummary) {
           logger.info('Monitoring report', {
             health: report.summary.overallHealth,
@@ -552,6 +589,8 @@ export class MonitoringService extends EventEmitter {
       case 'console':
         this.exportConsoleMetrics(allMetrics);
         break;
+      default:
+        logger.warn('Unknown metrics export format');
     }
 
     // Clear metrics after flush
@@ -576,11 +615,16 @@ export class MonitoringService extends EventEmitter {
   private exportConsoleMetrics(metrics: Record<string, Metric[]>): void {
     for (const [name, metricList] of Object.entries(metrics)) {
       const latest = metricList[metricList.length - 1];
-      console.log(`${name}: ${latest.value} (${latest.type})`);
+      if (latest) {
+        logger.info(`${name}: ${latest.value} (${latest.type})`);
+      }
     }
   }
 
-  private checkAlerts(systemMetrics: SystemMetrics, errorRate: number): Array<{
+  private checkAlerts(
+    systemMetrics: SystemMetrics,
+    errorRate: number
+  ): Array<{
     type: string;
     severity: 'low' | 'medium' | 'high' | 'critical';
     message: string;
@@ -592,7 +636,7 @@ export class MonitoringService extends EventEmitter {
     if (errorRate > this.config.alerting.thresholds.errorRate) {
       alerts.push({
         type: 'error_rate',
-        severity: errorRate > 0.5 ? 'critical' : 'high',
+        severity: errorRate > 0.5 ? 'critical' : ('high' as 'critical' | 'high'),
         message: `Error rate is ${(errorRate * 100).toFixed(2)}%, exceeding threshold of ${(this.config.alerting.thresholds.errorRate * 100).toFixed(2)}%`,
         timestamp,
       });
@@ -602,7 +646,7 @@ export class MonitoringService extends EventEmitter {
     if (memoryUsagePercent > this.config.alerting.thresholds.memoryUsage) {
       alerts.push({
         type: 'memory_usage',
-        severity: memoryUsagePercent > 0.9 ? 'critical' : 'high',
+        severity: memoryUsagePercent > 0.9 ? 'critical' : ('high' as 'critical' | 'high'),
         message: `Memory usage is ${(memoryUsagePercent * 100).toFixed(2)}%, exceeding threshold of ${(this.config.alerting.thresholds.memoryUsage * 100).toFixed(2)}%`,
         timestamp,
       });
@@ -611,7 +655,7 @@ export class MonitoringService extends EventEmitter {
     if (this.crawlMetrics.averageResponseTime > this.config.alerting.thresholds.responseTime) {
       alerts.push({
         type: 'response_time',
-        severity: 'medium',
+        severity: 'medium' as 'medium',
         message: `Average response time is ${this.crawlMetrics.averageResponseTime.toFixed(2)}ms, exceeding threshold of ${this.config.alerting.thresholds.responseTime}ms`,
         timestamp,
       });
@@ -621,12 +665,17 @@ export class MonitoringService extends EventEmitter {
   }
 
   private determineOverallHealth(
-    alerts: any[],
-    systemMetrics: SystemMetrics,
+    alerts: Array<{
+      type: string;
+      severity: 'low' | 'medium' | 'high' | 'critical';
+      message: string;
+      timestamp: Date;
+    }>,
+    _systemMetrics: SystemMetrics,
     errorRate: number
   ): 'healthy' | 'degraded' | 'unhealthy' {
-    const criticalAlerts = alerts.filter(a => a.severity === 'critical');
-    const highAlerts = alerts.filter(a => a.severity === 'high');
+    const criticalAlerts = alerts.filter((a) => a.severity === 'critical');
+    const highAlerts = alerts.filter((a) => a.severity === 'high');
 
     if (criticalAlerts.length > 0) {
       return 'unhealthy';

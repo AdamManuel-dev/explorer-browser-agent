@@ -1,6 +1,6 @@
-import { Browser, Page } from 'playwright';
-import { BreadthFirstCrawler, CrawlOptions } from './BreadthFirstCrawler';
-import { CrawlResult, UrlInfo } from '../types/crawler';
+import { Browser } from 'playwright';
+import { BreadthFirstCrawler, CrawlOptions, CrawlConfiguration } from './BreadthFirstCrawler';
+import { CrawlResult } from '../types/crawler';
 import { logger } from '../utils/logger';
 
 export interface CircuitBreakerConfig {
@@ -56,13 +56,20 @@ export interface CrawlAttempt {
 
 export class ResilientCrawler {
   private baseCrawler: BreadthFirstCrawler;
+
   private options: ResilientCrawlerOptions;
+
   private circuitBreakerState: CircuitBreakerState = CircuitBreakerState.CLOSED;
+
   private failureCount = 0;
-  private lastFailure?: Date;
+
+  // private lastFailure?: Date;
   private healthCheckInterval?: NodeJS.Timeout;
+
   private problematicDomains = new Set<string>();
+
   private crawlAttempts: CrawlAttempt[] = [];
+
   private backupUserAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
@@ -71,17 +78,29 @@ export class ResilientCrawler {
 
   constructor(browser: Browser, options?: Partial<ResilientCrawlerOptions>) {
     this.options = this.mergeWithDefaults(options || {});
-    this.baseCrawler = new BreadthFirstCrawler(browser);
-    
+    // Create CrawlConfiguration from ResilientCrawlerOptions
+    const crawlConfig: CrawlConfiguration = {
+      startUrl: this.options.startUrl,
+      maxDepth: this.options.maxDepth,
+      maxPages: this.options.maxPages,
+      crawlDelay: this.options.crawlDelay || this.options.delay || 1000,
+      allowedDomains: this.options.allowedDomains,
+      respectRobotsTxt: this.options.respectRobotsTxt || this.options.respectRobots || false,
+      userAgent: this.options.userAgent,
+      customHeaders: this.options.customHeaders,
+      parallelWorkers: this.options.parallelWorkers || this.options.maxConcurrency || 5,
+    };
+    this.baseCrawler = new BreadthFirstCrawler(crawlConfig);
+
     if (this.options.healthCheck.enabled) {
       this.startHealthCheck();
     }
   }
 
   async crawl(options: CrawlOptions): Promise<CrawlResult> {
-    logger.info('Starting resilient crawl', { 
+    logger.info('Starting resilient crawl', {
       url: options.startUrl,
-      circuitBreakerState: this.circuitBreakerState 
+      circuitBreakerState: this.circuitBreakerState,
     });
 
     // Check circuit breaker
@@ -93,13 +112,10 @@ export class ResilientCrawler {
     const crawlOptions = this.prepareCrawlOptions(options);
 
     try {
-      const result = await this.executeWithRetry(async () => {
-        return await this.baseCrawler.crawl(crawlOptions);
-      });
+      const result = await this.executeWithRetry(async () => this.baseCrawler.crawl(crawlOptions));
 
       this.recordSuccess();
       return result;
-
     } catch (error) {
       this.recordFailure(error as Error);
       throw error;
@@ -114,17 +130,16 @@ export class ResilientCrawler {
       try {
         logger.info('Attempting crawl with strategy', { strategy: strategy.name });
         const result = await this.crawl(strategy.options);
-        
+
         logger.info('Fallback strategy succeeded', { strategy: strategy.name });
         return result;
-
       } catch (error) {
         lastError = error as Error;
-        logger.warn('Fallback strategy failed', { 
-          strategy: strategy.name, 
-          error: lastError.message 
+        logger.warn('Fallback strategy failed', {
+          strategy: strategy.name,
+          error: lastError.message,
         });
-        
+
         // Add domain to problematic list if network-related error
         if (this.isNetworkError(lastError)) {
           const domain = new URL(options.startUrl).hostname;
@@ -141,29 +156,27 @@ export class ResilientCrawler {
     const startTime = Date.now();
 
     try {
-      const page = await this.baseCrawler['browser'].newPage();
-      
+      const page = await this.baseCrawler.browser.newPage();
+
       try {
-        await page.goto(testUrl, { 
+        await page.goto(testUrl, {
           waitUntil: 'domcontentloaded',
-          timeout: this.options.healthCheck.timeout 
+          timeout: this.options.healthCheck.timeout,
         });
 
         const responseTime = Date.now() - startTime;
-        
+
         return {
           isHealthy: true,
           responseTime,
           timestamp: new Date(),
         };
-
       } finally {
         await page.close();
       }
-
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
+
       return {
         isHealthy: false,
         responseTime,
@@ -209,20 +222,19 @@ export class ResilientCrawler {
 
   private async executeWithRetry<T>(operation: () => Promise<T>): Promise<T> {
     let lastError: Error | null = null;
-    
+
     for (let attempt = 0; attempt <= this.options.retry.maxRetries; attempt++) {
       try {
         const result = await operation();
-        
+
         if (attempt > 0) {
           logger.info('Operation succeeded after retry', { attempt });
         }
-        
-        return result;
 
+        return result;
       } catch (error) {
         lastError = error as Error;
-        
+
         if (attempt === this.options.retry.maxRetries) {
           logger.error('Operation failed after all retries', {
             attempts: attempt + 1,
@@ -270,7 +282,9 @@ export class ResilientCrawler {
     return preparedOptions;
   }
 
-  private generateFallbackStrategies(options: CrawlOptions): Array<{ name: string; options: CrawlOptions }> {
+  private generateFallbackStrategies(
+    options: CrawlOptions
+  ): Array<{ name: string; options: CrawlOptions }> {
     const strategies: Array<{ name: string; options: CrawlOptions }> = [];
 
     // Strategy 1: Original options
@@ -291,10 +305,9 @@ export class ResilientCrawler {
 
     // Strategy 3: Backup user agent
     if (this.options.fallbackStrategies.useBackupUserAgent) {
-      const randomUserAgent = this.backupUserAgents[
-        Math.floor(Math.random() * this.backupUserAgents.length)
-      ];
-      
+      const randomUserAgent =
+        this.backupUserAgents[Math.floor(Math.random() * this.backupUserAgents.length)];
+
       strategies.push({
         name: 'backup-user-agent',
         options: {
@@ -364,7 +377,7 @@ export class ResilientCrawler {
 
   private isRetryableError(error: Error): boolean {
     const errorMessage = error.message.toLowerCase();
-    return this.options.retry.retryableErrors.some(pattern =>
+    return this.options.retry.retryableErrors.some((pattern) =>
       errorMessage.includes(pattern.toLowerCase())
     );
   }
@@ -372,15 +385,15 @@ export class ResilientCrawler {
   private isNetworkError(error: Error): boolean {
     const networkErrors = ['net::', 'timeout', 'connection', 'dns', 'socket'];
     const errorMessage = error.message.toLowerCase();
-    return networkErrors.some(pattern => errorMessage.includes(pattern));
+    return networkErrors.some((pattern) => errorMessage.includes(pattern));
   }
 
   private calculateRetryDelay(attempt: number): number {
-    const baseDelay = this.options.retry.baseDelay;
+    const { baseDelay } = this.options.retry;
     const multiplier = this.options.retry.backoffMultiplier;
-    const maxDelay = this.options.retry.maxDelay;
+    const { maxDelay } = this.options.retry;
 
-    const delay = baseDelay * Math.pow(multiplier, attempt);
+    const delay = baseDelay * multiplier ** attempt;
     return Math.min(delay, maxDelay);
   }
 
@@ -388,7 +401,7 @@ export class ResilientCrawler {
     this.healthCheckInterval = setInterval(async () => {
       try {
         const result = await this.healthCheck();
-        
+
         if (!result.isHealthy) {
           logger.warn('Health check failed', {
             error: result.error,
@@ -399,7 +412,6 @@ export class ResilientCrawler {
             responseTime: result.responseTime,
           });
         }
-
       } catch (error) {
         logger.error('Health check error', error);
       }
@@ -407,7 +419,7 @@ export class ResilientCrawler {
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private mergeWithDefaults(options: Partial<ResilientCrawlerOptions>): ResilientCrawlerOptions {

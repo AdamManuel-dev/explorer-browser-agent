@@ -1,13 +1,11 @@
 import { MastraEngine } from '@mastra/core';
-import { WorkflowEngine } from '@mastra/workflows';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
 import { MonitoringService } from '../monitoring';
 import { ConfigManager } from '../config';
-import { ExplorerAgent } from './agents/ExplorerAgent';
 import { PlannerAgent } from './agents/PlannerAgent';
-import { GeneratorAgent } from './agents/GeneratorAgent';
 import { ExplorationWorkflow } from './workflows/ExplorationWorkflow';
+import { WorkflowEngine } from './WorkflowEngine';
 import {
   BrowserbaseConfig,
   StagehandConfig,
@@ -77,12 +75,19 @@ export interface ExplorationSession {
 
 export class MastraOrchestrator {
   private mastraEngine: MastraEngine;
+
   private workflowEngine: WorkflowEngine;
+
   private explorationWorkflow: ExplorationWorkflow;
+
   private monitoring?: MonitoringService;
+
   private configManager?: ConfigManager;
+
   private config: MastraOrchestratorConfig;
+
   private activeSessions: Map<string, ExplorationSession> = new Map();
+
   private scheduledSessions: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(config: MastraOrchestratorConfig) {
@@ -137,7 +142,6 @@ export class MastraOrchestrator {
 
       // Record initialization metric
       this.monitoring?.recordCounter('orchestrator_initialized', 1);
-
     } catch (error) {
       logger.error('Failed to initialize Mastra orchestrator', {
         error: error instanceof Error ? error.message : String(error),
@@ -165,8 +169,9 @@ export class MastraOrchestrator {
       this.validateExplorationRequest(request);
 
       // Check concurrency limits
-      const runningSessions = Array.from(this.activeSessions.values())
-        .filter(session => session.status === 'running').length;
+      const runningSessions = Array.from(this.activeSessions.values()).filter(
+        (session) => session.status === 'running'
+      ).length;
 
       if (runningSessions >= (this.config.maxConcurrentWorkflows || 5)) {
         throw new Error('Maximum concurrent explorations limit reached');
@@ -203,7 +208,6 @@ export class MastraOrchestrator {
       });
 
       return sessionId;
-
     } catch (error) {
       logger.error('Failed to start exploration session', {
         sessionId,
@@ -273,7 +277,6 @@ export class MastraOrchestrator {
 
       logger.info('Exploration session cancelled', { sessionId });
       return true;
-
     } catch (error) {
       logger.error('Failed to cancel exploration session', {
         sessionId,
@@ -291,11 +294,9 @@ export class MastraOrchestrator {
    * Get all active exploration sessions
    */
   getActiveSessions(): ExplorationSession[] {
-    return Array.from(this.activeSessions.values())
-      .filter(session => 
-        session.status === 'pending' || 
-        session.status === 'running'
-      );
+    return Array.from(this.activeSessions.values()).filter(
+      (session) => session.status === 'pending' || session.status === 'running'
+    );
   }
 
   /**
@@ -303,10 +304,11 @@ export class MastraOrchestrator {
    */
   getSessionHistory(limit = 50): ExplorationSession[] {
     return Array.from(this.activeSessions.values())
-      .filter(session => 
-        session.status === 'completed' || 
-        session.status === 'failed' ||
-        session.status === 'cancelled'
+      .filter(
+        (session) =>
+          session.status === 'completed' ||
+          session.status === 'failed' ||
+          session.status === 'cancelled'
       )
       .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
       .slice(0, limit);
@@ -322,28 +324,30 @@ export class MastraOrchestrator {
     totalSessions: number;
     averageSessionDuration: number;
     systemHealth: 'healthy' | 'degraded' | 'unhealthy';
-    agentMetrics: any;
+    agentMetrics: Record<string, AgentMetrics>;
   } {
     const sessions = Array.from(this.activeSessions.values());
-    const activeSessions = sessions.filter(s => s.status === 'running').length;
-    const completedSessions = sessions.filter(s => s.status === 'completed').length;
-    const failedSessions = sessions.filter(s => s.status === 'failed').length;
+    const activeSessions = sessions.filter((s) => s.status === 'running').length;
+    const completedSessions = sessions.filter((s) => s.status === 'completed').length;
+    const failedSessions = sessions.filter((s) => s.status === 'failed').length;
     const totalSessions = sessions.length;
 
     // Calculate average duration for completed sessions
-    const completedSessionsWithDuration = sessions.filter(s => 
-      s.status === 'completed' && s.endTime
+    const completedSessionsWithDuration = sessions.filter(
+      (s) => s.status === 'completed' && s.endTime
     );
-    const averageSessionDuration = completedSessionsWithDuration.length > 0
-      ? completedSessionsWithDuration.reduce((sum, s) => 
-          sum + (s.endTime!.getTime() - s.startTime.getTime()), 0
-        ) / completedSessionsWithDuration.length
-      : 0;
+    const averageSessionDuration =
+      completedSessionsWithDuration.length > 0
+        ? completedSessionsWithDuration.reduce(
+            (sum, s) => sum + (s.endTime!.getTime() - s.startTime.getTime()),
+            0
+          ) / completedSessionsWithDuration.length
+        : 0;
 
     // Determine system health
     const successRate = totalSessions > 0 ? completedSessions / totalSessions : 1;
     let systemHealth: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-    
+
     if (successRate < 0.5) {
       systemHealth = 'unhealthy';
     } else if (successRate < 0.8) {
@@ -392,7 +396,6 @@ export class MastraOrchestrator {
       this.monitoring?.recordCounter('recommendations_generated', 1);
 
       return recommendations;
-
     } catch (error) {
       logger.error('Failed to generate recommendations', {
         domain,
@@ -454,10 +457,9 @@ export class MastraOrchestrator {
         pagesExplored: result.metadata.totalPagesExplored,
         testsGenerated: result.metadata.totalTestsGenerated,
       });
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       session.status = 'failed';
       session.endTime = new Date();
       session.error = errorMessage;
@@ -567,7 +569,6 @@ export class MastraOrchestrator {
           status: session.status,
         });
       }
-
     } catch (error) {
       logger.error('Failed to send notifications', {
         eventType,
@@ -646,12 +647,12 @@ export class MastraOrchestrator {
       mastraEngine: boolean;
       workflowEngine: boolean;
       activeSessions: number;
-      systemMetrics: any;
+      systemMetrics: ReturnType<typeof this.getSystemMetrics>;
     };
   }> {
     try {
       const systemMetrics = this.getSystemMetrics();
-      
+
       const details = {
         mastraEngine: true, // Would check actual engine status
         workflowEngine: true, // Would check actual engine status
@@ -663,7 +664,6 @@ export class MastraOrchestrator {
         status: systemMetrics.systemHealth,
         details,
       };
-
     } catch (error) {
       logger.error('Health check failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -700,8 +700,9 @@ export class MastraOrchestrator {
       this.scheduledSessions.clear();
 
       // Cancel all running sessions
-      const runningSessions = Array.from(this.activeSessions.values())
-        .filter(session => session.status === 'running');
+      const runningSessions = Array.from(this.activeSessions.values()).filter(
+        (session) => session.status === 'running'
+      );
 
       for (const session of runningSessions) {
         await this.cancelExploration(session.id);
@@ -715,7 +716,6 @@ export class MastraOrchestrator {
       await this.mastraEngine.stop();
 
       logger.info('Mastra orchestrator shutdown completed');
-
     } catch (error) {
       logger.error('Error during orchestrator shutdown', {
         error: error instanceof Error ? error.message : String(error),

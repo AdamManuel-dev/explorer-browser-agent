@@ -41,7 +41,6 @@ const logger_1 = require("../utils/logger");
 class ConfigManager {
     config = null;
     configPath = null;
-    constructor() { }
     async loadConfig(configPath) {
         if (configPath) {
             this.configPath = configPath;
@@ -140,56 +139,56 @@ class ConfigManager {
         if (process.env.NODE_ENV) {
             overrides.app = {
                 ...config.app,
-                environment: process.env.NODE_ENV
+                environment: process.env.NODE_ENV,
             };
         }
         if (process.env.LOG_LEVEL) {
             overrides.app = {
                 ...overrides.app,
                 ...config.app,
-                logLevel: process.env.LOG_LEVEL
+                logLevel: process.env.LOG_LEVEL,
             };
         }
         // Crawling settings
         if (process.env.START_URL) {
             overrides.crawling = {
                 ...config.crawling,
-                startUrl: process.env.START_URL
+                startUrl: process.env.START_URL,
             };
         }
         if (process.env.MAX_DEPTH) {
             overrides.crawling = {
                 ...overrides.crawling,
                 ...config.crawling,
-                maxDepth: parseInt(process.env.MAX_DEPTH)
+                maxDepth: parseInt(process.env.MAX_DEPTH),
             };
         }
         if (process.env.MAX_PAGES) {
             overrides.crawling = {
                 ...overrides.crawling,
                 ...config.crawling,
-                maxPages: parseInt(process.env.MAX_PAGES)
+                maxPages: parseInt(process.env.MAX_PAGES),
             };
         }
         // Browser settings
         if (process.env.HEADLESS_MODE) {
             overrides.browser = {
                 ...config.browser,
-                headless: process.env.HEADLESS_MODE === 'true'
+                headless: process.env.HEADLESS_MODE === 'true',
             };
         }
         // Database
         if (process.env.DATABASE_URL) {
             overrides.database = {
                 ...config.database,
-                url: process.env.DATABASE_URL
+                url: process.env.DATABASE_URL,
             };
         }
         // Redis
         if (process.env.REDIS_URL) {
             overrides.redis = {
                 ...config.redis,
-                url: process.env.REDIS_URL
+                url: process.env.REDIS_URL,
             };
         }
         // API Keys
@@ -204,7 +203,7 @@ class ConfigManager {
         if (process.env.OUTPUT_DIRECTORY) {
             overrides.generation = {
                 ...config.generation,
-                outputDirectory: process.env.OUTPUT_DIRECTORY
+                outputDirectory: process.env.OUTPUT_DIRECTORY,
             };
         }
         return this.deepMerge(config, overrides);
@@ -230,7 +229,8 @@ class ConfigManager {
                 errors.push('authentication.strategy is required when authentication is enabled');
             }
             if (config.authentication.strategy === 'basic' &&
-                (!config.authentication.credentials?.username || !config.authentication.credentials?.password)) {
+                (!config.authentication.credentials?.username ||
+                    !config.authentication.credentials?.password)) {
                 errors.push('authentication.credentials.username and password are required for basic auth');
             }
         }
@@ -302,14 +302,16 @@ class ConfigManager {
     deepMerge(target, source) {
         const result = { ...target };
         for (const key in source) {
-            const sourceValue = source[key];
-            const targetValue = result[key];
-            if (sourceValue !== undefined) {
-                if (this.isObject(sourceValue) && this.isObject(targetValue)) {
-                    result[key] = this.deepMerge(targetValue, sourceValue);
-                }
-                else {
-                    result[key] = sourceValue;
+            if (Object.prototype.hasOwnProperty.call(source, key)) {
+                const sourceValue = source[key];
+                const targetValue = result[key];
+                if (sourceValue !== undefined) {
+                    if (this.isObject(sourceValue) && this.isObject(targetValue)) {
+                        result[key] = this.deepMerge(targetValue, sourceValue);
+                    }
+                    else {
+                        result[key] = sourceValue;
+                    }
                 }
             }
         }

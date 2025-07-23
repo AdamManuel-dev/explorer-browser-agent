@@ -1,7 +1,13 @@
 import { Page, Locator } from 'playwright';
 import { logger } from '../utils/logger';
 
-export type CaptchaType = 'recaptcha' | 'hcaptcha' | 'funcaptcha' | 'cloudflare' | 'custom' | 'unknown';
+export type CaptchaType =
+  | 'recaptcha'
+  | 'hcaptcha'
+  | 'funcaptcha'
+  | 'cloudflare'
+  | 'custom'
+  | 'unknown';
 
 export interface CaptchaConfig {
   autoDetect: boolean;
@@ -42,6 +48,7 @@ export interface CaptchaDetectionResult {
     siteKey?: string;
     action?: string;
     challenge?: string;
+    customType?: string;
   };
 }
 
@@ -56,7 +63,7 @@ export interface CaptchaSolutionResult {
 
 export class CaptchaHandler {
   private config: CaptchaConfig;
-  private solvedCaptchas = new Map<string, string>();
+
   private detectionPatterns: Map<CaptchaType, string[]>;
 
   constructor(config?: Partial<CaptchaConfig>) {
@@ -77,14 +84,14 @@ export class CaptchaHandler {
         try {
           const element = page.locator(selector);
           const isVisible = await element.isVisible().catch(() => false);
-          
+
           if (isVisible) {
             const metadata = await this.extractCaptchaMetadata(page, type, element);
-            
-            logger.info('CAPTCHA detected', { 
-              type, 
-              selector, 
-              metadata: metadata 
+
+            logger.info('CAPTCHA detected', {
+              type,
+              selector,
+              metadata,
             });
 
             return {
@@ -109,10 +116,10 @@ export class CaptchaHandler {
           try {
             const element = page.locator(selector);
             const isVisible = await element.isVisible().catch(() => false);
-            
+
             if (isVisible) {
               logger.info('Custom CAPTCHA detected', { type: customType, selector });
-              
+
               return {
                 detected: true,
                 type: 'custom',
@@ -134,7 +141,7 @@ export class CaptchaHandler {
   }
 
   async solveCaptcha(
-    page: Page, 
+    page: Page,
     detection: CaptchaDetectionResult
   ): Promise<CaptchaSolutionResult> {
     if (!detection.detected || !detection.element) {
@@ -146,9 +153,9 @@ export class CaptchaHandler {
       };
     }
 
-    logger.info('Attempting to solve CAPTCHA', { 
+    logger.info('Attempting to solve CAPTCHA', {
       type: detection.type,
-      method: this.getPreferredSolvingMethod() 
+      method: this.getPreferredSolvingMethod(),
     });
 
     const startTime = Date.now();
@@ -157,7 +164,7 @@ export class CaptchaHandler {
     try {
       // Try different solving methods in order of preference
       result = await this.attemptSolution(page, detection);
-      
+
       if (result.success) {
         logger.info('CAPTCHA solved successfully', {
           type: detection.type,
@@ -170,7 +177,6 @@ export class CaptchaHandler {
           error: result.error,
         });
       }
-
     } catch (error) {
       logger.error('CAPTCHA solving error', error);
       result = {
@@ -196,7 +202,7 @@ export class CaptchaHandler {
 
       // Detect CAPTCHA
       const detection = await this.detectCaptcha(page);
-      
+
       if (!detection.detected) {
         logger.info('No CAPTCHA detected, workflow complete');
         return true;
@@ -204,24 +210,23 @@ export class CaptchaHandler {
 
       // Solve CAPTCHA
       const solution = await this.solveCaptcha(page, detection);
-      
+
       if (solution.success) {
         // Wait for page to process the solution
         await page.waitForTimeout(2000);
-        
+
         // Check if CAPTCHA is still present
         const stillPresent = await this.detectCaptcha(page);
-        
+
         if (!stillPresent.detected) {
           logger.info('CAPTCHA workflow completed successfully');
           return true;
-        } else {
-          logger.warn('CAPTCHA still present after solving, retrying');
         }
+        logger.warn('CAPTCHA still present after solving, retrying');
       } else {
-        logger.warn('CAPTCHA solving failed', { 
-          attempt: attempts, 
-          error: solution.error 
+        logger.warn('CAPTCHA solving failed', {
+          attempt: attempts,
+          error: solution.error,
         });
       }
 
@@ -229,8 +234,8 @@ export class CaptchaHandler {
       await page.waitForTimeout(1000);
     }
 
-    logger.error('CAPTCHA workflow failed after maximum attempts', { 
-      maxAttempts 
+    logger.error('CAPTCHA workflow failed after maximum attempts', {
+      maxAttempts,
     });
     return false;
   }
@@ -246,7 +251,10 @@ export class CaptchaHandler {
       const serviceResult = await this.solveWithService(page, detection);
       if (serviceResult.success) {
         return {
-          ...serviceResult,
+          success: serviceResult.success ?? false,
+          solution: serviceResult.solution,
+          error: serviceResult.error,
+          cost: serviceResult.cost,
           timeToSolve: Date.now() - startTime,
           method: 'service',
         };
@@ -257,7 +265,10 @@ export class CaptchaHandler {
     const bypassResult = await this.attemptBypass(page, detection);
     if (bypassResult.success) {
       return {
-        ...bypassResult,
+        success: bypassResult.success ?? false,
+        solution: bypassResult.solution,
+        error: bypassResult.error,
+        cost: bypassResult.cost,
         timeToSolve: Date.now() - startTime,
         method: 'bypass',
       };
@@ -267,7 +278,10 @@ export class CaptchaHandler {
     if (this.config.manualSolving.enabled) {
       const manualResult = await this.solveManually(page, detection);
       return {
-        ...manualResult,
+        success: manualResult.success ?? false,
+        solution: manualResult.solution,
+        error: manualResult.error,
+        cost: manualResult.cost,
         timeToSolve: Date.now() - startTime,
         method: 'manual',
       };
@@ -294,11 +308,11 @@ export class CaptchaHandler {
     // - deathbycaptcha.com
 
     if (detection.type === 'recaptcha' && detection.metadata?.siteKey) {
-      return await this.solveRecaptchaWithService(page, detection.metadata.siteKey);
+      return this.solveRecaptchaWithService(page, detection.metadata.siteKey);
     }
 
     if (detection.type === 'hcaptcha' && detection.metadata?.siteKey) {
-      return await this.solveHcaptchaWithService(page, detection.metadata.siteKey);
+      return this.solveHcaptchaWithService(page, detection.metadata.siteKey);
     }
 
     return {
@@ -308,7 +322,7 @@ export class CaptchaHandler {
   }
 
   private async solveRecaptchaWithService(
-    page: Page,
+    _page: Page,
     siteKey: string
   ): Promise<Partial<CaptchaSolutionResult>> {
     // Placeholder for reCAPTCHA service integration
@@ -326,7 +340,7 @@ export class CaptchaHandler {
   }
 
   private async solveHcaptchaWithService(
-    page: Page,
+    _page: Page,
     siteKey: string
   ): Promise<Partial<CaptchaSolutionResult>> {
     // Placeholder for hCaptcha service integration
@@ -347,10 +361,10 @@ export class CaptchaHandler {
     switch (detection.type) {
       case 'cloudflare':
         return this.bypassCloudflare(page);
-      
+
       case 'custom':
         return this.bypassCustomCaptcha(page, detection);
-      
+
       default:
         return {
           success: false,
@@ -365,10 +379,13 @@ export class CaptchaHandler {
     try {
       // Wait for Cloudflare challenge to complete
       await page.waitForLoadState('networkidle', { timeout: 30000 });
-      
+
       // Check if we're past the challenge
-      const challengePresent = await page.locator('.cf-browser-verification').isVisible().catch(() => false);
-      
+      const challengePresent = await page
+        .locator('.cf-browser-verification')
+        .isVisible()
+        .catch(() => false);
+
       if (!challengePresent) {
         return { success: true, solution: 'bypass' };
       }
@@ -378,14 +395,16 @@ export class CaptchaHandler {
       if (await checkbox.isVisible().catch(() => false)) {
         await checkbox.click();
         await page.waitForTimeout(5000);
-        
-        const stillPresent = await page.locator('.cf-browser-verification').isVisible().catch(() => false);
-        return { 
-          success: !stillPresent, 
-          solution: stillPresent ? undefined : 'checkbox-click' 
+
+        const stillPresent = await page
+          .locator('.cf-browser-verification')
+          .isVisible()
+          .catch(() => false);
+        return {
+          success: !stillPresent,
+          solution: stillPresent ? undefined : 'checkbox-click',
         };
       }
-
     } catch (error) {
       logger.debug('Cloudflare bypass failed', error);
     }
@@ -411,12 +430,11 @@ export class CaptchaHandler {
           if (element) {
             (element as HTMLElement).style.display = 'none';
           }
-        }, detection.selector);
+        }, detection.selector || '');
 
         await page.waitForTimeout(1000);
-        
-        return { success: true, solution: 'hide-element' };
 
+        return { success: true, solution: 'hide-element' };
       } catch (error) {
         logger.debug('Custom CAPTCHA bypass failed', error);
       }
@@ -437,15 +455,15 @@ export class CaptchaHandler {
     if (this.config.manualSolving.promptUser) {
       // In a real implementation, this would prompt the user
       // For now, just wait and hope the user solves it
-      console.log(`\n🔐 CAPTCHA DETECTED: ${detection.type}`);
-      console.log('Please solve the CAPTCHA manually in the browser window.');
-      console.log(`Waiting ${this.config.manualSolving.timeout / 1000} seconds...\n`);
+      logger.info(`\n🔐 CAPTCHA DETECTED: ${detection.type}`);
+      logger.info('Please solve the CAPTCHA manually in the browser window.');
+      logger.info(`Waiting ${this.config.manualSolving.timeout / 1000} seconds...\n`);
 
       await page.waitForTimeout(this.config.manualSolving.timeout);
 
       // Check if CAPTCHA is solved
       const stillPresent = await this.detectCaptcha(page);
-      
+
       return {
         success: !stillPresent.detected,
         solution: stillPresent.detected ? undefined : 'manual',
@@ -462,13 +480,13 @@ export class CaptchaHandler {
   private async extractCaptchaMetadata(
     page: Page,
     type: CaptchaType,
-    element: Locator
-  ): Promise<Record<string, any>> {
-    const metadata: Record<string, any> = {};
+    _element: Locator
+  ): Promise<Record<string, string | number | boolean>> {
+    const metadata: Record<string, string | number | boolean> = {};
 
     try {
       switch (type) {
-        case 'recaptcha':
+        case 'recaptcha': {
           // Extract reCAPTCHA site key
           const siteKey = await page.evaluate(() => {
             const scripts = Array.from(document.scripts);
@@ -476,33 +494,39 @@ export class CaptchaHandler {
               const match = script.src.match(/[?&]k=([^&]+)/);
               if (match) return match[1];
             }
-            
+
             // Check for data-sitekey attribute
             const recaptchaDiv = document.querySelector('[data-sitekey]');
             return recaptchaDiv?.getAttribute('data-sitekey') || null;
           });
-          
+
           if (siteKey) metadata.siteKey = siteKey;
           break;
+        }
 
-        case 'hcaptcha':
+        case 'hcaptcha': {
           // Extract hCaptcha site key
           const hcaptchaSiteKey = await page.evaluate(() => {
             const hcaptchaDiv = document.querySelector('[data-sitekey]');
             return hcaptchaDiv?.getAttribute('data-sitekey') || null;
           });
-          
+
           if (hcaptchaSiteKey) metadata.siteKey = hcaptchaSiteKey;
           break;
+        }
 
-        case 'cloudflare':
+        case 'cloudflare': {
           // Extract Cloudflare challenge info
           const challengeId = await page.evaluate(() => {
             const challengeInput = document.querySelector('input[name="cf_ch_verify"]');
             return challengeInput?.getAttribute('value') || null;
           });
-          
+
           if (challengeId) metadata.challenge = challengeId;
+          break;
+        }
+        default:
+          // Unknown captcha type, metadata will be empty
           break;
       }
     } catch (error) {
@@ -535,46 +559,56 @@ export class CaptchaHandler {
 
   private initializeDetectionPatterns(): Map<CaptchaType, string[]> {
     return new Map([
-      ['recaptcha', [
-        '.g-recaptcha',
-        '[data-sitekey]',
-        '#recaptcha-element',
-        '.recaptcha-checkbox',
-        'iframe[src*="recaptcha"]',
-        '.grecaptcha-badge',
-      ]],
-      ['hcaptcha', [
-        '.h-captcha',
-        '[data-hcaptcha-sitekey]',
-        'iframe[src*="hcaptcha"]',
-        '.hcaptcha-checkbox',
-      ]],
-      ['funcaptcha', [
-        '.funcaptcha',
-        '#funcaptcha',
-        'iframe[src*="funcaptcha"]',
-        '[data-callback*="funcaptcha"]',
-      ]],
-      ['cloudflare', [
-        '.cf-browser-verification',
-        '.cf-checking-browser',
-        '#cf-wrapper',
-        '.cf-challenge-running',
-        'input[name="cf_ch_verify"]',
-      ]],
-      ['custom', [
-        '.captcha',
-        '#captcha',
-        '[class*="captcha"]',
-        '[id*="captcha"]',
-        '.challenge',
-        '.verification',
-      ]],
+      [
+        'recaptcha',
+        [
+          '.g-recaptcha',
+          '[data-sitekey]',
+          '#recaptcha-element',
+          '.recaptcha-checkbox',
+          'iframe[src*="recaptcha"]',
+          '.grecaptcha-badge',
+        ],
+      ],
+      [
+        'hcaptcha',
+        ['.h-captcha', '[data-hcaptcha-sitekey]', 'iframe[src*="hcaptcha"]', '.hcaptcha-checkbox'],
+      ],
+      [
+        'funcaptcha',
+        [
+          '.funcaptcha',
+          '#funcaptcha',
+          'iframe[src*="funcaptcha"]',
+          '[data-callback*="funcaptcha"]',
+        ],
+      ],
+      [
+        'cloudflare',
+        [
+          '.cf-browser-verification',
+          '.cf-checking-browser',
+          '#cf-wrapper',
+          '.cf-challenge-running',
+          'input[name="cf_ch_verify"]',
+        ],
+      ],
+      [
+        'custom',
+        [
+          '.captcha',
+          '#captcha',
+          '[class*="captcha"]',
+          '[id*="captcha"]',
+          '.challenge',
+          '.verification',
+        ],
+      ],
     ]);
   }
 
   private hasEnabledService(): boolean {
-    return Object.values(this.config.services).some(service => service?.enabled);
+    return Object.values(this.config.services).some((service) => service?.enabled);
   }
 
   private getPreferredSolvingMethod(): string {

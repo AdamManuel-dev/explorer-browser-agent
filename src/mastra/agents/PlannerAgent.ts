@@ -3,12 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../utils/logger';
 import { MonitoringService } from '../../monitoring';
 import { ConfigManager } from '../../config';
-import {
-  ExplorationTarget,
-  CrawlPlan,
-  AgentCapabilities,
-  AgentMetrics,
-} from '../types';
+import { ExplorationTarget, CrawlPlan, AgentCapabilities, AgentMetrics } from '../types';
 
 export interface PlannerAgentConfig {
   monitoring?: MonitoringService;
@@ -54,10 +49,15 @@ export interface PlanOptimization {
 
 export class PlannerAgent extends Agent {
   private monitoring?: MonitoringService;
+
   private configManager?: ConfigManager;
+
   private config: PlannerAgentConfig;
+
   private metrics: AgentMetrics;
+
   private activePlans: Map<string, CrawlPlan> = new Map();
+
   private planningHistory: Map<string, PlanningContext> = new Map();
 
   constructor(config: PlannerAgentConfig) {
@@ -130,13 +130,13 @@ export class PlannerAgent extends Agent {
 
       // Analyze targets and determine optimal strategy
       const strategy = await this.determineOptimalStrategy(targets, context);
-      
+
       // Calculate resource requirements
       const resources = await this.calculateResourceRequirements(targets, strategy, optimization);
-      
+
       // Optimize target order and grouping
       const optimizedTargets = await this.optimizeTargetOrder(targets, context, strategy);
-      
+
       // Create the crawl plan
       const plan: CrawlPlan = {
         id: planId,
@@ -146,8 +146,8 @@ export class PlannerAgent extends Agent {
         priority: this.calculatePlanPriority(context),
         resources,
         notifications: {
-          onComplete: [context.domain + '@notifications'],
-          onError: [context.domain + '@alerts'],
+          onComplete: [`${context.domain}@notifications`],
+          onError: [`${context.domain}@alerts`],
         },
       };
 
@@ -157,7 +157,7 @@ export class PlannerAgent extends Agent {
 
       const endTime = new Date();
       const duration = endTime.getTime() - startTime.getTime();
-      
+
       this.updateMetrics(true, duration);
       this.monitoring?.recordHistogram('plan_creation_duration', duration);
       this.monitoring?.recordGauge('active_plans', this.activePlans.size);
@@ -171,7 +171,6 @@ export class PlannerAgent extends Agent {
       });
 
       return plan;
-
     } catch (error) {
       this.updateMetrics(false, Date.now() - startTime.getTime());
       this.monitoring?.recordCounter('plan_creation_errors', 1);
@@ -215,7 +214,7 @@ export class PlannerAgent extends Agent {
 
       // Analyze performance data
       const analysis = this.analyzePerformanceData(performanceData, completedTargets);
-      
+
       // Update context with new performance data
       context.previousResults = {
         successfulPaths: completedTargets,
@@ -225,7 +224,7 @@ export class PlannerAgent extends Agent {
 
       // Re-optimize remaining targets
       const remainingTargets = plan.targets.filter(
-        target => !completedTargets.includes(target.url)
+        (target) => !completedTargets.includes(target.url)
       );
 
       if (remainingTargets.length === 0) {
@@ -235,19 +234,24 @@ export class PlannerAgent extends Agent {
 
       // Adjust strategy based on performance
       const newStrategy = this.adjustStrategy(plan.strategy, analysis);
-      
+
       // Reorder remaining targets
-      const optimizedTargets = await this.optimizeTargetOrder(remainingTargets, context, newStrategy);
-      
+      const optimizedTargets = await this.optimizeTargetOrder(
+        remainingTargets,
+        context,
+        newStrategy
+      );
+
       // Update resource allocation
       const newResources = await this.adjustResourceAllocation(plan.resources, analysis);
 
       // Create optimized plan
       const optimizedPlan: CrawlPlan = {
         ...plan,
-        targets: [...completedTargets.map(url => 
-          plan.targets.find(t => t.url === url)!
-        ), ...optimizedTargets],
+        targets: [
+          ...completedTargets.map((url) => plan.targets.find((t) => t.url === url)!),
+          ...optimizedTargets,
+        ],
         strategy: newStrategy,
         resources: newResources,
       };
@@ -263,7 +267,6 @@ export class PlannerAgent extends Agent {
       });
 
       return optimizedPlan;
-
     } catch (error) {
       logger.error('Failed to optimize plan', {
         planId,
@@ -297,16 +300,16 @@ export class PlannerAgent extends Agent {
 
       // Analyze domain characteristics
       const domainAnalysis = await this.analyzeDomain(domain);
-      
+
       // Generate suggested targets based on common patterns
       const suggestedTargets = this.generateSuggestedTargets(domain, domainAnalysis);
-      
+
       // Recommend strategy based on domain type
       const strategy = this.recommendStrategy(domainAnalysis);
-      
+
       // Estimate exploration duration
       const estimatedDuration = this.estimateExplorationDuration(suggestedTargets, strategy);
-      
+
       // Perform risk assessment
       const riskAssessment = this.assessExplorationRisk(domain, suggestedTargets);
 
@@ -318,7 +321,7 @@ export class PlannerAgent extends Agent {
       };
 
       this.monitoring?.recordCounter('recommendations_generated', 1);
-      
+
       logger.info('Generated exploration recommendations', {
         domain,
         targetCount: suggestedTargets.length,
@@ -327,7 +330,6 @@ export class PlannerAgent extends Agent {
       });
 
       return recommendations;
-
     } catch (error) {
       logger.error('Failed to generate recommendations', {
         domain,
@@ -350,16 +352,17 @@ export class PlannerAgent extends Agent {
   ): Promise<'breadth-first' | 'depth-first' | 'priority-based' | 'distributed'> {
     // Analyze target characteristics
     const totalPages = targets.reduce((sum, target) => sum + target.maxPages, 0);
-    const maxDepth = Math.max(...targets.map(t => t.maxDepth));
+    const maxDepth = Math.max(...targets.map((t) => t.maxDepth));
     const hasTimeConstraints = !!context.constraints.timeLimit;
-    const hasResourceConstraints = !!context.constraints.resourceLimit;
+    // const hasResourceConstraints = !!context.constraints.resourceLimit;
 
     // Decision logic based on constraints and objectives
     if (totalPages > 1000 || targets.length > 50) {
       return 'distributed'; // Large scale requires distribution
     }
 
-    if (hasTimeConstraints && context.constraints.timeLimit! < 3600000) { // < 1 hour
+    if (hasTimeConstraints && context.constraints.timeLimit! < 3600000) {
+      // < 1 hour
       return 'breadth-first'; // Faster overall discovery
     }
 
@@ -437,7 +440,10 @@ export class PlannerAgent extends Agent {
   /**
    * Sort targets by priority based on context
    */
-  private sortByPriority(targets: ExplorationTarget[], context: PlanningContext): ExplorationTarget[] {
+  private sortByPriority(
+    targets: ExplorationTarget[],
+    context: PlanningContext
+  ): ExplorationTarget[] {
     return targets.sort((a, b) => {
       let scoreA = 0;
       let scoreB = 0;
@@ -468,9 +474,9 @@ export class PlannerAgent extends Agent {
   private groupForDistribution(targets: ExplorationTarget[]): ExplorationTarget[] {
     // Group by domain, then by complexity
     const domainGroups = new Map<string, ExplorationTarget[]>();
-    
+
     for (const target of targets) {
-      const domain = target.domain;
+      const { domain } = target;
       if (!domainGroups.has(domain)) {
         domainGroups.set(domain, []);
       }
@@ -479,8 +485,8 @@ export class PlannerAgent extends Agent {
 
     // Flatten groups, alternating between domains for load balancing
     const result: ExplorationTarget[] = [];
-    const iterators = Array.from(domainGroups.values()).map(group => group[Symbol.iterator]());
-    
+    const iterators = Array.from(domainGroups.values()).map((group) => group[Symbol.iterator]());
+
     let hasMore = true;
     while (hasMore) {
       hasMore = false;
@@ -505,11 +511,11 @@ export class PlannerAgent extends Agent {
       if (a.domain !== b.domain) {
         return a.domain.localeCompare(b.domain);
       }
-      
+
       // Then by complexity (simpler first)
       const complexityA = a.maxPages * a.maxDepth + (a.requireAuth ? 100 : 0);
       const complexityB = b.maxPages * b.maxDepth + (b.requireAuth ? 100 : 0);
-      
+
       return complexityA - complexityB;
     });
   }
@@ -531,7 +537,10 @@ export class PlannerAgent extends Agent {
     }
 
     // Decrease for comprehensive/exploratory objectives
-    if (context.objectives.includes('comprehensive') || context.objectives.includes('exploratory')) {
+    if (
+      context.objectives.includes('comprehensive') ||
+      context.objectives.includes('exploratory')
+    ) {
       priority -= 1;
     }
 
@@ -550,10 +559,10 @@ export class PlannerAgent extends Agent {
     try {
       // This would typically involve actual domain analysis
       // For now, we'll use heuristics based on domain name
-      
+
       let type: 'ecommerce' | 'blog' | 'corporate' | 'social' | 'unknown' = 'unknown';
       let complexity: 'low' | 'medium' | 'high' = 'medium';
-      
+
       // Simple heuristics
       if (domain.includes('shop') || domain.includes('store') || domain.includes('buy')) {
         type = 'ecommerce';
@@ -561,7 +570,11 @@ export class PlannerAgent extends Agent {
       } else if (domain.includes('blog') || domain.includes('news')) {
         type = 'blog';
         complexity = 'low';
-      } else if (domain.includes('facebook') || domain.includes('twitter') || domain.includes('social')) {
+      } else if (
+        domain.includes('facebook') ||
+        domain.includes('twitter') ||
+        domain.includes('social')
+      ) {
         type = 'social';
         complexity = 'high';
       } else if (domain.includes('corp') || domain.includes('company')) {
@@ -570,7 +583,7 @@ export class PlannerAgent extends Agent {
       }
 
       const commonPaths = this.getCommonPathsForType(type);
-      
+
       return {
         type,
         complexity,
@@ -582,7 +595,7 @@ export class PlannerAgent extends Agent {
         domain,
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       return {
         type: 'unknown',
         complexity: 'medium',
@@ -595,7 +608,15 @@ export class PlannerAgent extends Agent {
   /**
    * Generate suggested targets based on domain analysis
    */
-  private generateSuggestedTargets(domain: string, analysis: any): ExplorationTarget[] {
+  private generateSuggestedTargets(
+    domain: string,
+    analysis: {
+      type: string;
+      complexity: string;
+      technologies: string[];
+      commonPaths: string[];
+    }
+  ): ExplorationTarget[] {
     const baseUrl = `https://${domain}`;
     const targets: ExplorationTarget[] = [];
 
@@ -646,19 +667,24 @@ export class PlannerAgent extends Agent {
   /**
    * Recommend strategy based on domain analysis
    */
-  private recommendStrategy(analysis: any): string {
+  private recommendStrategy(analysis: {
+    type: string;
+    complexity: string;
+    technologies: string[];
+    commonPaths: string[];
+  }): string {
     if (analysis.complexity === 'high') {
       return 'distributed';
     }
-    
+
     if (analysis.type === 'blog' || analysis.type === 'corporate') {
       return 'breadth-first';
     }
-    
+
     if (analysis.type === 'ecommerce') {
       return 'priority-based';
     }
-    
+
     return 'breadth-first';
   }
 
@@ -668,19 +694,22 @@ export class PlannerAgent extends Agent {
   private estimateExplorationDuration(targets: ExplorationTarget[], strategy: string): number {
     const totalPages = targets.reduce((sum, target) => sum + target.maxPages, 0);
     const baseTimePerPage = 10000; // 10 seconds per page base
-    
+
     let multiplier = 1;
     if (strategy === 'depth-first') multiplier = 1.3;
     if (strategy === 'distributed') multiplier = 0.7;
     if (strategy === 'priority-based') multiplier = 1.1;
-    
+
     return totalPages * baseTimePerPage * multiplier;
   }
 
   /**
    * Assess exploration risk
    */
-  private assessExplorationRisk(domain: string, targets: ExplorationTarget[]): {
+  private assessExplorationRisk(
+    domain: string,
+    targets: ExplorationTarget[]
+  ): {
     level: 'low' | 'medium' | 'high';
     factors: string[];
     mitigations: string[];
@@ -690,7 +719,7 @@ export class PlannerAgent extends Agent {
     let riskScore = 0;
 
     // Check for authentication requirements
-    if (targets.some(t => t.requireAuth)) {
+    if (targets.some((t) => t.requireAuth)) {
       factors.push('Authentication required');
       mitigations.push('Ensure valid credentials are configured');
       riskScore += 2;
@@ -705,7 +734,7 @@ export class PlannerAgent extends Agent {
     }
 
     // Check for deep exploration
-    if (targets.some(t => t.maxDepth > 5)) {
+    if (targets.some((t) => t.maxDepth > 5)) {
       factors.push('Deep exploration required');
       mitigations.push('Set appropriate timeouts and monitor progress');
       riskScore += 1;
@@ -746,7 +775,8 @@ export class PlannerAgent extends Agent {
       recommendations.push('Review error patterns and adjust strategy');
     }
 
-    if (performanceData.memoryUsage > 1024 * 1024 * 1024) { // > 1GB
+    if (performanceData.memoryUsage > 1024 * 1024 * 1024) {
+      // > 1GB
       bottlenecks.push('High memory usage');
       recommendations.push('Reduce concurrent sessions');
     }
@@ -764,7 +794,12 @@ export class PlannerAgent extends Agent {
    */
   private adjustStrategy(
     currentStrategy: string,
-    analysis: any
+    analysis: {
+      successRate: number;
+      avgResponseTime: number;
+      errorRate: number;
+      bottlenecks: string[];
+    }
   ): 'breadth-first' | 'depth-first' | 'priority-based' | 'distributed' {
     if (analysis.bottlenecks.includes('Slow response times')) {
       return 'breadth-first'; // Better for slow responses
@@ -774,7 +809,7 @@ export class PlannerAgent extends Agent {
       return 'depth-first'; // Uses less concurrent memory
     }
 
-    return currentStrategy as any; // Keep current if no major issues
+    return currentStrategy as 'breadth-first' | 'depth-first' | 'priority-based' | 'distributed'; // Keep current if no major issues
   }
 
   /**
@@ -782,7 +817,12 @@ export class PlannerAgent extends Agent {
    */
   private async adjustResourceAllocation(
     currentResources: CrawlPlan['resources'],
-    analysis: any
+    analysis: {
+      successRate: number;
+      avgResponseTime: number;
+      errorRate: number;
+      bottlenecks: string[];
+    }
   ): Promise<CrawlPlan['resources']> {
     let { maxConcurrency, maxMemory, timeout } = currentResources;
 
@@ -815,14 +855,14 @@ export class PlannerAgent extends Agent {
     } else {
       this.metrics.tasksFailed++;
     }
-    
-    this.metrics.averageTaskDuration = 
-      (this.metrics.averageTaskDuration * (this.metrics.tasksCompleted - 1) + duration) / 
+
+    this.metrics.averageTaskDuration =
+      (this.metrics.averageTaskDuration * (this.metrics.tasksCompleted - 1) + duration) /
       this.metrics.tasksCompleted;
-      
+
     this.metrics.totalRuntime += duration;
     this.metrics.lastActivity = new Date();
-    
+
     const memUsage = process.memoryUsage();
     this.metrics.memoryUsage = memUsage.heapUsed;
   }
@@ -849,12 +889,13 @@ export class PlannerAgent extends Agent {
    * Clean up old plans to prevent memory leaks
    */
   private cleanupOldPlans(): void {
-    const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours ago
-    
-    for (const [planId, plan] of this.activePlans.entries()) {
+    // const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours ago
+
+    for (const [planId] of this.activePlans.entries()) {
       // Remove plans older than 24 hours (would need timestamp tracking)
       // This is simplified - in reality, you'd track plan creation time
-      if (this.activePlans.size > 100) { // Arbitrary limit
+      if (this.activePlans.size > 100) {
+        // Arbitrary limit
         this.activePlans.delete(planId);
         this.planningHistory.delete(planId);
         break;
@@ -875,7 +916,7 @@ export class PlannerAgent extends Agent {
     };
   } {
     const plan = this.activePlans.get(planId);
-    
+
     if (!plan) {
       return { exists: false };
     }
@@ -897,12 +938,12 @@ export class PlannerAgent extends Agent {
   removePlan(planId: string): boolean {
     const removed = this.activePlans.delete(planId);
     this.planningHistory.delete(planId);
-    
+
     if (removed) {
       this.monitoring?.recordGauge('active_plans', this.activePlans.size);
       logger.debug('Removed completed plan', { planId });
     }
-    
+
     return removed;
   }
 

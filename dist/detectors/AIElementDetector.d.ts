@@ -4,11 +4,10 @@ export declare class AIElementDetector {
     private stagehand;
     private selectorPatterns;
     constructor();
-    initialize(page: Page): Promise<void>;
+    initialize(_page: Page): Promise<void>;
     detectInteractiveElements(page: Page): Promise<ElementDetectionResult>;
     private detectWithAI;
     private detectBySelectors;
-    private createElementFromObservation;
     private createElementFromHandle;
     private inferElementType;
     private extractMetadata;

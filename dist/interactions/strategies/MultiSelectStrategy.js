@@ -5,7 +5,7 @@ const logger_1 = require("../../utils/logger");
 class MultiSelectStrategy {
     type = 'multi-select';
     async execute(element, context) {
-        const { page, testData, options } = context;
+        const { page, options } = context;
         try {
             const el = await page.$(element.selector);
             if (!el) {
@@ -19,7 +19,7 @@ class MultiSelectStrategy {
             while (selectedIndices.size < numToSelect && selectedIndices.size < availableOptions.length) {
                 selectedIndices.add(Math.floor(Math.random() * availableOptions.length));
             }
-            const valuesToSelect = Array.from(selectedIndices).map(i => availableOptions[i].value);
+            const valuesToSelect = Array.from(selectedIndices).map((i) => availableOptions[i].value);
             if (options?.delay) {
                 await page.waitForTimeout(options.delay);
             }

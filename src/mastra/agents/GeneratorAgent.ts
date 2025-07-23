@@ -1,7 +1,6 @@
 import { Agent } from '@mastra/core';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
-import fs from 'fs/promises';
 import { logger } from '../../utils/logger';
 import { MonitoringService } from '../../monitoring';
 import { TestGenerator } from '../../generation/TestGenerator';
@@ -59,14 +58,23 @@ export interface GenerationTemplate {
 
 export class GeneratorAgent extends Agent {
   private monitoring?: MonitoringService;
+
   private testGenerator: TestGenerator;
+
   private pageObjectGenerator: PageObjectGenerator;
+
   private testFileWriter: TestFileWriter;
+
   private testValidator: TestValidator;
+
   private config: GeneratorAgentConfig;
+
   private metrics: AgentMetrics;
+
   private activeJobs: Map<string, GenerationJob> = new Map();
+
   private templates: Map<string, GenerationTemplate> = new Map();
+
   private generationCache: Map<string, TestGenerationResult> = new Map();
 
   constructor(config: GeneratorAgentConfig) {
@@ -164,12 +172,12 @@ export class GeneratorAgent extends Agent {
       if (this.config.cacheEnabled && this.generationCache.has(cacheKey)) {
         const cachedResult = this.generationCache.get(cacheKey)!;
         logger.info('Using cached test generation result', { jobId, cacheKey });
-        
+
         job.status = 'completed';
         job.progress = 100;
         job.endTime = new Date();
         job.result = cachedResult;
-        
+
         return cachedResult;
       }
 
@@ -180,7 +188,11 @@ export class GeneratorAgent extends Agent {
       // Generate page objects if requested
       let pageObjects: GeneratedFile[] = [];
       if (request.options.generatePageObjects) {
-        pageObjects = await this.generatePageObjects(request.userPaths, request.framework, request.language);
+        pageObjects = await this.generatePageObjects(
+          request.userPaths,
+          request.framework,
+          request.language
+        );
         job.progress = 40;
       }
 
@@ -194,7 +206,11 @@ export class GeneratorAgent extends Agent {
       // Generate helper utilities if requested
       let helpers: GeneratedFile[] = [];
       if (request.options.generateHelpers) {
-        helpers = await this.generateHelpers(request.userPaths, request.framework, request.language);
+        helpers = await this.generateHelpers(
+          request.userPaths,
+          request.framework,
+          request.language
+        );
         job.progress = 70;
       }
 
@@ -256,7 +272,6 @@ export class GeneratorAgent extends Agent {
       });
 
       return result;
-
     } catch (error) {
       job.status = 'failed';
       job.error = error instanceof Error ? error.message : String(error);
@@ -290,7 +305,7 @@ export class GeneratorAgent extends Agent {
    */
   async cancelJob(jobId: string): Promise<boolean> {
     const job = this.activeJobs.get(jobId);
-    
+
     if (!job || job.status !== 'running') {
       return false;
     }
@@ -308,7 +323,7 @@ export class GeneratorAgent extends Agent {
    */
   registerTemplate(template: GenerationTemplate): void {
     this.templates.set(template.id, template);
-    
+
     logger.info('Registered custom generation template', {
       templateId: template.id,
       framework: template.framework,
@@ -337,7 +352,7 @@ export class GeneratorAgent extends Agent {
     try {
       logger.debug('Analyzing user paths for optimization opportunities');
 
-      const analysis = await this.analyzeUserPaths(userPaths);
+      await this.analyzeUserPaths(userPaths);
       const recommendations: string[] = [];
       const pageObjectConsolidation: string[] = [];
       const duplicateTestElimination: string[] = [];
@@ -347,21 +362,27 @@ export class GeneratorAgent extends Agent {
       const domainGroups = this.groupPathsByDomain(userPaths);
       for (const [domain, paths] of domainGroups.entries()) {
         if (paths.length > 3) {
-          pageObjectConsolidation.push(`Consider consolidating ${paths.length} paths for ${domain} into a shared page object`);
+          pageObjectConsolidation.push(
+            `Consider consolidating ${paths.length} paths for ${domain} into a shared page object`
+          );
         }
       }
 
       // Analyze for duplicate test patterns
       const duplicatePatterns = this.findDuplicatePatterns(userPaths);
       for (const pattern of duplicatePatterns) {
-        duplicateTestElimination.push(`Found ${pattern.count} similar test patterns: ${pattern.description}`);
+        duplicateTestElimination.push(
+          `Found ${pattern.count} similar test patterns: ${pattern.description}`
+        );
       }
 
       // Analyze for helper extraction opportunities
       const commonOperations = this.findCommonOperations(userPaths);
       for (const operation of commonOperations) {
         if (operation.frequency > 3) {
-          helperExtractions.push(`Extract "${operation.name}" operation (used ${operation.frequency} times) into a helper function`);
+          helperExtractions.push(
+            `Extract "${operation.name}" operation (used ${operation.frequency} times) into a helper function`
+          );
         }
       }
 
@@ -378,7 +399,10 @@ export class GeneratorAgent extends Agent {
 
       // Estimate improvements
       const estimatedImprovement = {
-        maintainability: Math.min(0.9, (pageObjectConsolidation.length + duplicateTestElimination.length) * 0.1),
+        maintainability: Math.min(
+          0.9,
+          (pageObjectConsolidation.length + duplicateTestElimination.length) * 0.1
+        ),
         performance: Math.min(0.8, duplicateTestElimination.length * 0.15),
         coverage: Math.min(0.95, helperExtractions.length * 0.05),
       };
@@ -401,7 +425,6 @@ export class GeneratorAgent extends Agent {
       });
 
       return result;
-
     } catch (error) {
       logger.error('Failed to optimize generation', {
         error: error instanceof Error ? error.message : String(error),
@@ -427,23 +450,28 @@ export class GeneratorAgent extends Agent {
     const patternMap = new Map<string, number>();
     const pageGroups = new Map<string, UserPath[]>();
 
-    for (const path of userPaths) {
+    for (const userPath of userPaths) {
       // Group by domain/page
-      const domain = new URL(path.url).hostname;
+      const domain = new URL(userPath.url).hostname;
       if (!pageGroups.has(domain)) {
         pageGroups.set(domain, []);
       }
-      pageGroups.get(domain)!.push(path);
+      pageGroups.get(domain)!.push(userPath);
 
       // Analyze steps for common elements and patterns
-      for (const step of path.steps) {
+      for (const step of userPath.steps) {
         if (step.selector) {
           const count = commonElements.get(step.selector) || 0;
           commonElements.set(step.selector, count + 1);
         }
 
         // Create pattern signature
-        const pattern = `${step.type}:${step.selector?.split(/[#\.\s]/).slice(0, 2).join('|') || 'no-selector'}`;
+        const pattern = `${step.type}:${
+          step.selector
+            ?.split(/[#.\s]/)
+            .slice(0, 2)
+            .join('|') || 'no-selector'
+        }`;
         const patternCount = patternMap.get(pattern) || 0;
         patternMap.set(pattern, patternCount + 1);
       }
@@ -451,11 +479,12 @@ export class GeneratorAgent extends Agent {
 
     const commonPatterns = Array.from(patternMap.entries())
       .map(([pattern, frequency]) => ({ pattern, frequency }))
-      .filter(p => p.frequency > 1)
+      .filter((p) => p.frequency > 1)
       .sort((a, b) => b.frequency - a.frequency);
 
     // Calculate complexity score
-    const avgStepsPerPath = userPaths.reduce((sum, path) => sum + path.steps.length, 0) / userPaths.length;
+    const avgStepsPerPath =
+      userPaths.reduce((sum, userPath) => sum + userPath.steps.length, 0) / userPaths.length;
     const uniquePages = pageGroups.size;
     const complexityScore = Math.min(1, (avgStepsPerPath * uniquePages) / 100);
 
@@ -484,8 +513,8 @@ export class GeneratorAgent extends Agent {
           name: this.generatePageObjectName(domain),
           domain,
           userPaths: paths,
-          framework: framework as any,
-          language: language as any,
+          framework,
+          language,
         });
 
         pageObjects.push({
@@ -508,7 +537,10 @@ export class GeneratorAgent extends Agent {
   /**
    * Generate test fixture files
    */
-  private async generateFixtures(userPaths: UserPath[], language: string): Promise<GeneratedFile[]> {
+  private async generateFixtures(
+    userPaths: UserPath[],
+    language: string
+  ): Promise<GeneratedFile[]> {
     const fixtures: GeneratedFile[] = [];
 
     try {
@@ -529,7 +561,6 @@ export class GeneratorAgent extends Agent {
       // Generate user-specific fixtures
       const userFixtures = this.generateUserFixtures(userPaths, language);
       fixtures.push(...userFixtures);
-
     } catch (error) {
       logger.warn('Failed to generate fixtures', {
         error: error instanceof Error ? error.message : String(error),
@@ -576,7 +607,6 @@ export class GeneratorAgent extends Agent {
           helpers.push(customHelper);
         }
       }
-
     } catch (error) {
       logger.warn('Failed to generate helpers', {
         error: error instanceof Error ? error.message : String(error),
@@ -591,7 +621,12 @@ export class GeneratorAgent extends Agent {
    */
   private async generateTestFiles(
     request: TestGenerationRequest,
-    analysis: any,
+    analysis: {
+      commonElements: Map<string, number>;
+      commonPatterns: Array<{ pattern: string; frequency: number }>;
+      pageGroups: Map<string, UserPath[]>;
+      complexityScore: number;
+    },
     pageObjects: GeneratedFile[]
   ): Promise<GeneratedFile[]> {
     const testFiles: GeneratedFile[] = [];
@@ -608,7 +643,7 @@ export class GeneratorAgent extends Agent {
           generatePageObjects: false, // Already generated separately
           generateFixtures: false, // Already generated separately
           testSuiteName: suite.name,
-          pageObjects: pageObjects.map(po => po.path),
+          pageObjects: pageObjects.map((po) => po.path),
         });
 
         testFiles.push({
@@ -647,7 +682,6 @@ export class GeneratorAgent extends Agent {
       // Generate package.json entries
       const packageConfig = this.generatePackageConfig(framework, language);
       configFiles.push(packageConfig);
-
     } catch (error) {
       logger.warn('Failed to generate config files', {
         error: error instanceof Error ? error.message : String(error),
@@ -698,7 +732,6 @@ export class GeneratorAgent extends Agent {
             });
           }
         }
-
       } catch (error) {
         logger.warn(`Failed to validate file ${file.path}`, {
           error: error instanceof Error ? error.message : String(error),
@@ -734,22 +767,25 @@ export class GeneratorAgent extends Agent {
    */
   private generateCacheKey(request: TestGenerationRequest): string {
     const pathsHash = request.userPaths
-      .map(p => `${p.url}:${p.steps.length}`)
+      .map((p) => `${p.url}:${p.steps.length}`)
       .sort()
       .join('|');
-    
+
     return `${request.framework}:${request.language}:${pathsHash}`;
   }
 
   /**
    * Calculate generation metrics
    */
-  private calculateGenerationMetrics(files: GeneratedFile[], startTime: Date): TestGenerationResult['metrics'] {
+  private calculateGenerationMetrics(
+    files: GeneratedFile[],
+    startTime: Date
+  ): TestGenerationResult['metrics'] {
     const endTime = new Date();
-    
+
     return {
-      testsGenerated: files.filter(f => f.type === 'test').length,
-      pageObjectsGenerated: files.filter(f => f.type === 'page-object').length,
+      testsGenerated: files.filter((f) => f.type === 'test').length,
+      pageObjectsGenerated: files.filter((f) => f.type === 'page-object').length,
       linesOfCode: files.reduce((sum, f) => sum + f.content.split('\n').length, 0),
       generationTime: endTime.getTime() - startTime.getTime(),
     };
@@ -760,16 +796,25 @@ export class GeneratorAgent extends Agent {
    */
   private async assessCodeQuality(
     files: GeneratedFile[],
-    validationResults: any
+    validationResults: {
+      syntaxErrors: Array<{ file: string; errors: string[] }>;
+      lintingResults: Array<{ file: string; score: number; issues: string[] }>;
+      typeErrors: Array<{ file: string; errors: string[] }>;
+    }
   ): Promise<TestGenerationResult['quality']> {
     const syntaxValid = validationResults.syntaxErrors.length === 0;
-    
-    const avgLintScore = validationResults.lintingResults.length > 0
-      ? validationResults.lintingResults.reduce((sum: number, r: any) => sum + r.score, 0) / validationResults.lintingResults.length
-      : 0;
+
+    const avgLintScore =
+      validationResults.lintingResults.length > 0
+        ? validationResults.lintingResults.reduce((sum, r) => sum + r.score, 0) /
+          validationResults.lintingResults.length
+        : 0;
 
     // Simplified test coverage calculation
-    const testCoverage = Math.min(1, files.filter(f => f.type === 'test').length / Math.max(1, files.length * 0.3));
+    const testCoverage = Math.min(
+      1,
+      files.filter((f) => f.type === 'test').length / Math.max(1, files.length * 0.3)
+    );
 
     return {
       syntaxValid,
@@ -785,10 +830,10 @@ export class GeneratorAgent extends Agent {
    */
   private groupPathsByDomain(userPaths: UserPath[]): Map<string, UserPath[]> {
     const groups = new Map<string, UserPath[]>();
-    
-    for (const path of userPaths) {
+
+    for (const userPath of userPaths) {
       try {
-        const domain = new URL(path.url).hostname;
+        const domain = new URL(userPath.url).hostname;
         if (!groups.has(domain)) {
           groups.set(domain, []);
         }
@@ -798,7 +843,7 @@ export class GeneratorAgent extends Agent {
         continue;
       }
     }
-    
+
     return groups;
   }
 
@@ -806,9 +851,7 @@ export class GeneratorAgent extends Agent {
    * Generate page object name from domain
    */
   private generatePageObjectName(domain: string): string {
-    return domain
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .replace(/^./, match => match.toUpperCase()) + 'Page';
+    return `${domain.replace(/[^a-zA-Z0-9]/g, '').replace(/^./, (match) => match.toUpperCase())}Page`;
   }
 
   /**
@@ -821,22 +864,30 @@ export class GeneratorAgent extends Agent {
       python: 'py',
       java: 'java',
     };
-    
+
     return extensions[language] || 'txt';
   }
 
   /**
    * Extract test data from user paths
    */
-  private extractTestData(userPaths: UserPath[]): any {
-    const testData: any = {
+  private extractTestData(userPaths: UserPath[]): {
+    users: Array<{ email: string; username: string }>;
+    forms: Array<unknown>;
+    navigation: Array<unknown>;
+  } {
+    const testData: {
+      users: Array<{ email: string; username: string }>;
+      forms: Array<unknown>;
+      navigation: Array<unknown>;
+    } = {
       users: [],
       forms: [],
       navigation: [],
     };
 
-    for (const path of userPaths) {
-      for (const step of path.steps) {
+    for (const userPath of userPaths) {
+      for (const step of userPath.steps) {
         if (step.type === 'fill' && step.value) {
           if (step.selector?.includes('email') || step.selector?.includes('username')) {
             testData.users.push({
@@ -854,20 +905,28 @@ export class GeneratorAgent extends Agent {
   /**
    * Generate fixture content
    */
-  private generateFixtureContent(testData: any, language: string): string {
+  private generateFixtureContent(
+    testData: {
+      users: Array<{ email: string; username: string }>;
+      forms: Array<unknown>;
+      navigation: Array<unknown>;
+    },
+    language: string
+  ): string {
     if (language === 'typescript' || language === 'javascript') {
       return `export const testData = ${JSON.stringify(testData, null, 2)};`;
-    } else if (language === 'python') {
+    }
+    if (language === 'python') {
       return `test_data = ${JSON.stringify(testData, null, 2).replace(/"/g, "'")}`;
     }
-    
+
     return JSON.stringify(testData, null, 2);
   }
 
   /**
    * Generate user fixtures
    */
-  private generateUserFixtures(userPaths: UserPath[], language: string): GeneratedFile[] {
+  private generateUserFixtures(_userPaths: UserPath[], _language: string): GeneratedFile[] {
     // Implementation would generate user-specific fixture files
     return [];
   }
@@ -875,23 +934,30 @@ export class GeneratorAgent extends Agent {
   /**
    * Find common operations in user paths
    */
-  private findCommonOperations(userPaths: UserPath[]): Array<{ name: string; frequency: number; pattern: string }> {
+  private findCommonOperations(
+    userPaths: UserPath[]
+  ): Array<{ name: string; frequency: number; pattern: string }> {
     const operations = new Map<string, number>();
-    
-    for (const path of userPaths) {
-      for (const step of path.steps) {
-        const operation = `${step.type}:${step.selector?.split(/[#\.\s]/).slice(0, 2).join('|') || 'generic'}`;
+
+    for (const userPath of userPaths) {
+      for (const step of userPath.steps) {
+        const operation = `${step.type}:${
+          step.selector
+            ?.split(/[#.\s]/)
+            .slice(0, 2)
+            .join('|') || 'generic'
+        }`;
         operations.set(operation, (operations.get(operation) || 0) + 1);
       }
     }
-    
+
     return Array.from(operations.entries())
       .map(([pattern, frequency]) => ({
         name: pattern.split(':')[1],
         frequency,
         pattern,
       }))
-      .filter(op => op.frequency > 2)
+      .filter((op) => op.frequency > 2)
       .sort((a, b) => b.frequency - a.frequency);
   }
 
@@ -899,11 +965,12 @@ export class GeneratorAgent extends Agent {
    * Check if authentication helper is needed
    */
   private needsAuthHelper(userPaths: UserPath[]): boolean {
-    return userPaths.some(path => 
-      path.steps.some(step => 
-        step.selector?.includes('login') || 
-        step.selector?.includes('password') ||
-        step.selector?.includes('auth')
+    return userPaths.some((userPath) =>
+      userPath.steps.some(
+        (step) =>
+          step.selector?.includes('login') ||
+          step.selector?.includes('password') ||
+          step.selector?.includes('auth')
       )
     );
   }
@@ -914,7 +981,7 @@ export class GeneratorAgent extends Agent {
   private generateAuthHelper(framework: string, language: string): GeneratedFile {
     const ext = this.getFileExtension(language);
     const content = this.generateHelperTemplate('auth', framework, language);
-    
+
     return {
       path: `helpers/authHelper.${ext}`,
       content,
@@ -930,7 +997,7 @@ export class GeneratorAgent extends Agent {
   private generateNavigationHelper(framework: string, language: string): GeneratedFile {
     const ext = this.getFileExtension(language);
     const content = this.generateHelperTemplate('navigation', framework, language);
-    
+
     return {
       path: `helpers/navigationHelper.${ext}`,
       content,
@@ -944,11 +1011,9 @@ export class GeneratorAgent extends Agent {
    * Check if form helper is needed
    */
   private needsFormHelper(userPaths: UserPath[]): boolean {
-    return userPaths.some(path =>
-      path.steps.some(step => 
-        step.type === 'fill' || 
-        step.type === 'select' ||
-        step.selector?.includes('form')
+    return userPaths.some((userPath) =>
+      userPath.steps.some(
+        (step) => step.type === 'fill' || step.type === 'select' || step.selector?.includes('form')
       )
     );
   }
@@ -959,7 +1024,7 @@ export class GeneratorAgent extends Agent {
   private generateFormHelper(framework: string, language: string): GeneratedFile {
     const ext = this.getFileExtension(language);
     const content = this.generateHelperTemplate('form', framework, language);
-    
+
     return {
       path: `helpers/formHelper.${ext}`,
       content,
@@ -972,10 +1037,14 @@ export class GeneratorAgent extends Agent {
   /**
    * Generate custom helper
    */
-  private generateCustomHelper(operation: any, framework: string, language: string): GeneratedFile {
+  private generateCustomHelper(
+    operation: { name: string; frequency: number; pattern: string },
+    framework: string,
+    language: string
+  ): GeneratedFile {
     const ext = this.getFileExtension(language);
     const content = this.generateCustomHelperContent(operation, framework, language);
-    
+
     return {
       path: `helpers/${operation.name}Helper.${ext}`,
       content,
@@ -996,16 +1065,28 @@ export class GeneratorAgent extends Agent {
   /**
    * Generate custom helper content
    */
-  private generateCustomHelperContent(operation: any, framework: string, language: string): string {
+  private generateCustomHelperContent(
+    operation: { name: string; frequency: number; pattern: string },
+    _framework: string,
+    _language: string
+  ): string {
     return `// Custom helper for ${operation.name} (used ${operation.frequency} times)\n// Implementation would go here`;
   }
 
   /**
    * Group paths into test suites
    */
-  private groupPathsIntoTestSuites(userPaths: UserPath[], analysis: any): Array<{ name: string; paths: UserPath[] }> {
+  private groupPathsIntoTestSuites(
+    userPaths: UserPath[],
+    analysis: {
+      commonElements: Map<string, number>;
+      commonPatterns: Array<{ pattern: string; frequency: number }>;
+      pageGroups: Map<string, UserPath[]>;
+      complexityScore: number;
+    }
+  ): Array<{ name: string; paths: UserPath[] }> {
     const suites: Array<{ name: string; paths: UserPath[] }> = [];
-    
+
     // Group by domain first
     for (const [domain, paths] of analysis.pageGroups.entries()) {
       suites.push({
@@ -1013,21 +1094,25 @@ export class GeneratorAgent extends Agent {
         paths,
       });
     }
-    
+
     return suites;
   }
 
   /**
    * Find duplicate patterns
    */
-  private findDuplicatePatterns(userPaths: UserPath[]): Array<{ description: string; count: number }> {
+  private findDuplicatePatterns(
+    userPaths: UserPath[]
+  ): Array<{ description: string; count: number }> {
     const patterns = new Map<string, number>();
-    
-    for (const path of userPaths) {
-      const signature = path.steps.map(s => `${s.type}:${s.selector?.split(/[#\.\s]/)[0] || 'none'}`).join('->');
+
+    for (const userPath of userPaths) {
+      const signature = userPath.steps
+        .map((s) => `${s.type}:${s.selector?.split(/[#.\s]/)[0] || 'none'}`)
+        .join('->');
       patterns.set(signature, (patterns.get(signature) || 0) + 1);
     }
-    
+
     return Array.from(patterns.entries())
       .filter(([_, count]) => count > 1)
       .map(([signature, count]) => ({
@@ -1100,13 +1185,13 @@ module.exports = {
    */
   private generatePackageConfig(framework: string, language: string): GeneratedFile {
     const scripts: Record<string, string> = {};
-    
+
     if (framework === 'playwright') {
-      scripts['test'] = 'playwright test';
+      scripts.test = 'playwright test';
       scripts['test:headed'] = 'playwright test --headed';
       scripts['test:debug'] = 'playwright test --debug';
     } else if (framework === 'cypress') {
-      scripts['test'] = 'cypress run';
+      scripts.test = 'cypress run';
       scripts['test:open'] = 'cypress open';
     }
 
@@ -1129,19 +1214,19 @@ module.exports = {
    */
   private getFrameworkDependencies(framework: string, language: string): Record<string, string> {
     const deps: Record<string, string> = {};
-    
+
     if (framework === 'playwright') {
       deps['@playwright/test'] = '^1.40.0';
       if (language === 'typescript') {
-        deps['typescript'] = '^5.0.0';
+        deps.typescript = '^5.0.0';
       }
     } else if (framework === 'cypress') {
-      deps['cypress'] = '^13.0.0';
+      deps.cypress = '^13.0.0';
       if (language === 'typescript') {
-        deps['typescript'] = '^5.0.0';
+        deps.typescript = '^5.0.0';
       }
     }
-    
+
     return deps;
   }
 
@@ -1163,14 +1248,14 @@ module.exports = {
     } else {
       this.metrics.tasksFailed++;
     }
-    
-    this.metrics.averageTaskDuration = 
-      (this.metrics.averageTaskDuration * (this.metrics.tasksCompleted - 1) + duration) / 
+
+    this.metrics.averageTaskDuration =
+      (this.metrics.averageTaskDuration * (this.metrics.tasksCompleted - 1) + duration) /
       this.metrics.tasksCompleted;
-      
+
     this.metrics.totalRuntime += duration;
     this.metrics.lastActivity = new Date();
-    
+
     const memUsage = process.memoryUsage();
     this.metrics.memoryUsage = memUsage.heapUsed;
   }
@@ -1198,10 +1283,12 @@ module.exports = {
    */
   private cleanupOldJobs(): void {
     const cutoffTime = Date.now() - 24 * 60 * 60 * 1000; // 24 hours ago
-    
+
     for (const [jobId, job] of this.activeJobs.entries()) {
-      if (job.startTime.getTime() < cutoffTime && 
-          (job.status === 'completed' || job.status === 'failed')) {
+      if (
+        job.startTime.getTime() < cutoffTime &&
+        (job.status === 'completed' || job.status === 'failed')
+      ) {
         this.activeJobs.delete(jobId);
       }
     }

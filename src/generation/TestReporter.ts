@@ -135,6 +135,7 @@ export interface ScreenshotSummary {
 
 export class TestReporter {
   private config: TestReportConfig;
+
   private reportData: Partial<TestSuiteReport> = {};
 
   constructor(config?: Partial<TestReportConfig>) {
@@ -175,7 +176,6 @@ export class TestReporter {
       });
 
       return report;
-
     } catch (error) {
       logger.error('Failed to generate test report', error);
       throw error;
@@ -217,40 +217,40 @@ export class TestReporter {
   async exportToHtml(report: TestSuiteReport): Promise<string> {
     const htmlTemplate = await this.generateHtmlTemplate(report);
     const outputPath = path.join(this.config.outputDir, this.getReportFileName('html'));
-    
+
     await fs.writeFile(outputPath, htmlTemplate, 'utf8');
     logger.info('HTML report saved', { path: outputPath });
-    
+
     return outputPath;
   }
 
   async exportToJson(report: TestSuiteReport): Promise<string> {
     const jsonContent = JSON.stringify(report, null, 2);
     const outputPath = path.join(this.config.outputDir, this.getReportFileName('json'));
-    
+
     await fs.writeFile(outputPath, jsonContent, 'utf8');
     logger.info('JSON report saved', { path: outputPath });
-    
+
     return outputPath;
   }
 
   async exportToMarkdown(report: TestSuiteReport): Promise<string> {
     const markdownContent = this.generateMarkdownReport(report);
     const outputPath = path.join(this.config.outputDir, this.getReportFileName('md'));
-    
+
     await fs.writeFile(outputPath, markdownContent, 'utf8');
     logger.info('Markdown report saved', { path: outputPath });
-    
+
     return outputPath;
   }
 
   async exportToXml(report: TestSuiteReport): Promise<string> {
     const xmlContent = this.generateXmlReport(report);
     const outputPath = path.join(this.config.outputDir, this.getReportFileName('xml'));
-    
+
     await fs.writeFile(outputPath, xmlContent, 'utf8');
     logger.info('XML report saved', { path: outputPath });
-    
+
     return outputPath;
   }
 
@@ -270,6 +270,7 @@ export class TestReporter {
           return this.exportToXml(report);
         default:
           logger.warn('Unsupported report format', { format });
+          return Promise.resolve();
       }
     });
 
@@ -295,10 +296,19 @@ export class TestReporter {
     validationResults: ValidationResult[]
   ): TestSuiteSummary {
     const totalTests = validationResults.reduce((sum, r) => sum + r.metrics.totalTests, 0);
-    const totalAssertions = validationResults.reduce((sum, r) => sum + r.metrics.totalAssertions, 0);
-    const averageTestLength = validationResults.reduce((sum, r) => sum + r.metrics.averageTestLength, 0) / validationResults.length;
-    const complexityScore = validationResults.reduce((sum, r) => sum + r.metrics.complexityScore, 0) / validationResults.length;
-    const maintainabilityIndex = validationResults.reduce((sum, r) => sum + r.metrics.maintainabilityIndex, 0) / validationResults.length;
+    const totalAssertions = validationResults.reduce(
+      (sum, r) => sum + r.metrics.totalAssertions,
+      0
+    );
+    const averageTestLength =
+      validationResults.reduce((sum, r) => sum + r.metrics.averageTestLength, 0) /
+      validationResults.length;
+    const complexityScore =
+      validationResults.reduce((sum, r) => sum + r.metrics.complexityScore, 0) /
+      validationResults.length;
+    const maintainabilityIndex =
+      validationResults.reduce((sum, r) => sum + r.metrics.maintainabilityIndex, 0) /
+      validationResults.length;
 
     return {
       totalFiles: testFiles.length,
@@ -342,17 +352,17 @@ export class TestReporter {
   }
 
   private generateValidationSummary(validationResults: ValidationResult[]): ValidationSummary {
-    const allErrors = validationResults.flatMap(r => r.errors);
-    const allWarnings = validationResults.flatMap(r => r.warnings);
+    const allErrors = validationResults.flatMap((r) => r.errors);
+    const allWarnings = validationResults.flatMap((r) => r.warnings);
 
     const errorsByType: Record<string, number> = {};
     const warningsByType: Record<string, number> = {};
 
-    allErrors.forEach(error => {
+    allErrors.forEach((error) => {
       errorsByType[error.type] = (errorsByType[error.type] || 0) + 1;
     });
 
-    allWarnings.forEach(warning => {
+    allWarnings.forEach((warning) => {
       warningsByType[warning.type] = (warningsByType[warning.type] || 0) + 1;
     });
 
@@ -369,7 +379,9 @@ export class TestReporter {
         count,
         severity: 'warning' as const,
       })),
-    ].sort((a, b) => b.count - a.count).slice(0, 10);
+    ]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
 
     return {
       totalErrors: allErrors.length,
@@ -388,40 +400,42 @@ export class TestReporter {
     const allSelectors = new Set<string>();
     const coveredSelectors = new Set<string>();
 
-    testFiles.forEach(file => {
+    testFiles.forEach((file) => {
       const selectors = this.extractSelectors(file.content);
-      selectors.forEach(selector => allSelectors.add(selector));
+      selectors.forEach((selector) => allSelectors.add(selector));
     });
 
-    userPaths.forEach(path => {
-      path.steps.forEach(step => {
+    userPaths.forEach((userPath) => {
+      userPath.steps.forEach((step) => {
         if (step.selector) {
           coveredSelectors.add(step.selector);
         }
       });
     });
 
-    const uncoveredSelectors = Array.from(allSelectors).filter(s => !coveredSelectors.has(s));
+    const uncoveredSelectors = Array.from(allSelectors).filter((s) => !coveredSelectors.has(s));
 
     // Analyze interaction coverage
     const allInteractions = new Set(['click', 'fill', 'select', 'check', 'hover', 'upload']);
     const coveredInteractions = new Set<string>();
 
-    userPaths.forEach(path => {
-      path.steps.forEach(step => {
+    userPaths.forEach((userPath) => {
+      userPath.steps.forEach((step) => {
         coveredInteractions.add(step.type);
       });
     });
 
-    const uncoveredInteractions = Array.from(allInteractions).filter(i => !coveredInteractions.has(i));
+    const uncoveredInteractions = Array.from(allInteractions).filter(
+      (i) => !coveredInteractions.has(i)
+    );
 
     // Analyze page coverage
     const allPages = new Set<string>();
     const coveredPages = new Set<string>();
 
-    userPaths.forEach(path => {
+    userPaths.forEach((userPath) => {
       allPages.add(path.startUrl);
-      path.steps.forEach(step => {
+      userPath.steps.forEach((step) => {
         if (step.url) {
           allPages.add(step.url);
           coveredPages.add(step.url);
@@ -429,7 +443,7 @@ export class TestReporter {
       });
     });
 
-    const uncoveredPages = Array.from(allPages).filter(p => !coveredPages.has(p));
+    const uncoveredPages = Array.from(allPages).filter((p) => !coveredPages.has(p));
 
     return {
       elementCoverage: {
@@ -475,7 +489,7 @@ export class TestReporter {
       },
       memoryUsage: {
         peak: Math.round(process.memoryUsage().heapUsed / 1024 / 1024), // MB
-        average: Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 0.8), // MB
+        average: Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 0.8), // MB
       },
     };
   }
@@ -484,8 +498,8 @@ export class TestReporter {
     const screenshots: ScreenshotSummary['screenshots'] = [];
     let totalSize = 0;
 
-    for (const path of userPaths) {
-      for (const step of path.steps) {
+    for (const userPath of userPaths) {
+      for (const step of userPath.steps) {
         if (step.screenshotPath) {
           try {
             const stats = await fs.stat(step.screenshotPath);
@@ -523,7 +537,9 @@ export class TestReporter {
     const totalWarnings = validationResults.reduce((sum, r) => sum + r.warnings.length, 0);
 
     if (totalErrors > 0) {
-      recommendations.push(`Fix ${totalErrors} validation error${totalErrors > 1 ? 's' : ''} to improve test reliability`);
+      recommendations.push(
+        `Fix ${totalErrors} validation error${totalErrors > 1 ? 's' : ''} to improve test reliability`
+      );
     }
 
     if (totalWarnings > 10) {
@@ -531,20 +547,28 @@ export class TestReporter {
     }
 
     // Check maintainability
-    const avgMaintainability = validationResults.reduce((sum, r) => sum + r.metrics.maintainabilityIndex, 0) / validationResults.length;
+    const avgMaintainability =
+      validationResults.reduce((sum, r) => sum + r.metrics.maintainabilityIndex, 0) /
+      validationResults.length;
     if (avgMaintainability < 70) {
-      recommendations.push('Improve test maintainability by using more stable selectors and reducing test complexity');
+      recommendations.push(
+        'Improve test maintainability by using more stable selectors and reducing test complexity'
+      );
     }
 
     // Check for common issues
-    const hasFragileSelectors = validationResults.some(r => 
-      r.warnings.some(w => w.message.includes('Fragile selector'))
+    const hasFragileSelectors = validationResults.some((r) =>
+      r.warnings.some((w) => w.message.includes('Fragile selector'))
     );
     if (hasFragileSelectors) {
-      recommendations.push('Replace fragile selectors with data-testid attributes for better test stability');
+      recommendations.push(
+        'Replace fragile selectors with data-testid attributes for better test stability'
+      );
     }
 
-    const hasDuplicateSelectors = validationResults.some(r => r.metrics.duplicateSelectors.length > 0);
+    const hasDuplicateSelectors = validationResults.some(
+      (r) => r.metrics.duplicateSelectors.length > 0
+    );
     if (hasDuplicateSelectors) {
       recommendations.push('Extract frequently used selectors to page objects or constants');
     }
@@ -656,7 +680,9 @@ export class TestReporter {
             <div class="section">
                 <h2>Test Files</h2>
                 <div class="file-list">
-                    ${report.testFiles.map(file => `
+                    ${report.testFiles
+                      .map(
+                        (file) => `
                         <div class="file-item">
                             <div class="file-name">${file.filename}</div>
                             <div class="file-stats">
@@ -666,15 +692,21 @@ export class TestReporter {
                                 <span>Maintainability: ${file.metrics.maintainability.toFixed(0)}</span>
                             </div>
                         </div>
-                    `).join('')}
+                    `
+                      )
+                      .join('')}
                 </div>
             </div>
 
             <div class="section">
                 <h2>Recommendations</h2>
-                ${report.recommendations.map(rec => `
+                ${report.recommendations
+                  .map(
+                    (rec) => `
                     <div class="recommendation">${rec}</div>
-                `).join('')}
+                `
+                  )
+                  .join('')}
             </div>
         </div>
     </div>
@@ -714,11 +746,13 @@ Generated on ${report.metadata.generatedAt.toLocaleString()}
 
 ### Top Issues
 
-${report.validation.topIssues.map(issue => `- ${issue.message}`).join('\n')}
+${report.validation.topIssues.map((issue) => `- ${issue.message}`).join('\n')}
 
 ## Test Files
 
-${report.testFiles.map(file => `
+${report.testFiles
+  .map(
+    (file) => `
 ### ${file.filename}
 
 - **Tests**: ${file.metadata.testsCount}
@@ -726,11 +760,13 @@ ${report.testFiles.map(file => `
 - **Lines of Code**: ${file.metadata.linesOfCode}
 - **Maintainability**: ${file.metrics.maintainability.toFixed(0)}
 - **Complexity**: ${file.metrics.complexity.toFixed(0)}
-`).join('\n')}
+`
+  )
+  .join('\n')}
 
 ## Recommendations
 
-${report.recommendations.map(rec => `- ${rec}`).join('\n')}
+${report.recommendations.map((rec) => `- ${rec}`).join('\n')}
 
 ## Performance
 
@@ -773,7 +809,9 @@ ${report.recommendations.map(rec => `- ${rec}`).join('\n')}
     </validation>
     
     <testFiles>
-        ${report.testFiles.map(file => `
+        ${report.testFiles
+          .map(
+            (file) => `
         <testFile>
             <filename>${file.filename}</filename>
             <testsCount>${file.metadata.testsCount}</testsCount>
@@ -781,14 +819,19 @@ ${report.recommendations.map(rec => `- ${rec}`).join('\n')}
             <linesOfCode>${file.metadata.linesOfCode}</linesOfCode>
             <maintainability>${file.metrics.maintainability}</maintainability>
         </testFile>
-        `).join('')}
+        `
+          )
+          .join('')}
     </testFiles>
 </testReport>`;
   }
 
-  private calculateQualityGrade(maintainability: number, complexity: number): 'A' | 'B' | 'C' | 'D' | 'F' {
-    const score = (maintainability * 0.6) + ((100 - complexity) * 0.4);
-    
+  private calculateQualityGrade(
+    maintainability: number,
+    complexity: number
+  ): 'A' | 'B' | 'C' | 'D' | 'F' {
+    const score = maintainability * 0.6 + (100 - complexity) * 0.4;
+
     if (score >= 90) return 'A';
     if (score >= 80) return 'B';
     if (score >= 70) return 'C';
@@ -800,7 +843,7 @@ ${report.recommendations.map(rec => `- ${rec}`).join('\n')}
     // Simple coverage calculation based on selectors vs assertions
     const selectors = this.extractSelectors(testFile.content);
     const assertions = this.countAssertions(testFile.content);
-    
+
     return selectors.length > 0 ? (assertions / selectors.length) * 100 : 0;
   }
 
@@ -817,10 +860,12 @@ ${report.recommendations.map(rec => `- ${rec}`).join('\n')}
   private extractSelectors(content: string): string[] {
     const selectorMatches = content.match(/['"`]([^'"`]*)['"]\s*\)/g);
     if (!selectorMatches) return [];
-    
+
     return selectorMatches
-      .map(match => match.replace(/['"`\)]/g, ''))
-      .filter(selector => selector.includes('#') || selector.includes('.') || selector.includes('['));
+      .map((match) => match.replace(/['"`)]$/g, ''))
+      .filter(
+        (selector) => selector.includes('#') || selector.includes('.') || selector.includes('[')
+      );
   }
 
   private getReportFileName(extension: string): string {
