@@ -63,7 +63,8 @@ export class ResilientCrawler {
 
   private failureCount = 0;
 
-  // private lastFailure?: Date;
+  private lastFailure?: Date;
+  
   private healthCheckInterval?: NodeJS.Timeout;
 
   private problematicDomains = new Set<string>();
@@ -112,7 +113,7 @@ export class ResilientCrawler {
     const crawlOptions = this.prepareCrawlOptions(options);
 
     try {
-      const result = await this.executeWithRetry(async () => this.baseCrawler.crawl(crawlOptions));
+      const result = await this.executeWithRetry(async () => this.baseCrawler.crawl());
 
       this.recordSuccess();
       return result;
@@ -156,24 +157,22 @@ export class ResilientCrawler {
     const startTime = Date.now();
 
     try {
-      const page = await this.baseCrawler.browser.newPage();
+      // Simple fetch-based health check since we don't have direct browser access
+      const response = await fetch(testUrl, {
+        method: 'HEAD',
+        headers: {
+          'User-Agent': this.options.userAgent,
+        },
+        signal: AbortSignal.timeout(this.options.healthCheck.timeout),
+      });
 
-      try {
-        await page.goto(testUrl, {
-          waitUntil: 'domcontentloaded',
-          timeout: this.options.healthCheck.timeout,
-        });
+      const responseTime = Date.now() - startTime;
 
-        const responseTime = Date.now() - startTime;
-
-        return {
-          isHealthy: true,
-          responseTime,
-          timestamp: new Date(),
-        };
-      } finally {
-        await page.close();
-      }
+      return {
+        isHealthy: response.ok,
+        responseTime,
+        timestamp: new Date(),
+      };
     } catch (error) {
       const responseTime = Date.now() - startTime;
 

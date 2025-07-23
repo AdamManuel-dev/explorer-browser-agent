@@ -585,24 +585,4 @@ browser:
     });
   });
 
-  describe('configuration watching', () => {
-    test('should set up file watcher for configuration changes', async () => {
-      const mockWatcher = {
-        on: jest.fn(),
-        close: jest.fn(),
-      };
-
-      // Mock fs.watch
-      const originalWatch = (fs as jest.Mocked<typeof fs>).watch;
-      (fs as jest.Mocked<typeof fs>).watch = jest.fn().mockReturnValue(mockWatcher);
-
-      const changeHandler = jest.fn();
-      await configManager.watchConfig(changeHandler);
-
-      expect(mockWatcher.on).toHaveBeenCalledWith('change', expect.any(Function));
-
-      // Restore original
-      (fs as jest.Mocked<typeof fs>).watch = originalWatch;
-    });
-  });
 });

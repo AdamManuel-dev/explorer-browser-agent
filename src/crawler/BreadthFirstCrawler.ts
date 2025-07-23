@@ -212,7 +212,7 @@ export class BreadthFirstCrawler {
       }
 
       const robots = this.robotsCache.get(robotsUrl);
-      return robots ? robots.isAllowed(url, this.config.userAgent) : true;
+      return robots ? (robots.isAllowed(url, this.config.userAgent) ?? true) : true;
     } catch (error) {
       logger.warn('Failed to check robots.txt', { url, error });
       return true;

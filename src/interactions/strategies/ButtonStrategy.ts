@@ -9,6 +9,10 @@ import { logger } from '../../utils/logger';
 export class ButtonStrategy implements InteractionStrategy {
   type = 'button';
 
+  canHandle(element: InteractiveElement): boolean {
+    return element.type === 'button';
+  }
+
   async execute(
     element: InteractiveElement,
     context: InteractionContext

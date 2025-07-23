@@ -345,7 +345,7 @@ export class MonitoringService extends EventEmitter {
     span.endTime = new Date();
     span.duration = span.endTime.getTime() - span.startTime.getTime();
     span.status = tags?.error ? 'error' : 'completed';
-    span.error = tags?.error;
+    span.error = tags?.error as string | undefined;
 
     if (tags) {
       span.tags = { ...span.tags, ...tags };

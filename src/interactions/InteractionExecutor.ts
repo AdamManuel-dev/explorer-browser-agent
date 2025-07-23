@@ -301,6 +301,20 @@ export class InteractionExecutor {
     }
   }
 
+  getAvailableStrategies(): string[] {
+    return Array.from(this.strategies.keys());
+  }
+
+  validateInteraction(element: InteractiveElement): boolean {
+    const strategy = this.strategies.get(element.type);
+    if (!strategy) {
+      return false;
+    }
+    
+    // Basic validation - element must have selector and be of known type
+    return Boolean(element.selector && element.type !== 'unknown');
+  }
+
   async cleanup(): Promise<void> {
     this.page = null;
   }

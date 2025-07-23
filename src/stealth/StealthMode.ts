@@ -271,6 +271,14 @@ export class StealthMode {
     };
   }
 
+  getConfig(): StealthConfig {
+    return { ...this.config };
+  }
+
+  generateRandomUserAgent(): string {
+    return this.getRandomUserAgent();
+  }
+
   // Private methods
   private async injectStealthScripts(context: BrowserContext): Promise<void> {
     await context.addInitScript(this.getStealthScript());

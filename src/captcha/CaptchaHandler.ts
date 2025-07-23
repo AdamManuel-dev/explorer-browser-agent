@@ -617,6 +617,14 @@ export class CaptchaHandler {
     return 'bypass';
   }
 
+  /**
+   * Get the detection patterns for all CAPTCHA types
+   * @returns A map of CAPTCHA types to their detection selectors
+   */
+  getDetectionPatterns(): Map<CaptchaType, string[]> {
+    return new Map(this.detectionPatterns);
+  }
+
   private mergeWithDefaults(config: Partial<CaptchaConfig>): CaptchaConfig {
     return {
       autoDetect: true,

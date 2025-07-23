@@ -384,6 +384,20 @@ export class AIElementDetector {
     return patterns;
   }
 
+  classifyElementType(element: Element): ElementType {
+    const tagName = element.tagName.toLowerCase();
+    const attributes: Record<string, string> = {};
+    
+    for (let i = 0; i < element.attributes.length; i++) {
+      const attr = element.attributes[i];
+      if (attr) {
+        attributes[attr.name] = attr.value;
+      }
+    }
+    
+    return this.inferElementType(tagName, attributes);
+  }
+
   async cleanup(): Promise<void> {
     if (this.stagehand) {
       this.stagehand = null;

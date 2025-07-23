@@ -317,7 +317,7 @@ export class ConfigManager {
     return this.deepMerge(config, overrides);
   }
 
-  private validateConfig(config: BrowserExplorerConfig): void {
+  public validateConfig(config: BrowserExplorerConfig): void {
     const errors: string[] = [];
 
     // Validate required fields
@@ -362,7 +362,7 @@ export class ConfigManager {
     }
   }
 
-  private getDefaultConfig(): BrowserExplorerConfig {
+  public getDefaultConfig(): BrowserExplorerConfig {
     return {
       app: {
         name: 'Browser Explorer',

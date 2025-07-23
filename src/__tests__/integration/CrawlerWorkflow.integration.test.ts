@@ -457,7 +457,7 @@ describe('Crawler Workflow Integration Tests', () => {
         userAgent: 'Mozilla/5.0 (compatible; TestCrawler/1.0)',
       });
 
-      expect(result.crawledUrls ? result.crawledUrls.size : result.urls.length).toBeGreaterThan(0);
+      expect(result.urls.length).toBeGreaterThan(0);
       expect(result.pagesVisited).toBeGreaterThan(0);
     }, 20000);
 
@@ -513,17 +513,9 @@ describe('Crawler Workflow Integration Tests', () => {
         monitoring.recordCounter('workflow_steps', 1, { step: 'crawling' });
         const spanId = monitoring.startSpan('end_to_end_workflow');
 
-        const crawlResult = await crawler.crawl({
-          startUrl: `http://localhost:${testPort}`,
-          maxDepth: 2,
-          maxPages: 8,
-          crawlDelay: 100,
-          parallelWorkers: 1,
-          allowedDomains: ['localhost'],
-          monitoring,
-        });
+        const crawlResult = await crawler.crawl();
 
-        monitoring.addSpanLog(spanId, 'info', `Crawled ${crawlResult.crawledUrls.length} pages`);
+        monitoring.addSpanLog(spanId, 'info', `Crawled ${crawlResult.urls.length} pages`);
 
         // Step 2: Record user interactions
         monitoring.recordCounter('workflow_steps', 1, { step: 'recording' });
@@ -566,7 +558,7 @@ describe('Crawler Workflow Integration Tests', () => {
         monitoring.finishSpan(spanId, { success: true });
 
         // Verify the complete workflow
-        expect(crawlResult.crawledUrls.length).toBeGreaterThan(3);
+        expect(crawlResult.urls.length).toBeGreaterThan(3);
         expect(userPath.steps.length).toBeGreaterThan(3);
         expect(generationResult.files.length).toBeGreaterThan(0);
 
@@ -639,25 +631,26 @@ describe('Crawler Workflow Integration Tests', () => {
 
       try {
         // Run multiple crawlers concurrently
-        const crawlers = [1, 2, 3].map(() => new BreadthFirstCrawler(browser));
+        const crawlers = [1, 2, 3].map(() => new BreadthFirstCrawler({
+          startUrl: `http://localhost:${testPort}`,
+          maxDepth: 1,
+          maxPages: 3,
+          crawlDelay: 200,
+          parallelWorkers: 1,
+          allowedDomains: ['localhost'],
+          respectRobotsTxt: false,
+          userAgent: 'test-crawler',
+        }));
 
         const crawlPromises = crawlers.map(async (crawler, _index) => {
-          return crawler.crawl({
-            startUrl: `http://localhost:${testPort}`,
-            maxDepth: 1,
-            maxPages: 3,
-            crawlDelay: 200,
-            parallelWorkers: 1,
-            allowedDomains: ['localhost'],
-            monitoring,
-          });
+          return crawler.crawl();
         });
 
         const results = await Promise.all(crawlPromises);
 
         // Verify all crawlers completed successfully
         results.forEach((result, _index) => {
-          expect(result.crawledUrls.length).toBeGreaterThan(0);
+          expect(result.urls.length).toBeGreaterThan(0);
           expect(result.errors.length).toBe(0);
         });
 
@@ -702,25 +695,15 @@ describe('Crawler Workflow Integration Tests', () => {
 
         const result = await monitoring.timeFunction(
           'full_crawl_workflow',
-          () =>
-            crawler.crawl({
-              startUrl: `http://localhost:${testPort}`,
-              maxDepth: 2,
-              maxPages: 10,
-              crawlDelay: 50,
-              parallelWorkers: 2,
-              allowedDomains: ['localhost'],
-              monitoring,
-            }),
+          () => crawler.crawl(),
           { workflow: 'performance_test' }
         );
 
         const totalTime = Date.now() - startTime;
 
         // Verify performance metrics
-        expect(result.crawledUrls.length).toBeGreaterThan(0);
-        expect(result.statistics.totalTime).toBeGreaterThan(0);
-        expect(result.statistics.averageLoadTime).toBeGreaterThan(0);
+        expect(result.urls.length).toBeGreaterThan(0);
+        expect(result.duration).toBeGreaterThan(0);
 
         // Check monitoring metrics
         const metrics = monitoring.getMetrics();
@@ -733,8 +716,8 @@ describe('Crawler Workflow Integration Tests', () => {
         // Log performance summary
         logger.info('Performance test completed', {
           totalTime,
-          pagesPerSecond: result.crawledUrls.length / (totalTime / 1000),
-          averageLoadTime: result.statistics.averageLoadTime,
+          pagesPerSecond: result.urls.length / (totalTime / 1000),
+          crawlDuration: result.duration,
           memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // MB
         });
       } finally {

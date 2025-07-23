@@ -581,6 +581,10 @@ export class MultiStrategyAuthManager {
     return this.currentSession;
   }
 
+  getAvailableStrategies(): AuthStrategy[] {
+    return ['basic', 'oauth', 'mfa', 'api', 'custom'];
+  }
+
   isAuthenticated(): boolean {
     return this.currentSession?.authenticated || false;
   }
