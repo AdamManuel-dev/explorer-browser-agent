@@ -243,8 +243,8 @@ class UserPathRecorder {
             this.page.on('console', (msg) => {
                 this.consoleMessages.push({
                     type: msg.type(),
-                    text: msg.text(),
-                    timestamp: Date.now() - this.startTime,
+                    message: msg.text(),
+                    timestamp: new Date(),
                 });
             });
         }

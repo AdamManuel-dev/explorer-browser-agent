@@ -21,11 +21,7 @@ class MastraOrchestrator {
         this.monitoring = config.monitoring;
         this.configManager = config.configManager;
         // Initialize Mastra engine
-        this.mastraEngine = new core_1.MastraEngine({
-            name: 'BrowserExplorer',
-            version: '1.0.0',
-            description: 'AI-powered web exploration and test generation platform',
-        });
+        this.mastraEngine = new core_1.Mastra({});
         // Initialize workflow engine
         this.workflowEngine = new WorkflowEngine_1.WorkflowEngine({
             maxConcurrentWorkflows: config.maxConcurrentWorkflows || 5,
@@ -54,7 +50,7 @@ class MastraOrchestrator {
             // Register workflow with the workflow engine
             this.workflowEngine.registerWorkflow('exploration', this.explorationWorkflow);
             // Start the engines
-            await this.mastraEngine.start();
+            // Mastra instance doesn't require explicit start
             await this.workflowEngine.start();
             logger_1.logger.info('Mastra orchestrator initialized successfully');
             // Record initialization metric
@@ -507,7 +503,7 @@ class MastraOrchestrator {
             await this.explorationWorkflow.shutdown();
             // Shutdown engines
             await this.workflowEngine.stop();
-            await this.mastraEngine.stop();
+            // Mastra instance doesn't require explicit stop
             logger_1.logger.info('Mastra orchestrator shutdown completed');
         }
         catch (error) {

@@ -174,4 +174,37 @@ export interface AgentMetrics {
     cpuUsage: number;
     lastActivity: Date;
 }
+export interface ExplorationWorkflowInput {
+    targets: ExplorationTarget[];
+    planningContext?: {
+        domain: string;
+        objectives: string[];
+        constraints: {
+            timeLimit?: number;
+            resourceLimit?: number;
+            priorityAreas?: string[];
+            excludedAreas?: string[];
+        };
+    };
+    testGenerationOptions?: {
+        framework: 'playwright' | 'cypress' | 'selenium';
+        language: 'typescript' | 'javascript' | 'python' | 'java';
+        generatePageObjects: boolean;
+        generateFixtures: boolean;
+        generateHelpers: boolean;
+    };
+}
+export interface ExplorationWorkflowOutput {
+    sessionId: string;
+    plan: CrawlPlan;
+    explorationResults: ExplorationResult[];
+    testGenerationResult?: TestGenerationResult;
+    metadata: {
+        totalDuration: number;
+        totalPagesExplored: number;
+        totalTestsGenerated: number;
+        successRate: number;
+        errors: string[];
+    };
+}
 //# sourceMappingURL=types.d.ts.map

@@ -1,12 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExplorerAgent = void 0;
-const core_1 = require("@mastra/core");
+const agent_1 = require("@mastra/core/agent");
 const stagehand_1 = require("@browserbasehq/stagehand");
 const sdk_1 = require("@browserbasehq/sdk");
 const uuid_1 = require("uuid");
 const logger_1 = require("../../utils/logger");
-class ExplorerAgent extends core_1.Agent {
+class ExplorerAgent extends agent_1.Agent {
     browserbase;
     stagehand;
     monitoring;
@@ -19,13 +19,18 @@ class ExplorerAgent extends core_1.Agent {
     metrics;
     constructor(config) {
         super({
+            id: 'explorer-agent',
             name: 'ExplorerAgent',
-            description: 'AI-powered web exploration agent using Browserbase and Stagehand',
-            version: '1.0.0',
+            instructions: 'AI-powered web exploration agent using Browserbase and Stagehand',
         });
         this.config = config;
-        this.browserbase = new sdk_1.Browserbase(config.browserbase.apiKey);
-        this.stagehand = new stagehand_1.Stagehand(config.stagehand);
+        this.browserbase = new sdk_1.Browserbase({
+            apiKey: config.browserbase.apiKey,
+        });
+        this.stagehand = new stagehand_1.Stagehand({
+            ...config.stagehand,
+            env: 'LOCAL',
+        });
         this.monitoring = config.monitoring;
         this.stealth = config.stealth;
         this.captchaHandler = config.captchaHandler;
@@ -83,7 +88,7 @@ class ExplorerAgent extends core_1.Agent {
             const page = await this.initializeStagehand(session);
             // Apply stealth mode if configured
             if (this.stealth) {
-                await this.stealth.setupPage(page);
+                await this.stealth.applyPageStealthMeasures(page);
             }
             // Handle authentication if required
             if (target.requireAuth && this.authManager) {
@@ -214,7 +219,9 @@ class ExplorerAgent extends core_1.Agent {
                 duration: endTime.getTime() - startTime.getTime(),
                 success: result.success || false,
                 screenshot: afterScreenshot,
-                elementInfo: result.selector ? await this.analyzeElement(page, result.selector) : undefined,
+                elementInfo: result.selector
+                    ? await this.analyzeElement(page, result.selector)
+                    : undefined,
             };
             this.monitoring?.recordHistogram('interaction_duration', step.duration);
             logger_1.logger.debug('Completed AI-guided interaction', {
@@ -479,11 +486,15 @@ class ExplorerAgent extends core_1.Agent {
                 strategy: target.authStrategy,
                 url: target.url,
             });
-            await this.authManager.authenticate(page, target.authStrategy, {
-                // Authentication credentials would come from configuration
-                username: process.env.AUTH_USERNAME,
-                password: process.env.AUTH_PASSWORD,
-            });
+            const authConfig = {
+                strategy: target.authStrategy || 'basic',
+                credentials: {
+                    username: process.env.AUTH_USERNAME,
+                    password: process.env.AUTH_PASSWORD,
+                },
+                sessionPersistence: true,
+            };
+            await this.authManager.authenticate(page, authConfig);
             logger_1.logger.debug('Authentication completed successfully');
         }
         catch (error) {
@@ -508,7 +519,8 @@ class ExplorerAgent extends core_1.Agent {
                 element.boundingBox(),
                 element.evaluate((el) => {
                     const attrs = {};
-                    for (const attr of el.attributes) {
+                    for (let i = 0; i < el.attributes.length; i++) {
+                        const attr = el.attributes[i];
                         attrs[attr.name] = attr.value;
                     }
                     return attrs;
@@ -664,13 +676,13 @@ class ExplorerAgent extends core_1.Agent {
      */
     setupEventHandlers() {
         // Handle uncaught errors
-        this.on('error', (error) => {
-            logger_1.logger.error('ExplorerAgent error', {
-                error: error.message,
-                stack: error.stack,
-            });
-            this.monitoring?.recordCounter('agent_errors', 1, { type: 'uncaught' });
-        });
+        // this.on('error', (error) => {
+        // logger.error('ExplorerAgent error', {
+        //   error: error.message,
+        //   stack: error.stack,
+        // });
+        // this.monitoring?.recordCounter('agent_errors', 1, { type: 'uncaught' });
+        // });
         // Periodic metrics reporting
         setInterval(() => {
             if (this.monitoring) {

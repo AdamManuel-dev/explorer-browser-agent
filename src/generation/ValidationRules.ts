@@ -1,53 +1,49 @@
 /* eslint-disable max-classes-per-file */
+
+// Import types from TestValidator to ensure compatibility
 import type { TestFile } from '../types/generation';
+import type { ValidationError, ValidationWarning } from '../types/generation';
 
-// Define interfaces locally to avoid circular dependency
-export interface ValidationRule {
+interface ImportInfo {
+  module: string;
+  named: string[];
+  default: string;
+  line: number;
+}
+
+interface TestInfo {
   name: string;
-  description: string;
-  validate(content: ParsedTestContent): ValidationResult;
+  startLine: number;
+  endLine: number;
+  assertions: AssertionInfo[];
+  selectors: SelectorInfo[];
 }
 
-export interface ValidationError {
-  rule: string;
-  message: string;
-  line?: number;
-  severity: 'error' | 'warning';
+interface SelectorInfo {
+  selector: string;
+  line: number;
+  testName: string;
+  type: string;
 }
 
-export interface ValidationWarning {
-  rule: string;
-  message: string;
-  line?: number;
-  fix?: string;
-}
-
-export interface ValidationResult {
-  isValid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationWarning[];
-  score: number;
+interface AssertionInfo {
+  type: string;
+  line: number;
+  content: string;
+  testName: string;
 }
 
 export interface ParsedTestContent {
-  imports: string[];
+  imports: ImportInfo[];
+  tests: TestInfo[];
+  selectors: SelectorInfo[];
+  assertions: AssertionInfo[];
+  totalLines: number;
   describe: TestInfo[];
   hooks: string[];
-  tests: Array<{
-    name: string;
-    content: string;
-    assertions: string[];
-  }>;
-  selectors: string[];
 }
 
-export interface TestInfo {
-  name: string;
-  content: string;
-  assertions: string[];
-}
-
-export class PlaywrightBestPracticesRule implements ValidationRule {
+export class PlaywrightBestPracticesRule {
   async validate(
     _testFile: TestFile,
     parsed: ParsedTestContent
@@ -64,7 +60,7 @@ export class PlaywrightBestPracticesRule implements ValidationRule {
           message: 'Consider moving page.goto to beforeEach hook',
           line: test.startLine,
           suggestion: 'Use beforeEach for navigation to improve test maintainability',
-        });
+        } as ValidationWarning);
       }
     }
 
@@ -77,7 +73,7 @@ export class PlaywrightBestPracticesRule implements ValidationRule {
   }
 }
 
-export class SelectorStabilityRule implements ValidationRule {
+export class SelectorStabilityRule {
   async validate(
     _testFile: TestFile,
     parsed: ParsedTestContent
@@ -92,7 +88,7 @@ export class SelectorStabilityRule implements ValidationRule {
           message: `Consider using data-testid instead of class selector: ${selector.selector}`,
           line: selector.line,
           suggestion: 'Use [data-testid="..."] for more stable selectors',
-        });
+        } as ValidationWarning);
       }
     }
 
@@ -100,7 +96,7 @@ export class SelectorStabilityRule implements ValidationRule {
   }
 }
 
-export class AssertionQualityRule implements ValidationRule {
+export class AssertionQualityRule {
   async validate(
     _testFile: TestFile,
     parsed: ParsedTestContent
@@ -115,7 +111,7 @@ export class AssertionQualityRule implements ValidationRule {
           message: 'Consider using more specific assertion',
           line: assertion.line,
           suggestion: 'Use specific assertions like toHaveText, toBeVisible, etc.',
-        });
+        } as ValidationWarning);
       }
     }
 
@@ -123,7 +119,7 @@ export class AssertionQualityRule implements ValidationRule {
   }
 }
 
-export class TestStructureRule implements ValidationRule {
+export class TestStructureRule {
   async validate(
     _testFile: TestFile,
     parsed: ParsedTestContent
@@ -140,7 +136,7 @@ export class TestStructureRule implements ValidationRule {
           message: `Test "${test.name}" is very long (${testLength} lines)`,
           line: test.startLine,
           suggestion: 'Consider breaking into smaller tests or extracting helper functions',
-        });
+        } as ValidationWarning);
       }
     }
 

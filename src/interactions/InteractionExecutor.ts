@@ -138,7 +138,7 @@ export class InteractionExecutor {
       // Text input strategies
       strategyMap.set('text-input', new strategies.TextInputStrategy());
       strategyMap.set('password-input', new strategies.TextInputStrategy());
-      strategyMap.set('email-input', new strategies.TextInputStrategy());    
+      strategyMap.set('email-input', new strategies.TextInputStrategy());
       strategyMap.set('number-input', new strategies.TextInputStrategy());
       strategyMap.set('tel-input', new strategies.TextInputStrategy());
       strategyMap.set('textarea', new strategies.TextInputStrategy());
@@ -241,6 +241,16 @@ export class InteractionExecutor {
         }
         return items;
       }),
+      sessionStorage: await this.page.evaluate(() => {
+        const items: Record<string, string> = {};
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key) {
+            items[key] = sessionStorage.getItem(key) || '';
+          }
+        }
+        return items;
+      }),
       cookies: await this.page.context().cookies(),
     };
   }
@@ -278,8 +288,8 @@ export class InteractionExecutor {
     if (JSON.stringify(before.cookies) !== JSON.stringify(after.cookies)) {
       changes.push({
         type: 'cookie',
-        before: before.cookies,
-        after: after.cookies,
+        before: JSON.stringify(before.cookies),
+        after: JSON.stringify(after.cookies),
         timing: Date.now(),
       });
     }
@@ -318,7 +328,7 @@ export class InteractionExecutor {
     if (!strategy) {
       return false;
     }
-    
+
     // Basic validation - element must have selector and be of known type
     return Boolean(element.selector && element.type !== 'unknown');
   }

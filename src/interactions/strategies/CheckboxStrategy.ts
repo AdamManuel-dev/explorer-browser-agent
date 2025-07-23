@@ -50,6 +50,7 @@ export class CheckboxStrategy implements InteractionStrategy {
       return {
         success: true,
         value: finalState,
+        timing: Date.now(),
       };
     } catch (error) {
       logger.error('Checkbox interaction failed', { element, error });

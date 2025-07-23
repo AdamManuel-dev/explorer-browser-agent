@@ -1,6 +1,6 @@
 import { MonitoringService } from '../monitoring';
 import { ConfigManager } from '../config';
-import { BrowserbaseConfig, StagehandConfig, ExplorationTarget, ExplorationWorkflowOutput } from './types';
+import { BrowserbaseConfig, StagehandConfig, ExplorationTarget, ExplorationWorkflowOutput, AgentMetrics } from './types';
 export interface MastraOrchestratorConfig {
     browserbase: BrowserbaseConfig;
     stagehand: StagehandConfig;

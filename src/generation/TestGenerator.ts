@@ -463,11 +463,11 @@ export class TestGenerator {
     );
 
     if (navigation && submission) {
-      return `should complete flow from ${this.getPageName(navigation.value)} to submission`;
+      return `should complete flow from ${this.getPageName(String(navigation.value))} to submission`;
     }
 
     if (navigation) {
-      return `should navigate to ${this.getPageName(navigation.value)}`;
+      return `should navigate to ${this.getPageName(String(navigation.value))}`;
     }
 
     return `should complete interaction sequence ${index + 1}`;
@@ -482,9 +482,10 @@ export class TestGenerator {
     return `Performs: ${actions}`;
   }
 
-  private getPageName(url: string): string {
+  private getPageName(url: string | number | boolean | Record<string, unknown>): string {
     try {
-      const urlObj = new URL(url);
+      const urlString = String(url);
+      const urlObj = new URL(urlString);
       const path = urlObj.pathname.replace(/^\/|\/$/g, '');
       return path || 'home';
     } catch {

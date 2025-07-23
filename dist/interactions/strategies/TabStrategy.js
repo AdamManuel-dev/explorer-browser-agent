@@ -3,22 +3,33 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TabStrategy = void 0;
 class TabStrategy {
     type = 'tab';
-    async execute(context) {
-        const { element } = context;
+    async execute(element, context) {
+        const { page } = context;
+        const startTime = Date.now();
         try {
-            // Basic implementation - just click the tab
-            await element.click();
+            // Locate the element
+            const el = await page.$(element.selector);
+            if (!el) {
+                throw new Error('Element not found');
+            }
+            // Perform the interaction
+            await el.click();
             return {
                 success: true,
-                message: 'Tab clicked successfully',
+                value: 'clicked',
+                timing: Date.now() - startTime,
             };
         }
         catch (error) {
             return {
                 success: false,
-                message: `Failed to interact with tab: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                timing: Date.now() - startTime,
             };
         }
+    }
+    async validate(element) {
+        return element.isEnabled && element.isVisible;
     }
 }
 exports.TabStrategy = TabStrategy;

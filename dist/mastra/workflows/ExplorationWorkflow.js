@@ -13,14 +13,14 @@ class ExplorationWorkflow extends WorkflowBase_1.Workflow {
     plannerAgent;
     generatorAgent;
     monitoring;
-    config;
+    workflowConfig;
     constructor(config) {
         super({
             name: 'ExplorationWorkflow',
             description: 'Complete web exploration workflow with planning, exploration, and test generation',
             version: '1.0.0',
         });
-        this.config = config;
+        this.workflowConfig = config;
         this.monitoring = config.monitoring;
         // Initialize agents
         this.explorerAgent = new ExplorerAgent_1.ExplorerAgent({
@@ -100,7 +100,7 @@ class ExplorationWorkflow extends WorkflowBase_1.Workflow {
             await this.executeStep('initialize', context);
             await this.executeStep('plan', context);
             await this.executeStep('explore', context);
-            if (this.config.enableTestGeneration && input.testGenerationOptions) {
+            if (this.workflowConfig.enableTestGeneration && input.testGenerationOptions) {
                 await this.executeStep('generate', context);
             }
             await this.executeStep('finalize', context);
@@ -174,8 +174,8 @@ class ExplorationWorkflow extends WorkflowBase_1.Workflow {
             // Initialize custom context properties
             const customContext = context;
             customContext.config = {
-                browserbase: this.config.browserbase,
-                stagehand: this.config.stagehand,
+                browserbase: this.workflowConfig.browserbase,
+                stagehand: this.workflowConfig.stagehand,
             };
             customContext.targets = context.input.targets;
             customContext.results = [];
@@ -283,7 +283,9 @@ class ExplorationWorkflow extends WorkflowBase_1.Workflow {
             const successfulExplorations = explorationResults.filter((r) => r.userPaths.length > 0).length;
             output.metadata.successRate =
                 explorationResults.length > 0 ? successfulExplorations / explorationResults.length : 0;
-            context.metadata.currentStep = this.config.enableTestGeneration ? 'generate' : 'finalize';
+            context.metadata.currentStep = this.workflowConfig.enableTestGeneration
+                ? 'generate'
+                : 'finalize';
             logger_1.logger.info('Exploration execution completed', {
                 sessionId: context.sessionId,
                 resultsCount: explorationResults.length,
@@ -341,7 +343,7 @@ class ExplorationWorkflow extends WorkflowBase_1.Workflow {
                     generatePageObjects: input.testGenerationOptions.generatePageObjects,
                     generateFixtures: input.testGenerationOptions.generateFixtures,
                     generateHelpers: input.testGenerationOptions.generateHelpers,
-                    outputDirectory: this.config.outputDirectory || './generated-tests',
+                    outputDirectory: this.workflowConfig.outputDirectory || './generated-tests',
                 },
             };
             // Generate tests

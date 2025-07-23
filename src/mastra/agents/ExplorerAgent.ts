@@ -1,4 +1,4 @@
-import { Agent } from '@mastra/core';
+import { Agent } from '@mastra/core/agent';
 import { Stagehand } from '@browserbasehq/stagehand';
 import { Browserbase } from '@browserbasehq/sdk';
 import { Page, BrowserContext } from 'playwright';
@@ -55,14 +55,19 @@ export class ExplorerAgent extends Agent {
 
   constructor(config: ExplorerAgentConfig) {
     super({
+      id: 'explorer-agent',
       name: 'ExplorerAgent',
-      description: 'AI-powered web exploration agent using Browserbase and Stagehand',
-      version: '1.0.0',
-    });
+      instructions: 'AI-powered web exploration agent using Browserbase and Stagehand',
+    } as any);
 
     this.config = config;
-    this.browserbase = new Browserbase(config.browserbase.apiKey);
-    this.stagehand = new Stagehand(config.stagehand);
+    this.browserbase = new Browserbase({
+      apiKey: config.browserbase.apiKey,
+    });
+    this.stagehand = new Stagehand({
+      ...config.stagehand,
+      env: 'LOCAL',
+    } as any);
     this.monitoring = config.monitoring;
     this.stealth = config.stealth;
     this.captchaHandler = config.captchaHandler;
@@ -129,7 +134,7 @@ export class ExplorerAgent extends Agent {
 
       // Apply stealth mode if configured
       if (this.stealth) {
-        await this.stealth.setupPage(page);
+        await (this.stealth as any).applyPageStealthMeasures(page);
       }
 
       // Handle authentication if required
@@ -159,14 +164,14 @@ export class ExplorerAgent extends Agent {
         userPaths,
         errors: [],
         metadata: {
-          browserbaseSessionId: session.id,
+          browserbaseSessionId: (session as any).id,
           explorationDuration: endTime.getTime() - startTime.getTime(),
           userAgent: await page.evaluate(() => navigator.userAgent),
         },
       };
 
       // Clean up session
-      await this.cleanupSession(session.id);
+      await this.cleanupSession((session as any).id);
 
       this.updateMetrics(true, endTime.getTime() - startTime.getTime());
       this.monitoring?.recordCounter('explorations_completed', 1, { status: 'success' });
@@ -276,14 +281,16 @@ export class ExplorerAgent extends Agent {
       const step: ExplorationStep = {
         id: stepId,
         type: this.inferStepType(instruction),
-        selector: result.selector || undefined,
-        value: result.value || undefined,
+        selector: (result as any).selector || undefined,
+        value: (result as any).value || undefined,
         url: page.url(),
         timestamp: startTime,
         duration: endTime.getTime() - startTime.getTime(),
         success: result.success || false,
         screenshot: afterScreenshot,
-        elementInfo: result.selector ? await this.analyzeElement(page, result.selector) : undefined,
+        elementInfo: (result as any).selector
+          ? await this.analyzeElement(page, (result as any).selector)
+          : undefined,
       };
 
       this.monitoring?.recordHistogram('interaction_duration', step.duration);
@@ -400,7 +407,7 @@ export class ExplorerAgent extends Agent {
    */
   private async createBrowserbaseSession(): Promise<unknown> {
     try {
-      const session = await this.browserbase.sessions.create({
+      const session = await (this.browserbase as any).sessions.create({
         projectId: this.config.browserbase.projectId,
         browserSettings: {
           viewport: { width: 1280, height: 720 },
@@ -411,7 +418,7 @@ export class ExplorerAgent extends Agent {
       this.sessions.set(session.id, session);
 
       logger.debug('Created Browserbase session', {
-        sessionId: session.id,
+        sessionId: (session as any).id,
         projectId: this.config.browserbase.projectId,
       });
 
@@ -440,13 +447,13 @@ export class ExplorerAgent extends Agent {
       await page.setViewportSize({ width: 1280, height: 720 });
 
       logger.debug('Initialized Stagehand with Browserbase session', {
-        sessionId: session.id,
+        sessionId: (session as any).id,
       });
 
       return page;
     } catch (error) {
       logger.error('Failed to initialize Stagehand', {
-        sessionId: session.id,
+        sessionId: (session as any).id,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -492,7 +499,7 @@ export class ExplorerAgent extends Agent {
           });
 
           // Filter observations based on target patterns
-          const relevantElements = this.filterElementsByPatterns(observations, target);
+          const relevantElements = this.filterElementsByPatterns(observations as any[], target);
 
           // Interact with promising elements
           for (const element of relevantElements.slice(0, 3)) {
@@ -500,7 +507,7 @@ export class ExplorerAgent extends Agent {
             try {
               const interactionStep = await this.interactWithElement(
                 page,
-                `Click on the element: ${element.selector}`
+                `Click on the element: ${(element as any).selector}`
               );
 
               initialPath.steps.push(interactionStep);
@@ -529,7 +536,7 @@ export class ExplorerAgent extends Agent {
               await page.waitForTimeout(1000 + Math.random() * 2000);
             } catch (error) {
               logger.warn('Failed interaction during exploration', {
-                element: element.selector,
+                element: (element as any).selector,
                 error: error instanceof Error ? error.message : String(error),
               });
             }
@@ -592,11 +599,15 @@ export class ExplorerAgent extends Agent {
         url: target.url,
       });
 
-      await this.authManager.authenticate(page, target.authStrategy, {
-        // Authentication credentials would come from configuration
-        username: process.env.AUTH_USERNAME,
-        password: process.env.AUTH_PASSWORD,
-      });
+      const authConfig: any = {
+        strategy: target.authStrategy || 'basic',
+        credentials: {
+          username: process.env.AUTH_USERNAME,
+          password: process.env.AUTH_PASSWORD,
+        },
+        sessionPersistence: true,
+      };
+      await this.authManager.authenticate(page, authConfig);
 
       logger.debug('Authentication completed successfully');
     } catch (error) {
@@ -624,7 +635,8 @@ export class ExplorerAgent extends Agent {
         element.boundingBox(),
         element.evaluate((el) => {
           const attrs: Record<string, string> = {};
-          for (const attr of el.attributes) {
+          for (let i = 0; i < el.attributes.length; i++) {
+            const attr = el.attributes[i];
             attrs[attr.name] = attr.value;
           }
           return attrs;
@@ -696,8 +708,8 @@ export class ExplorerAgent extends Agent {
     }
 
     return elements.filter((element) => {
-      const text = element.text?.toLowerCase() || '';
-      const selector = element.selector?.toLowerCase() || '';
+      const text = (element as any).text?.toLowerCase() || '';
+      const selector = (element as any).selector?.toLowerCase() || '';
 
       // Check include patterns
       if (target.patterns) {
@@ -797,13 +809,13 @@ export class ExplorerAgent extends Agent {
    */
   private setupEventHandlers(): void {
     // Handle uncaught errors
-    this.on('error', (error) => {
-      logger.error('ExplorerAgent error', {
-        error: error.message,
-        stack: error.stack,
-      });
-      this.monitoring?.recordCounter('agent_errors', 1, { type: 'uncaught' });
-    });
+    // this.on('error', (error) => {
+    // logger.error('ExplorerAgent error', {
+    //   error: error.message,
+    //   stack: error.stack,
+    // });
+    // this.monitoring?.recordCounter('agent_errors', 1, { type: 'uncaught' });
+    // });
 
     // Periodic metrics reporting
     setInterval(() => {

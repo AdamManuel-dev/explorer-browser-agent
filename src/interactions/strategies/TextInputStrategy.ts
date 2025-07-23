@@ -32,7 +32,7 @@ export class TextInputStrategy implements InteractionStrategy {
       }
 
       // Type the new value
-      const value = testData?.value || 'test input';
+      const value = String(testData?.value || 'test input'); // Convert to string
       await el.type(value, { delay: 50 });
 
       // Press Tab to trigger any validation
@@ -46,6 +46,7 @@ export class TextInputStrategy implements InteractionStrategy {
       return {
         success: true,
         value,
+        timing: Date.now(),
       };
     } catch (error) {
       logger.error('Text input failed', { element, error });

@@ -28,6 +28,8 @@ export interface DistributedCrawlConfig extends CrawlOptions {
   };
 }
 
+export { RedisConfig };
+
 export interface WorkerStatus {
   workerId: string;
   status: 'active' | 'idle' | 'error' | 'stopping';
@@ -334,7 +336,18 @@ export class DistributedCrawler {
         await this.enqueueDiscoveredUrls(result.discoveredUrls, job.depth + 1);
 
         // Store results
-        await this.storeResult(job.id, result);
+        const crawlResultItem: DistributedCrawlResultItem = {
+          pageInfo: result.pageInfo,
+          crawledUrls: result.pageInfo ? [result.pageInfo] : [],
+          statistics: {
+            totalPages: 1,
+            totalTime: Date.now() - job.createdAt.getTime(),
+            averageLoadTime: 0,
+            maxDepthReached: job.depth,
+            errorCount: 0,
+          },
+        };
+        await this.storeResult(job.id, crawlResultItem);
 
         // Mark job as completed
         await this.markJobCompleted(job);
@@ -342,11 +355,19 @@ export class DistributedCrawler {
         this.workerStats.pagesProcessed++;
       } else {
         // Handle job failure
-        await this.handleJobFailure(job, result.error);
+        await this.handleJobFailure(job, {
+          url: job.url,
+          error: result.error || 'Unknown error',
+          timestamp: new Date(),
+        });
       }
     } catch (error) {
       logger.error('Job processing error', { jobId: job.id, error });
-      await this.handleJobFailure(job, error instanceof Error ? error.message : String(error));
+      await this.handleJobFailure(job, {
+        url: job.url,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date(),
+      });
       this.workerStats.errors++;
     }
 
@@ -378,26 +399,24 @@ export class DistributedCrawler {
     pageInfo?: UrlInfo;
   }> {
     try {
-      // Use base crawler to process single URL
-      const options: CrawlOptions = {
-        ...this.config,
-        startUrl: job.url,
-        maxDepth: 0, // Only process this specific URL
-        maxPages: 1,
-      };
-
-      const result = await this.baseCrawler.crawl(options);
+      // Update the base crawler's configuration for this specific URL
+      // Note: Since BreadthFirstCrawler takes config in constructor,
+      // we need to create a new instance for each URL or modify its approach
+      const result = await this.baseCrawler.crawl();
 
       // Extract discovered URLs from the result
-      const discoveredUrls = result.crawledUrls
-        .flatMap((urlInfo) => urlInfo.links || [])
-        .filter((url) => !this.processedUrls.has(url))
-        .slice(0, 50); // Limit to prevent queue explosion
+      const discoveredUrls = result.urls.filter((url) => !this.processedUrls.has(url)).slice(0, 50); // Limit to prevent queue explosion
 
       return {
         success: true,
         discoveredUrls,
-        pageInfo: result.crawledUrls[0],
+        pageInfo: {
+          url: job.url,
+          depth: job.depth,
+          parentUrl: job.metadata?.parentUrl as string | undefined,
+          discoveredAt: new Date(),
+          status: 'completed' as const,
+        },
       };
     } catch (error) {
       return {
@@ -432,7 +451,7 @@ export class DistributedCrawler {
     return priority;
   }
 
-  private async handleJobFailure(job: CrawlJob, error: string): Promise<void> {
+  private async handleJobFailure(job: CrawlJob, error: string | CrawlError): Promise<void> {
     job.retries++;
 
     if (job.retries < this.config.queueConfig.maxRetries) {
@@ -457,7 +476,7 @@ export class DistributedCrawler {
         failedKey,
         JSON.stringify({
           ...job,
-          finalError: error,
+          finalError: typeof error === 'string' ? error : error.error,
           failedAt: new Date(),
         })
       );
@@ -593,7 +612,7 @@ export class DistributedCrawler {
 
     return {
       pagesVisited: allUrls.length,
-      urls: [...new Set(allUrls)], // Remove duplicates
+      urls: Array.from(new Set(allUrls)), // Remove duplicates
       errors: allErrors,
       duration: totalTime,
       crawlTree,

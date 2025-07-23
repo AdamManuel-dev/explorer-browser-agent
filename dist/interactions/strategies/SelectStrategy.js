@@ -17,7 +17,7 @@ class SelectStrategy {
             // Determine value to select
             let valueToSelect;
             if (testData?.value) {
-                valueToSelect = testData.value;
+                valueToSelect = String(testData.value); // Convert to string
             }
             else if (availableOptions.length > 0) {
                 // Select a random option (skip first if it's a placeholder)
@@ -41,6 +41,7 @@ class SelectStrategy {
             return {
                 success: true,
                 value: valueToSelect,
+                timing: Date.now(),
             };
         }
         catch (error) {

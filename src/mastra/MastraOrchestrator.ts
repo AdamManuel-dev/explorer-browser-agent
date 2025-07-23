@@ -1,4 +1,4 @@
-import { MastraEngine } from '@mastra/core';
+import { Mastra } from '@mastra/core';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
 import { MonitoringService } from '../monitoring';
@@ -12,6 +12,7 @@ import {
   ExplorationTarget,
   ExplorationWorkflowInput,
   ExplorationWorkflowOutput,
+  AgentMetrics,
 } from './types';
 
 export interface MastraOrchestratorConfig {
@@ -74,7 +75,7 @@ export interface ExplorationSession {
 }
 
 export class MastraOrchestrator {
-  private mastraEngine: MastraEngine;
+  private mastraEngine: Mastra;
 
   private workflowEngine: WorkflowEngine;
 
@@ -96,11 +97,7 @@ export class MastraOrchestrator {
     this.configManager = config.configManager;
 
     // Initialize Mastra engine
-    this.mastraEngine = new MastraEngine({
-      name: 'BrowserExplorer',
-      version: '1.0.0',
-      description: 'AI-powered web exploration and test generation platform',
-    });
+    this.mastraEngine = new Mastra({});
 
     // Initialize workflow engine
     this.workflowEngine = new WorkflowEngine({
@@ -135,7 +132,7 @@ export class MastraOrchestrator {
       this.workflowEngine.registerWorkflow('exploration', this.explorationWorkflow);
 
       // Start the engines
-      await this.mastraEngine.start();
+      // Mastra instance doesn't require explicit start
       await this.workflowEngine.start();
 
       logger.info('Mastra orchestrator initialized successfully');
@@ -713,7 +710,7 @@ export class MastraOrchestrator {
 
       // Shutdown engines
       await this.workflowEngine.stop();
-      await this.mastraEngine.stop();
+      // Mastra instance doesn't require explicit stop
 
       logger.info('Mastra orchestrator shutdown completed');
     } catch (error) {

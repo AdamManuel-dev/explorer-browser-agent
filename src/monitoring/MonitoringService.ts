@@ -397,6 +397,11 @@ export class MonitoringService extends EventEmitter {
     span.tags[key] = value;
   }
 
+  // Alias for finishSpan to maintain compatibility
+  endSpan(spanId: string, tags?: Record<string, unknown>): void {
+    this.finishSpan(spanId, tags);
+  }
+
   // Crawl-specific metrics tracking
   trackPageRequest(
     url: string,

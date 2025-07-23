@@ -30,6 +30,7 @@ export class RadioStrategy implements InteractionStrategy {
         return {
           success: true,
           value: (await el.getAttribute('value')) || 'selected',
+          timing: Date.now(),
         };
       }
 
@@ -60,6 +61,7 @@ export class RadioStrategy implements InteractionStrategy {
       return {
         success: true,
         value: value || 'selected',
+        timing: Date.now(),
       };
     } catch (error) {
       logger.error('Radio button interaction failed', { element, error });

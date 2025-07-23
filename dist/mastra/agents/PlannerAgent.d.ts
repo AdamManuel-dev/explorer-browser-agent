@@ -1,4 +1,4 @@
-import { Agent } from '@mastra/core';
+import { Agent } from '@mastra/core/agent';
 import { MonitoringService } from '../../monitoring';
 import { ConfigManager } from '../../config';
 import { ExplorationTarget, CrawlPlan, AgentCapabilities, AgentMetrics } from '../types';

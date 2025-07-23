@@ -30,7 +30,8 @@ class MultiSelectStrategy {
             });
             return {
                 success: true,
-                value: valuesToSelect,
+                value: valuesToSelect.join(','), // Convert array to string
+                timing: Date.now(),
             };
         }
         catch (error) {

@@ -20,6 +20,7 @@ class RadioStrategy {
                 return {
                     success: true,
                     value: (await el.getAttribute('value')) || 'selected',
+                    timing: Date.now(),
                 };
             }
             // Find all radio buttons in the same group
@@ -43,6 +44,7 @@ class RadioStrategy {
             return {
                 success: true,
                 value: value || 'selected',
+                timing: Date.now(),
             };
         }
         catch (error) {

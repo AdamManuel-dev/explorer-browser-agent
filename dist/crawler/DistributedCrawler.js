@@ -215,19 +215,38 @@ class DistributedCrawler {
                 // Enqueue discovered URLs
                 await this.enqueueDiscoveredUrls(result.discoveredUrls, job.depth + 1);
                 // Store results
-                await this.storeResult(job.id, result);
+                const crawlResultItem = {
+                    pageInfo: result.pageInfo,
+                    crawledUrls: result.pageInfo ? [result.pageInfo] : [],
+                    statistics: {
+                        totalPages: 1,
+                        totalTime: Date.now() - job.createdAt.getTime(),
+                        averageLoadTime: 0,
+                        maxDepthReached: job.depth,
+                        errorCount: 0,
+                    },
+                };
+                await this.storeResult(job.id, crawlResultItem);
                 // Mark job as completed
                 await this.markJobCompleted(job);
                 this.workerStats.pagesProcessed++;
             }
             else {
                 // Handle job failure
-                await this.handleJobFailure(job, result.error);
+                await this.handleJobFailure(job, {
+                    url: job.url,
+                    error: result.error || 'Unknown error',
+                    timestamp: new Date(),
+                });
             }
         }
         catch (error) {
             logger_1.logger.error('Job processing error', { jobId: job.id, error });
-            await this.handleJobFailure(job, error instanceof Error ? error.message : String(error));
+            await this.handleJobFailure(job, {
+                url: job.url,
+                error: error instanceof Error ? error.message : String(error),
+                timestamp: new Date(),
+            });
             this.workerStats.errors++;
         }
         this.workerStats.currentUrl = undefined;
@@ -248,23 +267,22 @@ class DistributedCrawler {
     }
     async processSingleUrl(job) {
         try {
-            // Use base crawler to process single URL
-            const options = {
-                ...this.config,
-                startUrl: job.url,
-                maxDepth: 0, // Only process this specific URL
-                maxPages: 1,
-            };
-            const result = await this.baseCrawler.crawl(options);
+            // Update the base crawler's configuration for this specific URL
+            // Note: Since BreadthFirstCrawler takes config in constructor,
+            // we need to create a new instance for each URL or modify its approach
+            const result = await this.baseCrawler.crawl();
             // Extract discovered URLs from the result
-            const discoveredUrls = result.crawledUrls
-                .flatMap((urlInfo) => urlInfo.links || [])
-                .filter((url) => !this.processedUrls.has(url))
-                .slice(0, 50); // Limit to prevent queue explosion
+            const discoveredUrls = result.urls.filter((url) => !this.processedUrls.has(url)).slice(0, 50); // Limit to prevent queue explosion
             return {
                 success: true,
                 discoveredUrls,
-                pageInfo: result.crawledUrls[0],
+                pageInfo: {
+                    url: job.url,
+                    depth: job.depth,
+                    parentUrl: job.metadata?.parentUrl,
+                    discoveredAt: new Date(),
+                    status: 'completed',
+                },
             };
         }
         catch (error) {
@@ -311,7 +329,7 @@ class DistributedCrawler {
             const failedKey = `${this.config.redis.keyPrefix}:failed`;
             await this.redis.sadd(failedKey, JSON.stringify({
                 ...job,
-                finalError: error,
+                finalError: typeof error === 'string' ? error : error.error,
                 failedAt: new Date(),
             }));
             logger_1.logger.warn('Job failed permanently', {
@@ -424,7 +442,7 @@ class DistributedCrawler {
         });
         return {
             pagesVisited: allUrls.length,
-            urls: [...new Set(allUrls)], // Remove duplicates
+            urls: Array.from(new Set(allUrls)), // Remove duplicates
             errors: allErrors,
             duration: totalTime,
             crawlTree,

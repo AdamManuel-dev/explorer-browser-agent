@@ -450,7 +450,18 @@ export class SelfTestRunner {
     const testSession = {
       strategy: 'basic' as const,
       authenticated: true,
-      cookies: [{ name: 'test', value: 'value', domain: 'test.com', path: '/', expires: -1, httpOnly: false, secure: false, sameSite: 'Lax' as const }],
+      cookies: [
+        {
+          name: 'test',
+          value: 'value',
+          domain: 'test.com',
+          path: '/',
+          expires: -1,
+          httpOnly: false,
+          secure: false,
+          sameSite: 'Lax' as const,
+        },
+      ],
       localStorage: { testKey: 'testValue' },
       sessionStorage: {},
       metadata: { url: 'https://test.com', timestamp: new Date().toISOString() },
@@ -468,8 +479,19 @@ export class SelfTestRunner {
 
   private async testStealthMode(): Promise<Record<string, unknown>> {
     const stealth = new StealthMode({
-      fingerprinting: { spoofCanvas: true, spoofWebGL: true, spoofAudio: true, spoofTimezone: true, spoofLanguages: true },
-      timing: { humanLikeDelays: true, minDelay: 100, maxDelay: 500, typingSpeed: { min: 50, max: 150 } },
+      fingerprinting: {
+        spoofCanvas: true,
+        spoofWebGL: true,
+        spoofAudio: true,
+        spoofTimezone: true,
+        spoofLanguages: true,
+      },
+      timing: {
+        humanLikeDelays: true,
+        minDelay: 100,
+        maxDelay: 500,
+        typingSpeed: { min: 50, max: 150 },
+      },
     });
 
     // Test configuration
@@ -555,15 +577,15 @@ export class SelfTestRunner {
           </body>
         </html>
       `);
-      
+
       // Wait for content to be ready
       await page.waitForLoadState('domcontentloaded');
-      
+
       // Initialize the detector with the page
       await detector.initialize(page);
 
       const result = await detector.detectInteractiveElements(page);
-      const elements = result.elements;
+      const { elements } = result;
 
       if (elements.length < 4) {
         throw new Error(`Expected at least 4 elements, found ${elements.length}`);
@@ -599,12 +621,12 @@ export class SelfTestRunner {
           </body>
         </html>
       `);
-      
+
       // Wait for page to be fully loaded
       await page.waitForLoadState('networkidle');
 
       // Start recording with proper metadata
-      await recorder.startRecording(page, { name: 'test-recording' });
+      await recorder.startRecording(page, {});
 
       // Manually record interactions since automatic capture isn't implemented
       await recorder.recordInteraction(
@@ -669,7 +691,7 @@ export class SelfTestRunner {
       useAAAPattern: true,
       addComments: true,
       groupRelatedTests: true,
-      testNamingConvention: 'descriptive',
+      testNamingConvention: 'describe-it',
     });
 
     const mockUserPath = {
@@ -778,14 +800,7 @@ generation:
 
   private async testAuthenticationWorkflow(): Promise<Record<string, unknown>> {
     // Simplified auth test without actual browser interaction
-    const authManager = new MultiStrategyAuthManager({
-      strategies: {
-        basic: {
-          enabled: true,
-          loginUrl: 'https://httpbin.org/basic-auth/user/pass',
-        },
-      },
-    });
+    const authManager = new MultiStrategyAuthManager();
 
     // const sessionManager = new SessionManager({
     //   storage: { type: 'memory' },
@@ -916,7 +931,7 @@ generation:
       useAAAPattern: true,
       addComments: true,
       groupRelatedTests: true,
-      testNamingConvention: 'descriptive',
+      testNamingConvention: 'describe-it',
     });
 
     // Create a large mock path
@@ -997,7 +1012,7 @@ generation:
   private async initializeTestEnvironment(): Promise<void> {
     this.monitoring = new MonitoringService({
       enabled: true,
-      reporting: { 
+      reporting: {
         enabled: false,
         interval: 60000,
         includeSummary: true,

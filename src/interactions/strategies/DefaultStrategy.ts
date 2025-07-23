@@ -46,6 +46,7 @@ export class DefaultStrategy implements InteractionStrategy {
       return {
         success: true,
         value: 'interacted',
+        timing: Date.now(),
       };
     } catch (error) {
       logger.error('Default interaction failed', { element, error });

@@ -58,10 +58,10 @@ class TestDataGenerator {
         // Check attributes for hints
         const { attributes, metadata } = element;
         // Check name attribute
-        const name = attributes?.name?.toLowerCase() || '';
-        const id = attributes?.id?.toLowerCase() || '';
-        const placeholder = metadata?.placeholder?.toLowerCase() || '';
-        const label = metadata?.label?.toLowerCase() || '';
+        const name = String(attributes?.name || '').toLowerCase();
+        const id = String(attributes?.id || '').toLowerCase();
+        const placeholder = String(metadata?.placeholder || '').toLowerCase();
+        const label = String(metadata?.label || '').toLowerCase();
         const combined = `${name} ${id} ${placeholder} ${label}`;
         // Email patterns
         if (combined.includes('email') || combined.includes('e-mail')) {

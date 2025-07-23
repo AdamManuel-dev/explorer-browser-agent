@@ -39,6 +39,7 @@ class LinkStrategy {
             return {
                 success: true,
                 value: href || 'clicked',
+                timing: Date.now(),
             };
         }
         catch (error) {

@@ -3,22 +3,33 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RichTextEditorStrategy = void 0;
 class RichTextEditorStrategy {
     type = 'rich-text-editor';
-    async execute(context) {
-        const { element } = context;
+    async execute(element, context) {
+        const { page } = context;
+        const startTime = Date.now();
         try {
-            // Basic implementation - just click the rich text editor
-            await element.click();
+            // Locate the element
+            const el = await page.$(element.selector);
+            if (!el) {
+                throw new Error('Element not found');
+            }
+            // Perform the interaction
+            await el.click();
             return {
                 success: true,
-                message: 'Rich text editor clicked successfully',
+                value: 'clicked',
+                timing: Date.now() - startTime,
             };
         }
         catch (error) {
             return {
                 success: false,
-                message: `Failed to interact with rich text editor: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                timing: Date.now() - startTime,
             };
         }
+    }
+    async validate(element) {
+        return element.isEnabled && element.isVisible;
     }
 }
 exports.RichTextEditorStrategy = RichTextEditorStrategy;

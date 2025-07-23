@@ -31,6 +31,7 @@ class DefaultStrategy {
             return {
                 success: true,
                 value: 'interacted',
+                timing: Date.now(),
             };
         }
         catch (error) {

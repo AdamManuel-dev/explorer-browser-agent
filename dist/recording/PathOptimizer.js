@@ -34,7 +34,7 @@ class PathOptimizer {
             // Skip redundant waits
             if (current.type === 'wait' && next?.type === 'wait') {
                 // Combine consecutive waits
-                next.value = (current.value || 0) + (next.value || 0);
+                next.value = Number(current.value || 0) + Number(next.value || 0);
                 next.action = `Wait for ${next.value}ms`;
                 continue;
             }
@@ -58,7 +58,7 @@ class PathOptimizer {
                 current.element?.selector === next.element?.selector &&
                 next.timestamp - current.timestamp < 1000) {
                 // Combine the values
-                next.value = current.value + next.value;
+                next.value = String(current.value || '') + String(next.value || '');
                 next.action = `Type "${next.value}"`;
                 continue;
             }

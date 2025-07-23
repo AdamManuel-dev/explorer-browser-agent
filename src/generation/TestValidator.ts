@@ -158,7 +158,20 @@ export class TestValidator {
       type: 'test',
       metadata: {
         generatedAt: new Date(),
-        sourcePath: '',
+        sourcePath: {
+          id: 'generated',
+          name: 'Generated Test',
+          startUrl: '',
+          steps: [],
+          assertions: [],
+          duration: 0,
+          metadata: {
+            browser: 'chromium',
+            viewport: { width: 1280, height: 720 },
+            userAgent: '',
+          },
+          createdAt: new Date(),
+        },
         framework: this.framework,
         language: 'typescript',
         dependencies: [],
@@ -174,6 +187,8 @@ export class TestValidator {
     const tests: TestInfo[] = [];
     const selectors: SelectorInfo[] = [];
     const assertions: AssertionInfo[] = [];
+    const describe: TestInfo[] = [];
+    const hooks: string[] = [];
 
     let currentTest: TestInfo | null = null;
     let lineNumber = 0;
@@ -255,6 +270,8 @@ export class TestValidator {
       selectors,
       assertions,
       totalLines: lines.length,
+      describe,
+      hooks,
     };
   }
 
@@ -374,7 +391,7 @@ export class TestValidator {
     }
 
     // Check for duplicate selectors
-    for (const [selector, count] of selectorCounts) {
+    selectorCounts.forEach((count, selector) => {
       if (count > 3) {
         warnings.push({
           type: 'maintainability',
@@ -382,7 +399,7 @@ export class TestValidator {
           suggestion: 'Consider extracting to a page object or constant',
         });
       }
-    }
+    });
 
     return warnings;
   }
@@ -705,6 +722,8 @@ interface ParsedTestContent {
   selectors: SelectorInfo[];
   assertions: AssertionInfo[];
   totalLines: number;
+  describe: TestInfo[];
+  hooks: string[];
 }
 
 interface ImportInfo {

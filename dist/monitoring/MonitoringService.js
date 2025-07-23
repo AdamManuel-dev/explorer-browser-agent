@@ -209,6 +209,10 @@ class MonitoringService extends events_1.EventEmitter {
             return;
         span.tags[key] = value;
     }
+    // Alias for finishSpan to maintain compatibility
+    endSpan(spanId, tags) {
+        this.finishSpan(spanId, tags);
+    }
     // Crawl-specific metrics tracking
     trackPageRequest(url, success, responseTime, bytesDownloaded) {
         this.crawlMetrics.totalRequests++;

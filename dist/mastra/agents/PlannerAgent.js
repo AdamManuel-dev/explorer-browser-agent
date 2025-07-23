@@ -1,10 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PlannerAgent = void 0;
-const core_1 = require("@mastra/core");
+const agent_1 = require("@mastra/core/agent");
 const uuid_1 = require("uuid");
 const logger_1 = require("../../utils/logger");
-class PlannerAgent extends core_1.Agent {
+class PlannerAgent extends agent_1.Agent {
     monitoring;
     configManager;
     config;
@@ -13,9 +13,9 @@ class PlannerAgent extends core_1.Agent {
     planningHistory = new Map();
     constructor(config) {
         super({
+            id: 'planner-agent',
             name: 'PlannerAgent',
-            description: 'Intelligent crawl strategy planning and optimization agent',
-            version: '1.0.0',
+            instructions: 'Intelligent crawl strategy planning and optimization agent',
         });
         this.config = config;
         this.monitoring = config.monitoring;
@@ -569,6 +569,7 @@ class PlannerAgent extends core_1.Agent {
         return {
             avgResponseTime,
             successRate,
+            errorRate: 1 - successRate,
             bottlenecks,
             recommendations,
         };
@@ -628,13 +629,13 @@ class PlannerAgent extends core_1.Agent {
      * Set up event handlers
      */
     setupEventHandlers() {
-        this.on('error', (error) => {
-            logger_1.logger.error('PlannerAgent error', {
-                error: error.message,
-                stack: error.stack,
-            });
-            this.monitoring?.recordCounter('agent_errors', 1, { type: 'planner' });
-        });
+        // this.on('error', (error) => {
+        // logger.error('PlannerAgent error', {
+        //   error: error.message,
+        //   stack: error.stack,
+        // });
+        // this.monitoring?.recordCounter('agent_errors', 1, { type: 'planner' });
+        // });
         // Periodic cleanup of old plans
         setInterval(() => {
             this.cleanupOldPlans();

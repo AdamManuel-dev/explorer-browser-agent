@@ -17,6 +17,7 @@ export interface DistributedCrawlConfig extends CrawlOptions {
         resultSyncInterval: number;
     };
 }
+export { RedisConfig };
 export interface WorkerStatus {
     workerId: string;
     status: 'active' | 'idle' | 'error' | 'stopping';

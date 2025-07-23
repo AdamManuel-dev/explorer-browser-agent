@@ -141,6 +141,7 @@ export declare class MonitoringService extends EventEmitter {
     finishSpan(spanId: string, tags?: Record<string, unknown>): void;
     addSpanLog(spanId: string, level: 'info' | 'warn' | 'error' | 'debug', message: string, fields?: Record<string, unknown>): void;
     addSpanTag(spanId: string, key: string, value: unknown): void;
+    endSpan(spanId: string, tags?: Record<string, unknown>): void;
     trackPageRequest(url: string, success: boolean, responseTime: number, bytesDownloaded: number): void;
     trackCaptchaSolved(type: string, success: boolean, timeToSolve: number): void;
     trackAuthenticationAttempt(strategy: string, success: boolean): void;

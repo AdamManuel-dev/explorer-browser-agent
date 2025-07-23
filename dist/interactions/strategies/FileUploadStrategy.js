@@ -48,7 +48,7 @@ class FileUploadStrategy {
                 throw new Error('Element not found');
             }
             // Prepare test file
-            const testFilePath = await this.prepareTestFile(testData?.value);
+            const testFilePath = await this.prepareTestFile(typeof testData?.value === 'string' ? testData.value : undefined);
             // Add delay if specified
             if (options?.delay) {
                 await page.waitForTimeout(options.delay);
@@ -62,6 +62,7 @@ class FileUploadStrategy {
             return {
                 success: true,
                 value: testFilePath,
+                timing: Date.now(),
             };
         }
         catch (error) {

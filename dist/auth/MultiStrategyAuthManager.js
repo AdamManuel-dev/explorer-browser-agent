@@ -50,7 +50,7 @@ class MultiStrategyAuthManager {
                     usernameField: 'input[name="username"]',
                     passwordField: 'input[name="password"]',
                     submitButton: 'button[type="submit"]',
-                }
+                },
             };
         }
     }

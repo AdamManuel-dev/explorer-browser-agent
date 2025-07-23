@@ -216,6 +216,16 @@ class InteractionExecutor {
                 }
                 return items;
             }),
+            sessionStorage: await this.page.evaluate(() => {
+                const items = {};
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    if (key) {
+                        items[key] = sessionStorage.getItem(key) || '';
+                    }
+                }
+                return items;
+            }),
             cookies: await this.page.context().cookies(),
         };
     }
@@ -248,8 +258,8 @@ class InteractionExecutor {
         if (JSON.stringify(before.cookies) !== JSON.stringify(after.cookies)) {
             changes.push({
                 type: 'cookie',
-                before: before.cookies,
-                after: after.cookies,
+                before: JSON.stringify(before.cookies),
+                after: JSON.stringify(after.cookies),
                 timing: Date.now(),
             });
         }

@@ -1,4 +1,4 @@
-import { Agent } from '@mastra/core';
+import { Agent } from '@mastra/core/agent';
 import { Page } from 'playwright';
 import { MonitoringService } from '../../monitoring';
 import { StealthMode } from '../../stealth';

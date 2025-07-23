@@ -64,7 +64,7 @@ export class ResilientCrawler {
   private failureCount = 0;
 
   private lastFailure?: Date;
-  
+
   private healthCheckInterval?: NodeJS.Timeout;
 
   private problematicDomains = new Set<string>();
@@ -84,12 +84,12 @@ export class ResilientCrawler {
       startUrl: this.options.startUrl,
       maxDepth: this.options.maxDepth,
       maxPages: this.options.maxPages,
-      crawlDelay: this.options.crawlDelay || this.options.delay || 1000,
+      crawlDelay: this.options.crawlDelay || 1000,
       allowedDomains: this.options.allowedDomains,
-      respectRobotsTxt: this.options.respectRobotsTxt || this.options.respectRobots || false,
+      respectRobotsTxt: this.options.respectRobotsTxt || false,
       userAgent: this.options.userAgent,
       customHeaders: this.options.customHeaders,
-      parallelWorkers: this.options.parallelWorkers || this.options.maxConcurrency || 5,
+      parallelWorkers: this.options.parallelWorkers || 5,
     };
     this.baseCrawler = new BreadthFirstCrawler(crawlConfig);
 
@@ -267,7 +267,7 @@ export class ResilientCrawler {
     // Apply fallback strategies
     if (this.options.fallbackStrategies.reduceParallelism && this.failureCount > 0) {
       // Reduce parallelism when failures occur
-      preparedOptions.maxConcurrency = Math.max(1, (preparedOptions.maxConcurrency || 3) / 2);
+      preparedOptions.parallelWorkers = Math.max(1, (preparedOptions.parallelWorkers || 3) / 2);
     }
 
     // Skip problematic domains
@@ -297,8 +297,8 @@ export class ResilientCrawler {
       name: 'reduced-parallelism',
       options: {
         ...options,
-        maxConcurrency: 1,
-        delay: Math.max(options.delay || 1000, 2000),
+        parallelWorkers: 1,
+        crawlDelay: Math.max(options.crawlDelay || 1000, 2000),
       },
     });
 
@@ -312,7 +312,7 @@ export class ResilientCrawler {
         options: {
           ...options,
           userAgent: randomUserAgent,
-          delay: Math.max(options.delay || 1000, 1500),
+          crawlDelay: Math.max(options.crawlDelay || 1000, 1500),
         },
       });
     }
@@ -324,8 +324,8 @@ export class ResilientCrawler {
         ...options,
         maxDepth: Math.min(options.maxDepth, 2),
         maxPages: Math.min(options.maxPages, 20),
-        delay: Math.max(options.delay || 1000, 3000),
-        maxConcurrency: 1,
+        crawlDelay: Math.max(options.crawlDelay || 1000, 3000),
+        parallelWorkers: 1,
       },
     });
 
@@ -427,10 +427,11 @@ export class ResilientCrawler {
       startUrl: options.startUrl || '',
       maxDepth: options.maxDepth || 3,
       maxPages: options.maxPages || 100,
-      delay: options.delay || 1000,
-      respectRobots: options.respectRobots ?? true,
-      sameDomain: options.sameDomain ?? true,
-      maxConcurrency: options.maxConcurrency || 3,
+      crawlDelay: options.crawlDelay || 1000,
+      respectRobotsTxt: options.respectRobotsTxt ?? true,
+      allowedDomains: options.allowedDomains || [],
+      userAgent: options.userAgent || 'Mozilla/5.0 (compatible; BrowserExplorer/1.0)',
+      parallelWorkers: options.parallelWorkers || 3,
 
       // Circuit breaker configuration
       circuitBreaker: {

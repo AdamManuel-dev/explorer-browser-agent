@@ -47,7 +47,8 @@ export class MultiSelectStrategy implements InteractionStrategy {
 
       return {
         success: true,
-        value: valuesToSelect,
+        value: valuesToSelect.join(','), // Convert array to string
+        timing: Date.now(),
       };
     } catch (error) {
       logger.error('Multi-select interaction failed', { element, error });

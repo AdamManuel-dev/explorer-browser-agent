@@ -28,7 +28,7 @@ export class SelectStrategy implements InteractionStrategy {
       // Determine value to select
       let valueToSelect: string;
       if (testData?.value) {
-        valueToSelect = testData.value;
+        valueToSelect = String(testData.value); // Convert to string
       } else if (availableOptions.length > 0) {
         // Select a random option (skip first if it's a placeholder)
         const startIndex = availableOptions[0]?.value === '' ? 1 : 0;
@@ -55,6 +55,7 @@ export class SelectStrategy implements InteractionStrategy {
       return {
         success: true,
         value: valueToSelect,
+        timing: Date.now(),
       };
     } catch (error) {
       logger.error('Select interaction failed', { element, error });

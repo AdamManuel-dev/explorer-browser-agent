@@ -1,4 +1,5 @@
 "use strict";
+/* eslint-disable max-classes-per-file */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TestStructureRule = exports.AssertionQualityRule = exports.SelectorStabilityRule = exports.PlaywrightBestPracticesRule = void 0;
 class PlaywrightBestPracticesRule {

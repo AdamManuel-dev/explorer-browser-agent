@@ -34,6 +34,7 @@ class CheckboxStrategy {
             return {
                 success: true,
                 value: finalState,
+                timing: Date.now(),
             };
         }
         catch (error) {

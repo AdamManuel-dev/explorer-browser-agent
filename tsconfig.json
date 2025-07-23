@@ -26,5 +26,5 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/__tests__/**/*", "**/tests/**/*", "src/crawler/DistributedCrawler.ts", "src/crawler/ResilientCrawler.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/__tests__/**/*", "**/tests/**/*"]
 }

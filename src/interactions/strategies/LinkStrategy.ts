@@ -56,6 +56,7 @@ export class LinkStrategy implements InteractionStrategy {
       return {
         success: true,
         value: href || 'clicked',
+        timing: Date.now(),
       };
     } catch (error) {
       logger.error('Link click failed', { element, error });

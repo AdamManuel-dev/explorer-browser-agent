@@ -249,8 +249,8 @@ class TestReporter {
         });
         userPaths.forEach((userPath) => {
             userPath.steps.forEach((step) => {
-                if (step.selector) {
-                    coveredSelectors.add(step.selector);
+                if (step.element?.selector) {
+                    coveredSelectors.add(step.element.selector);
                 }
             });
         });
@@ -268,11 +268,16 @@ class TestReporter {
         const allPages = new Set();
         const coveredPages = new Set();
         userPaths.forEach((userPath) => {
-            allPages.add(path.startUrl);
+            allPages.add(userPath.startUrl);
+            if (userPath.endUrl) {
+                allPages.add(userPath.endUrl);
+                coveredPages.add(userPath.endUrl);
+            }
+            // Navigation steps might contain URLs in their value
             userPath.steps.forEach((step) => {
-                if (step.url) {
-                    allPages.add(step.url);
-                    coveredPages.add(step.url);
+                if (step.type === 'navigation' && typeof step.value === 'string') {
+                    allPages.add(step.value);
+                    coveredPages.add(step.value);
                 }
             });
         });
@@ -327,20 +332,20 @@ class TestReporter {
         let totalSize = 0;
         for (const userPath of userPaths) {
             for (const step of userPath.steps) {
-                if (step.screenshotPath) {
+                if (step.screenshot) {
                     try {
-                        const stats = await fs.stat(step.screenshotPath);
+                        const stats = await fs.stat(step.screenshot);
                         const screenshot = {
-                            filename: path.basename(step.screenshotPath),
+                            filename: path.basename(step.screenshot),
                             size: stats.size,
-                            timestamp: step.timestamp,
-                            testFile: `${path.title}.spec.ts`,
+                            timestamp: new Date(step.timestamp),
+                            testFile: `${userPath.name}.spec.ts`,
                         };
                         screenshots.push(screenshot);
                         totalSize += stats.size;
                     }
                     catch (error) {
-                        logger_1.logger.warn('Screenshot file not found', { path: step.screenshotPath });
+                        logger_1.logger.warn('Screenshot file not found', { path: step.screenshot });
                     }
                 }
             }

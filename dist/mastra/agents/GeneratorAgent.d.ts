@@ -1,6 +1,7 @@
-import { Agent } from '@mastra/core';
+import { Agent } from '@mastra/core/agent';
 import { MonitoringService } from '../../monitoring';
-import { TestGenerationRequest, TestGenerationResult, UserPath, AgentCapabilities, AgentMetrics } from '../types';
+import { TestGenerationRequest, TestGenerationResult, AgentCapabilities, AgentMetrics } from '../types';
+import { UserPath } from '../../types/recording';
 export interface GeneratorAgentConfig {
     monitoring?: MonitoringService;
     outputDirectory?: string;

@@ -75,7 +75,7 @@ export class ExplorationWorkflow extends Workflow<
 
   private monitoring?: MonitoringService;
 
-  private config: ExplorationWorkflowConfig;
+  private workflowConfig: ExplorationWorkflowConfig;
 
   constructor(config: ExplorationWorkflowConfig) {
     super({
@@ -85,7 +85,7 @@ export class ExplorationWorkflow extends Workflow<
       version: '1.0.0',
     });
 
-    this.config = config;
+    this.workflowConfig = config;
     this.monitoring = config.monitoring;
 
     // Initialize agents
@@ -153,7 +153,7 @@ export class ExplorationWorkflow extends Workflow<
       });
 
       // Create workflow context
-      const context: WorkflowContext = {
+      const context: any = {
         sessionId,
         input,
         output: {
@@ -180,7 +180,7 @@ export class ExplorationWorkflow extends Workflow<
       await this.executeStep('plan', context);
       await this.executeStep('explore', context);
 
-      if (this.config.enableTestGeneration && input.testGenerationOptions) {
+      if (this.workflowConfig.enableTestGeneration && input.testGenerationOptions) {
         await this.executeStep('generate', context);
       }
 
@@ -213,7 +213,7 @@ export class ExplorationWorkflow extends Workflow<
       this.monitoring?.recordCounter('workflow_errors', 1);
 
       // Try to handle the error gracefully
-      const context: WorkflowContext = {
+      const context: any = {
         sessionId,
         input,
         output: {
@@ -247,7 +247,7 @@ export class ExplorationWorkflow extends Workflow<
   /**
    * Step 1: Initialize workflow context
    */
-  private async initializeWorkflow(context: WorkflowContext): Promise<void> {
+  private async initializeWorkflow(context: any): Promise<void> {
     const spanId = this.monitoring?.startSpan('workflow_initialize');
 
     try {
@@ -266,8 +266,8 @@ export class ExplorationWorkflow extends Workflow<
       // Initialize custom context properties
       const customContext = context as CustomWorkflowContext;
       customContext.config = {
-        browserbase: this.config.browserbase,
-        stagehand: this.config.stagehand,
+        browserbase: this.workflowConfig.browserbase,
+        stagehand: this.workflowConfig.stagehand,
       };
       customContext.targets = (context.input as ExplorationWorkflowInput).targets;
       customContext.results = [];
@@ -303,7 +303,7 @@ export class ExplorationWorkflow extends Workflow<
   /**
    * Step 2: Create exploration plan
    */
-  private async createExplorationPlan(context: WorkflowContext): Promise<void> {
+  private async createExplorationPlan(context: any): Promise<void> {
     const spanId = this.monitoring?.startSpan('workflow_plan');
 
     try {
@@ -353,7 +353,7 @@ export class ExplorationWorkflow extends Workflow<
   /**
    * Step 3: Execute exploration
    */
-  private async executeExploration(context: WorkflowContext): Promise<void> {
+  private async executeExploration(context: any): Promise<void> {
     const spanId = this.monitoring?.startSpan('workflow_explore');
 
     try {
@@ -393,7 +393,9 @@ export class ExplorationWorkflow extends Workflow<
       output.metadata.successRate =
         explorationResults.length > 0 ? successfulExplorations / explorationResults.length : 0;
 
-      context.metadata.currentStep = this.config.enableTestGeneration ? 'generate' : 'finalize';
+      context.metadata.currentStep = this.workflowConfig.enableTestGeneration
+        ? 'generate'
+        : 'finalize';
 
       logger.info('Exploration execution completed', {
         sessionId: context.sessionId,
@@ -417,7 +419,7 @@ export class ExplorationWorkflow extends Workflow<
   /**
    * Step 4: Generate tests (optional)
    */
-  private async generateTests(context: WorkflowContext): Promise<void> {
+  private async generateTests(context: any): Promise<void> {
     const spanId = this.monitoring?.startSpan('workflow_generate');
 
     try {
@@ -457,7 +459,7 @@ export class ExplorationWorkflow extends Workflow<
           generatePageObjects: input.testGenerationOptions.generatePageObjects,
           generateFixtures: input.testGenerationOptions.generateFixtures,
           generateHelpers: input.testGenerationOptions.generateHelpers,
-          outputDirectory: this.config.outputDirectory || './generated-tests',
+          outputDirectory: this.workflowConfig.outputDirectory || './generated-tests',
         },
       };
 
@@ -499,7 +501,7 @@ export class ExplorationWorkflow extends Workflow<
   /**
    * Step 5: Finalize workflow
    */
-  private async finalizeWorkflow(context: WorkflowContext): Promise<void> {
+  private async finalizeWorkflow(context: any): Promise<void> {
     const spanId = this.monitoring?.startSpan('workflow_finalize');
 
     try {
@@ -544,7 +546,7 @@ export class ExplorationWorkflow extends Workflow<
   /**
    * Handle workflow errors
    */
-  private async handleWorkflowError(context: WorkflowContext): Promise<void> {
+  private async handleWorkflowError(context: any): Promise<void> {
     try {
       logger.info('Handling workflow error', {
         sessionId: context.sessionId,

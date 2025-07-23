@@ -1,5 +1,5 @@
 import { UserPath, InteractionStep } from '../types/recording';
-import { PageObject, PageSelector, PageAction, TestFile } from '../types/generation';
+import { PageObject, PageSelector, PageAction, PageAssertion, TestFile } from '../types/generation';
 import { InteractiveElement } from '../types/elements';
 import { logger } from '../utils/logger';
 
@@ -311,11 +311,11 @@ export class PageObjectGenerator {
   private generateSelectorName(element: InteractiveElement): string {
     // Try to generate from element properties
     if (element.attributes.id) {
-      return this.toCamelCase(element.attributes.id);
+      return this.toCamelCase(String(element.attributes.id));
     }
 
     if (element.attributes.name) {
-      return this.toCamelCase(element.attributes.name);
+      return this.toCamelCase(String(element.attributes.name));
     }
 
     if (element.text) {
@@ -328,7 +328,7 @@ export class PageObjectGenerator {
 
   private generateParameterName(element: InteractiveElement): string {
     if (element.attributes.name) {
-      return this.toCamelCase(element.attributes.name);
+      return this.toCamelCase(String(element.attributes.name));
     }
 
     if (element.metadata?.label) {

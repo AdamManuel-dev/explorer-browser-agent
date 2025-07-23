@@ -20,7 +20,7 @@ class TextInputStrategy {
                 await page.waitForTimeout(options.delay);
             }
             // Type the new value
-            const value = testData?.value || 'test input';
+            const value = String(testData?.value || 'test input'); // Convert to string
             await el.type(value, { delay: 50 });
             // Press Tab to trigger any validation
             await page.keyboard.press('Tab');
@@ -31,6 +31,7 @@ class TextInputStrategy {
             return {
                 success: true,
                 value,
+                timing: Date.now(),
             };
         }
         catch (error) {

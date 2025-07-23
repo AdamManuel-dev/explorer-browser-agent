@@ -49,7 +49,7 @@ export declare class ExplorationWorkflow extends Workflow<ExplorationWorkflowInp
     private plannerAgent;
     private generatorAgent;
     private monitoring?;
-    private config;
+    private workflowConfig;
     constructor(config: ExplorationWorkflowConfig);
     /**
      * Define the workflow steps

@@ -99,7 +99,20 @@ class TestValidator {
             type: 'test',
             metadata: {
                 generatedAt: new Date(),
-                sourcePath: '',
+                sourcePath: {
+                    id: 'generated',
+                    name: 'Generated Test',
+                    startUrl: '',
+                    steps: [],
+                    assertions: [],
+                    duration: 0,
+                    metadata: {
+                        browser: 'chromium',
+                        viewport: { width: 1280, height: 720 },
+                        userAgent: '',
+                    },
+                    createdAt: new Date(),
+                },
                 framework: this.framework,
                 language: 'typescript',
                 dependencies: [],
@@ -113,6 +126,8 @@ class TestValidator {
         const tests = [];
         const selectors = [];
         const assertions = [];
+        const describe = [];
+        const hooks = [];
         let currentTest = null;
         let lineNumber = 0;
         for (const line of lines) {
@@ -185,6 +200,8 @@ class TestValidator {
             selectors,
             assertions,
             totalLines: lines.length,
+            describe,
+            hooks,
         };
     }
     async validateSyntax(testFile) {
@@ -290,7 +307,7 @@ class TestValidator {
             }
         }
         // Check for duplicate selectors
-        for (const [selector, count] of selectorCounts) {
+        selectorCounts.forEach((count, selector) => {
             if (count > 3) {
                 warnings.push({
                     type: 'maintainability',
@@ -298,7 +315,7 @@ class TestValidator {
                     suggestion: 'Consider extracting to a page object or constant',
                 });
             }
-        }
+        });
         return warnings;
     }
     validateAssertions(parsed) {

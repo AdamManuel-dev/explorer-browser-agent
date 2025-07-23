@@ -257,10 +257,10 @@ class PageObjectGenerator {
     generateSelectorName(element) {
         // Try to generate from element properties
         if (element.attributes.id) {
-            return this.toCamelCase(element.attributes.id);
+            return this.toCamelCase(String(element.attributes.id));
         }
         if (element.attributes.name) {
-            return this.toCamelCase(element.attributes.name);
+            return this.toCamelCase(String(element.attributes.name));
         }
         if (element.text) {
             return this.toCamelCase(element.text) + this.capitalize(element.type);
@@ -270,7 +270,7 @@ class PageObjectGenerator {
     }
     generateParameterName(element) {
         if (element.attributes.name) {
-            return this.toCamelCase(element.attributes.name);
+            return this.toCamelCase(String(element.attributes.name));
         }
         if (element.metadata?.label) {
             return this.toCamelCase(element.metadata.label);
