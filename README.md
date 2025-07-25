@@ -268,20 +268,60 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## 📚 Documentation
 
-- [Architecture Overview](ARCHITECTURE.md) - System design and patterns
-- [API Reference](docs/api/README.md) - Detailed API documentation
-- [CLI Guide](docs/cli/README.md) - Command-line interface reference
-- [Configuration Guide](docs/configuration/README.md) - Configuration options
-- [Gap Analysis](GAP_ANALYSIS_REPORT.md) - Current vs planned features
+### 🚀 Getting Started
+- [**Getting Started Guide**](docs/guides/GETTING_STARTED.md) - Complete setup and first steps
+- [**Quick Examples**](docs/examples/) - Working code examples
+- [**Configuration Guide**](docs/guides/CONFIGURATION.md) - Setup and configuration
 
-## 🐛 Known Issues
+### 📖 Core Documentation  
+- [**Documentation Index**](docs/INDEX.md) - Complete documentation overview
+- [**API Reference**](docs/API.md) - All classes, interfaces, and functions
+- [**Architecture Overview**](ARCHITECTURE.md) - System design and patterns
+- [**Implementation Status**](TODO.md) - Current gaps and roadmap
 
-- AI agent classes are placeholder implementations (`as any` TypeScript bypasses)
-- Stagehand integration not yet implemented
-- Natural language features non-functional
-- Self-healing capabilities pending
+### 🏗️ Core Modules
+- [**Browser Agent**](docs/modules/browser-agent.md) - Core browser automation
+- [**Authentication System**](docs/modules/authentication.md) - Multi-strategy auth
+- [**AI Element Detection**](docs/modules/element-detection.md) - Element identification
+- [**Web Crawler**](docs/modules/crawler.md) - Systematic web exploration
+- [**Test Generation**](docs/modules/test-generation.md) - Automated test creation
 
-See [TODO.md](TODO.md) for the complete list of pending features.
+### 🔧 Development
+- [**Contributing Guide**](docs/guides/CONTRIBUTING.md) - How to contribute
+- [**Development Setup**](docs/guides/DEVELOPMENT.md) - Local development
+- [**Testing Guide**](docs/guides/TESTING.md) - Running and writing tests
+- [**Docker Guide**](docs/guides/DOCKER.md) - Containerization
+
+### 🎯 Advanced Topics
+- [**AI Integration**](docs/advanced/AI_INTEGRATION.md) - Mastra and AI workflows
+- [**Performance Optimization**](docs/advanced/PERFORMANCE.md) - Scaling and optimization
+- [**Security Guide**](docs/advanced/SECURITY.md) - Security best practices
+- [**Troubleshooting**](docs/TROUBLESHOOTING.md) - Common issues and solutions
+
+## 🐛 Known Issues & Implementation Status
+
+### 🔴 Critical Implementation Gaps
+- **Server Mode**: CLI advertises but not implemented (`src/cli/BrowserExplorerCLI.ts:334`)
+- **Authentication Setup**: CLI auth command exists but non-functional (`src/cli/BrowserExplorerCLI.ts:417`)
+- **Stagehand AI Integration**: Core AI detection completely disabled (`src/detectors/AIElementDetector.ts:23-28`)
+- **Test Generation**: Placeholder implementations for core features (`src/generation/TestGenerator.ts:497-507`)
+
+### 🟡 Partially Implemented
+- OAuth authentication flows (framework exists, needs provider implementations)
+- MFA support (basic structure, needs TOTP integration) 
+- Browser-Crawler integration (service architecture incomplete)
+- CLI debug commands (advertised but not functional)
+
+### ✅ Fully Functional
+- Basic browser automation and control
+- Username/password authentication
+- Selector-based element detection
+- Basic test generation templates
+- Configuration management
+- Session persistence
+- Docker infrastructure
+
+See [**Implementation Status Report**](TODO.md) for detailed analysis of all gaps, priorities, and planned fixes.
 
 ## 📈 Roadmap
 
@@ -319,5 +359,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p align="center">
   <a href="https://github.com/yourusername/browser-explorer/issues">Report Bug</a> •
   <a href="https://github.com/yourusername/browser-explorer/issues">Request Feature</a> •
-  <a href="docs/">Documentation</a>
+  <a href="docs/INDEX.md">Documentation</a>
 </p>

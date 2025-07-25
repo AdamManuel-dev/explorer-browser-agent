@@ -2,8 +2,15 @@ import { Page, Cookie } from 'playwright';
 import * as fs from 'fs/promises';
 import { logger } from '../utils/logger';
 
+/**
+ * Supported authentication strategies for web applications.
+ */
 export type AuthStrategy = 'basic' | 'oauth' | 'mfa' | 'api' | 'custom';
 
+/**
+ * Authentication credentials for various authentication strategies.
+ * Different strategies require different credential fields.
+ */
 export interface AuthCredentials {
   username?: string;
   password?: string;
@@ -16,6 +23,9 @@ export interface AuthCredentials {
   customFields?: Record<string, string>;
 }
 
+/**
+ * Configuration for authentication process including strategy, credentials, and options.
+ */
 export interface AuthConfig {
   strategy: AuthStrategy;
   loginUrl?: string;
@@ -27,6 +37,10 @@ export interface AuthConfig {
   customFlow?: (page: Page, credentials: AuthCredentials) => Promise<boolean>;
 }
 
+/**
+ * CSS selectors for authentication form elements.
+ * Used to locate and interact with login forms.
+ */
 export interface AuthSelectors {
   usernameField?: string;
   passwordField?: string;
@@ -39,6 +53,10 @@ export interface AuthSelectors {
   logoutButton?: string;
 }
 
+/**
+ * Represents an authenticated session with all associated data.
+ * Contains session tokens, cookies, and storage data.
+ */
 export interface AuthSession {
   strategy: AuthStrategy;
   authenticated: boolean;
@@ -51,6 +69,9 @@ export interface AuthSession {
   metadata: Record<string, string | number | boolean>;
 }
 
+/**
+ * Result of an authentication attempt with success status and session data.
+ */
 export interface AuthResult {
   success: boolean;
   session?: AuthSession;
@@ -59,11 +80,43 @@ export interface AuthResult {
   redirectUrl?: string;
 }
 
+/**
+ * Multi-strategy authentication manager supporting various authentication flows.
+ * Handles basic auth, OAuth, MFA, API tokens, and custom authentication strategies.
+ * Includes session persistence and automatic session restoration.
+ * 
+ * @example Basic authentication
+ * ```typescript
+ * const authManager = new MultiStrategyAuthManager();
+ * const result = await authManager.authenticate(page, {
+ *   strategy: 'basic',
+ *   loginUrl: 'https://example.com/login',
+ *   credentials: { username: 'user@example.com', password: 'password' },
+ *   sessionPersistence: true
+ * });
+ * 
+ * if (result.success) {
+ *   console.log('Authentication successful');
+ * }
+ * ```
+ * 
+ * @example OAuth authentication
+ * ```typescript
+ * const result = await authManager.authenticate(page, {
+ *   strategy: 'oauth',
+ *   credentials: { clientId: 'abc123', clientSecret: 'secret' },
+ *   sessionPersistence: true
+ * });
+ * ```
+ */
 export class MultiStrategyAuthManager {
   private currentSession: AuthSession | null = null;
 
   private defaultSelectors: Record<AuthStrategy, AuthSelectors>;
 
+  /**
+   * Creates a new MultiStrategyAuthManager with default selectors for common authentication patterns.
+   */
   constructor() {
     try {
       this.defaultSelectors = this.initializeDefaultSelectors();
@@ -79,6 +132,29 @@ export class MultiStrategyAuthManager {
     }
   }
 
+  /**
+   * Performs authentication using the specified strategy and configuration.
+   * Handles session restoration if enabled and validates existing sessions.
+   * 
+   * @param page - Playwright page instance for browser automation
+   * @param config - Authentication configuration including strategy and credentials
+   * @returns Promise resolving to authentication result with success status and session
+   * 
+   * @example
+   * ```typescript
+   * const result = await authManager.authenticate(page, {
+   *   strategy: 'basic',
+   *   loginUrl: 'https://app.example.com/login',
+   *   credentials: { username: 'user', password: 'pass' },
+   *   sessionPersistence: true,
+   *   timeout: 30000
+   * });
+   * 
+   * if (result.success && result.session) {
+   *   console.log('Logged in as:', result.session.userId);
+   * }
+   * ```
+   */
   async authenticate(page: Page, config: AuthConfig): Promise<AuthResult> {
     logger.info('Starting authentication', {
       strategy: config.strategy,
