@@ -218,6 +218,37 @@ export class AIElementDetectorV2 {
   private inferTypeFromDescription(description: string): ElementType {
     const lowerDesc = description.toLowerCase();
 
+    // Radio patterns (check before button to avoid conflict)
+    if (lowerDesc.includes('radio button') || (lowerDesc.includes('radio') && !lowerDesc.includes('button'))) {
+      return 'radio';
+    }
+
+    // Password input patterns (check before general input)
+    if (lowerDesc.includes('password')) {
+      return 'password-input';
+    }
+
+    // Email input patterns (check before general input)
+    if (lowerDesc.includes('email')) {
+      return 'email-input';
+    }
+
+    // Phone/tel input patterns (check before general input)
+    if (lowerDesc.includes('phone') || lowerDesc.includes('tel')) {
+      return 'tel-input';
+    }
+
+    // Number input patterns (check before general input)
+    if (lowerDesc.includes('number')) {
+      return 'number-input';
+    }
+
+    // File upload patterns (check before button patterns)
+    if ((lowerDesc.includes('file') && lowerDesc.includes('upload')) || 
+        lowerDesc.includes('file upload')) {
+      return 'file-upload';
+    }
+
     // Button patterns
     if (
       lowerDesc.includes('button') ||
@@ -232,14 +263,11 @@ export class AIElementDetectorV2 {
     if (
       lowerDesc.includes('input') ||
       lowerDesc.includes('text field') ||
+      lowerDesc.includes('field') ||
       lowerDesc.includes('search') ||
       lowerDesc.includes('enter') ||
       lowerDesc.includes('type')
     ) {
-      if (lowerDesc.includes('password')) return 'password-input';
-      if (lowerDesc.includes('email')) return 'email-input';
-      if (lowerDesc.includes('number')) return 'number-input';
-      if (lowerDesc.includes('phone') || lowerDesc.includes('tel')) return 'tel-input';
       return 'text-input';
     }
 
@@ -258,11 +286,6 @@ export class AIElementDetectorV2 {
       return 'checkbox';
     }
 
-    // Radio patterns (be more specific to avoid conflict with button)
-    if (lowerDesc.includes('radio button') || lowerDesc.includes('radio')) {
-      return 'radio';
-    }
-
     // Select/dropdown patterns
     if (
       lowerDesc.includes('dropdown') ||
@@ -273,10 +296,7 @@ export class AIElementDetectorV2 {
       return 'select';
     }
 
-    // File upload patterns
-    if (lowerDesc.includes('file') || lowerDesc.includes('upload')) {
-      return 'file-upload';
-    }
+    // This is now handled earlier in the function
 
     // Toggle/switch patterns
     if (lowerDesc.includes('toggle') || lowerDesc.includes('switch')) {
@@ -652,6 +672,297 @@ export class AIElementDetectorV2 {
       size: this.detectionCache.size,
       urls: Array.from(this.detectionCache.keys()),
     };
+  }
+
+  /**
+   * Self-adapting element detection for UI changes
+   * This method attempts to re-detect elements when their selectors fail
+   */
+  async adaptiveElementDetection(
+    page: Page,
+    previousElements: InteractiveElement[],
+    retryAttempts: number = 3
+  ): Promise<InteractiveElement[]> {
+    if (!this.stagehand) {
+      logger.warn('Stagehand not available for adaptive detection');
+      return [];
+    }
+
+    const adaptedElements: InteractiveElement[] = [];
+    const failedElements: InteractiveElement[] = [];
+
+    // First, try to find elements using their previous selectors
+    for (const element of previousElements) {
+      try {
+        const foundElement = await page.$(element.selector);
+        if (foundElement) {
+          // Element still exists, add it to adapted elements
+          const updatedElement = await this.createElementFromHandle(
+            foundElement,
+            element.type,
+            element.selector
+          );
+          if (updatedElement) {
+            adaptedElements.push(updatedElement);
+          }
+        } else {
+          // Element not found, mark for re-detection
+          failedElements.push(element);
+        }
+      } catch (error) {
+        logger.debug('Element selector failed', { selector: element.selector, error });
+        failedElements.push(element);
+      }
+    }
+
+    // For failed elements, use AI to find them based on their previous context
+    for (const failedElement of failedElements) {
+      let attempts = 0;
+      let found = false;
+
+      while (attempts < retryAttempts && !found) {
+        try {
+          // Build adaptive search instruction using previous element context
+          const context = failedElement.metadata?.context || '';
+          const elementText = failedElement.text || '';
+          const elementRole = failedElement.attributes?.role || '';
+          
+          const searchInstruction = this.buildAdaptiveSearchInstruction(
+            failedElement.type,
+            context,
+            elementText,
+            elementRole
+          );
+
+          logger.info('Attempting adaptive detection', {
+            originalSelector: failedElement.selector,
+            searchInstruction,
+            attempt: attempts + 1,
+          });
+
+          const result = await this.stagehand.observe({ instruction: searchInstruction });
+
+          if (result && result.length > 0) {
+            // Found potential replacement, validate it's similar to the original
+            const newElement = await this.createElementFromObservation(page, result[0]);
+            if (newElement && this.isElementSimilar(failedElement, newElement)) {
+              // Update the element with new selector but preserve original metadata
+              newElement.metadata = {
+                ...newElement.metadata,
+                ...failedElement.metadata,
+                adaptedFrom: failedElement.selector,
+                adaptationReason: 'UI change detected',
+                adaptationTimestamp: new Date().toISOString(),
+              };
+              adaptedElements.push(newElement);
+              found = true;
+              logger.info('Successfully adapted element', {
+                originalSelector: failedElement.selector,
+                newSelector: newElement.selector,
+              });
+            }
+          }
+        } catch (error) {
+          logger.debug('Adaptive detection attempt failed', { attempt: attempts + 1, error });
+        }
+        attempts++;
+      }
+
+      if (!found) {
+        logger.warn('Could not adapt element after retries', {
+          originalSelector: failedElement.selector,
+          attempts: retryAttempts,
+        });
+      }
+    }
+
+    return adaptedElements;
+  }
+
+  /**
+   * Build an AI search instruction for adaptive element detection
+   */
+  private buildAdaptiveSearchInstruction(
+    elementType: ElementType,
+    context: string,
+    text: string,
+    role: string
+  ): string {
+    const parts: string[] = [];
+
+    // Base instruction
+    parts.push(`Find a ${elementType.replace('-', ' ')} element`);
+
+    // Add text context if available
+    if (text) {
+      parts.push(`with text similar to "${text}"`);
+    }
+
+    // Add role context if available
+    if (role) {
+      parts.push(`with role "${role}"`);
+    }
+
+    // Add surrounding context if available
+    if (context) {
+      parts.push(`in the context of ${context}`);
+    }
+
+    // Add type-specific hints
+    switch (elementType) {
+      case 'button':
+        parts.push('that users can click to trigger actions');
+        break;
+      case 'text-input':
+        parts.push('where users can enter text');
+        break;
+      case 'link':
+        parts.push('that navigates to another page or section');
+        break;
+      case 'checkbox':
+        parts.push('that can be checked or unchecked');
+        break;
+      case 'select':
+        parts.push('where users can choose from options');
+        break;
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
+   * Check if two elements are similar enough to be considered the same
+   */
+  private isElementSimilar(original: InteractiveElement, candidate: InteractiveElement): boolean {
+    // Type must match
+    if (original.type !== candidate.type) {
+      return false;
+    }
+
+    // Check text similarity (allow some variation)
+    if (original.text && candidate.text) {
+      const textSimilarity = this.calculateTextSimilarity(original.text, candidate.text);
+      if (textSimilarity < 0.7) {
+        return false;
+      }
+    }
+
+    // Check position similarity (elements shouldn't move too far)
+    if (original.boundingBox && candidate.boundingBox) {
+      const positionDistance = Math.sqrt(
+        Math.pow(original.boundingBox.x - candidate.boundingBox.x, 2) +
+        Math.pow(original.boundingBox.y - candidate.boundingBox.y, 2)
+      );
+      // Allow up to 200 pixels of movement
+      if (positionDistance > 200) {
+        return false;
+      }
+    }
+
+    // Check attribute similarity
+    const criticalAttributes = ['type', 'name', 'id', 'class'];
+    let matchingAttributes = 0;
+    let totalAttributes = 0;
+
+    for (const attr of criticalAttributes) {
+      if (original.attributes[attr] || candidate.attributes[attr]) {
+        totalAttributes++;
+        if (original.attributes[attr] === candidate.attributes[attr]) {
+          matchingAttributes++;
+        }
+      }
+    }
+
+    // Require at least 50% attribute similarity
+    const attributeSimilarity = totalAttributes > 0 ? matchingAttributes / totalAttributes : 1;
+    return attributeSimilarity >= 0.5;
+  }
+
+  /**
+   * Calculate text similarity between two strings
+   */
+  private calculateTextSimilarity(text1: string, text2: string): number {
+    if (!text1 || !text2) return 0;
+    
+    const s1 = text1.toLowerCase().trim();
+    const s2 = text2.toLowerCase().trim();
+    
+    if (s1 === s2) return 1;
+    
+    // Simple Jaccard similarity based on words
+    const words1 = new Set(s1.split(/\s+/));
+    const words2 = new Set(s2.split(/\s+/));
+    
+    const intersection = new Set([...words1].filter(word => words2.has(word)));
+    const union = new Set([...words1, ...words2]);
+    
+    return intersection.size / union.size;
+  }
+
+  /**
+   * Monitor page for UI changes and trigger adaptive detection
+   */
+  async monitorForUIChanges(
+    page: Page,
+    elements: InteractiveElement[],
+    callback: (adaptedElements: InteractiveElement[]) => void
+  ): Promise<void> {
+    if (!this.stagehand || elements.length === 0) {
+      return;
+    }
+
+    try {
+      // Set up mutation observer to detect DOM changes
+      await page.evaluate(() => {
+        const observer = new MutationObserver((mutations) => {
+          const hasStructuralChanges = mutations.some(mutation => 
+            mutation.type === 'childList' && 
+            (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)
+          );
+          
+          if (hasStructuralChanges) {
+            // Trigger UI change detection
+            (window as any).uiChangeDetected = true;
+          }
+        });
+        
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'id', 'data-testid'],
+        });
+        
+        (window as any).stopUIMonitoring = () => observer.disconnect();
+      });
+
+      // Periodically check for UI changes
+      const checkInterval = setInterval(async () => {
+        try {
+          const uiChanged = await page.evaluate(() => {
+            const changed = (window as any).uiChangeDetected;
+            (window as any).uiChangeDetected = false;
+            return changed;
+          });
+
+          if (uiChanged) {
+            logger.info('UI changes detected, triggering adaptive element detection');
+            const adaptedElements = await this.adaptiveElementDetection(page, elements);
+            callback(adaptedElements);
+          }
+        } catch (error) {
+          logger.debug('Error checking for UI changes', { error });
+        }
+      }, 2000); // Check every 2 seconds
+
+      // Clean up on page close
+      page.on('close', () => {
+        clearInterval(checkInterval);
+      });
+
+    } catch (error) {
+      logger.error('Failed to set up UI change monitoring', { error });
+    }
   }
 
   /**

@@ -38,11 +38,15 @@ export class AIElementDetector {
     const errors: Array<{ selector: string; error: string }> = [];
 
     try {
-      // Use Stagehand's AI-powered detection
+      // Primary: Use AI-powered detection
       const aiDetectedElements = await this.detectWithAI(page);
 
-      // Enhance with traditional selector-based detection
-      const selectorDetectedElements = await this.detectBySelectors(page);
+      // Fallback: Only use selector detection if AI fails or returns too few results
+      let selectorDetectedElements: InteractiveElement[] = [];
+      if (aiDetectedElements.length < 3 && !this.stagehand) {
+        logger.info('Using selector fallback due to limited AI results');
+        selectorDetectedElements = await this.detectBySelectors(page);
+      }
 
       // Merge and deduplicate results
       const mergedElements = this.mergeAndDeduplicate(aiDetectedElements, selectorDetectedElements);
@@ -62,17 +66,56 @@ export class AIElementDetector {
     }
   }
 
-  private async detectWithAI(_page: Page): Promise<InteractiveElement[]> {
+  private async detectWithAI(page: Page): Promise<InteractiveElement[]> {
+    if (!this.stagehand) {
+      logger.warn('Stagehand not initialized, AI detection unavailable');
+      return [];
+    }
+
     const elements: InteractiveElement[] = [];
 
     try {
-      // TODO: Implement AI detection with Stagehand when available
-      logger.info('AI detection skipped (Stagehand not available)', { found: elements.length });
+      // Natural language queries for comprehensive element detection
+      const queries = [
+        'Find all interactive elements that users can click or interact with',
+        'Find all form inputs where users can enter data',
+        'Find all navigation links and menu items',
+        'Find all toggles, switches, and selection controls',
+        'Find all buttons for submitting forms or triggering actions',
+        'Find all dropdown menus and selection lists',
+      ];
+
+      const queryPromises = queries.map(async (instruction) => {
+        try {
+          const result = await (this.stagehand as any).observe({ instruction });
+          return Array.isArray(result) ? result : [];
+        } catch (error) {
+          logger.debug('AI query failed', { instruction, error });
+          return [];
+        }
+      });
+
+      const queryResults = await Promise.all(queryPromises);
+      const allObservations = queryResults.flat();
+
+      logger.info('AI detection completed', { 
+        queriesExecuted: queries.length,
+        elementsFound: allObservations.length,
+      });
+
+      // Convert observations to InteractiveElements
+      for (const observation of allObservations) {
+        const element = await this.createElementFromObservation(page, observation);
+        if (element) {
+          elements.push(element);
+        }
+      }
+
+      return elements;
     } catch (error) {
       logger.error('AI detection failed', error);
+      return [];
     }
-
-    return elements;
   }
 
   private async detectBySelectors(page: Page): Promise<InteractiveElement[]> {
@@ -98,24 +141,73 @@ export class AIElementDetector {
     return elements;
   }
 
-  // private async createElementFromObservation(
-  //   page: Page,
-  //   observation: any
-  // ): Promise<InteractiveElement | null> {
-  //   try {
-  //     const selector = observation.selector || observation.xpath;
-  //     const element = await page.$(selector);
-  //
-  //     if (!element) {
-  //       return null;
-  //     }
+  private async createElementFromObservation(
+    page: Page,
+    observation: any
+  ): Promise<InteractiveElement | null> {
+    try {
+      const selector = observation.selector || observation.xpath;
+      const element = await page.$(selector);
 
-  //     return this.createElementFromHandle(element, 'unknown', selector);
-  //   } catch (error) {
-  //     logger.debug('Failed to create element from observation', { observation, error });
-  //     return null;
-  //   }
-  // }
+      if (!element) {
+        return null;
+      }
+
+      // Infer type from AI observation description
+      const elementType = this.inferTypeFromAIDescription(observation.description || '');
+      
+      // Create element with AI context
+      const interactiveElement = await this.createElementFromHandle(element, elementType, selector);
+      
+      if (interactiveElement && observation.description) {
+        // Add AI-provided context to metadata
+        if (!interactiveElement.metadata) {
+          interactiveElement.metadata = {};
+        }
+        interactiveElement.metadata.context = interactiveElement.metadata.context 
+          ? `${interactiveElement.metadata.context}. AI: ${observation.description}`
+          : `AI: ${observation.description}`;
+        interactiveElement.metadata.aiDetected = true;
+      }
+      
+      return interactiveElement;
+    } catch (error) {
+      logger.debug('Failed to create element from observation', { observation, error });
+      return null;
+    }
+  }
+
+  private inferTypeFromAIDescription(description: string): ElementType {
+    const lowerDesc = description.toLowerCase();
+
+    // Pattern matching based on AI descriptions
+    if (lowerDesc.includes('button') || lowerDesc.includes('click')) {
+      return 'button';
+    }
+    if (lowerDesc.includes('input') || lowerDesc.includes('text') || lowerDesc.includes('field')) {
+      if (lowerDesc.includes('password')) return 'password-input';
+      if (lowerDesc.includes('email')) return 'email-input';
+      if (lowerDesc.includes('number')) return 'number-input';
+      return 'text-input';
+    }
+    if (lowerDesc.includes('link') || lowerDesc.includes('navigate')) {
+      return 'link';
+    }
+    if (lowerDesc.includes('checkbox')) {
+      return 'checkbox';
+    }
+    if (lowerDesc.includes('radio')) {
+      return 'radio';
+    }
+    if (lowerDesc.includes('select') || lowerDesc.includes('dropdown')) {
+      return 'select';
+    }
+    if (lowerDesc.includes('toggle') || lowerDesc.includes('switch')) {
+      return 'toggle';
+    }
+
+    return 'unknown';
+  }
 
   private async createElementFromHandle(
     element: ElementHandle,
@@ -311,14 +403,49 @@ export class AIElementDetector {
   }
 
   private async classifyWithAI(element: InteractiveElement): Promise<ElementClassification> {
-    // This would use Stagehand's AI capabilities to classify unknown elements
-    // For now, returning a default classification
-    return {
-      element,
-      confidence: 0.5,
-      suggestedType: 'unknown',
-      reasoning: 'Manual classification needed',
-    };
+    if (!this.stagehand) {
+      return {
+        element,
+        confidence: 0.5,
+        suggestedType: 'unknown',
+        reasoning: 'Stagehand not available for classification',
+      };
+    }
+
+    try {
+      // Build context-aware instruction for AI
+      const contextInfo = element.metadata?.context ? ` in the context of ${element.metadata.context}` : '';
+      const instruction = `Analyze the element at selector "${element.selector}"${contextInfo}. What type of interactive element is this? Consider its tag, attributes, and surrounding context.`;
+
+      const result = await (this.stagehand as any).observe({ instruction });
+
+      if (result && result.length > 0) {
+        const observation = result[0];
+        const suggestedType = this.inferTypeFromAIDescription(observation.description || '');
+
+        return {
+          element,
+          confidence: 0.9,
+          suggestedType,
+          reasoning: observation.description || 'AI analysis completed',
+        };
+      }
+
+      return {
+        element,
+        confidence: 0.5,
+        suggestedType: 'unknown',
+        reasoning: 'Could not analyze element with AI',
+      };
+    } catch (error) {
+      logger.debug('AI classification failed', { error });
+      return {
+        element,
+        confidence: 0.5,
+        suggestedType: 'unknown',
+        reasoning: 'AI classification error',
+      };
+    }
   }
 
   private mergeAndDeduplicate(
@@ -353,33 +480,14 @@ export class AIElementDetector {
   private initializeSelectorPatterns(): Map<ElementType, string[]> {
     const patterns = new Map<ElementType, string[]>();
 
-    patterns.set('text-input', [
-      'input[type="text"]',
-      'input:not([type])',
-      'input[type=""]',
-      '[contenteditable="true"]',
-    ]);
-
-    patterns.set('button', [
-      'button',
-      'input[type="submit"]',
-      'input[type="button"]',
-      'a.button',
-      'a.btn',
-      '[role="button"]',
-    ]);
-
-    patterns.set('link', ['a[href]', '[role="link"]']);
-
-    patterns.set('checkbox', ['input[type="checkbox"]', '[role="checkbox"]']);
-
-    patterns.set('radio', ['input[type="radio"]', '[role="radio"]']);
-
-    patterns.set('select', ['select:not([multiple])', '[role="combobox"]', '[role="listbox"]']);
-
-    patterns.set('textarea', ['textarea']);
-
-    patterns.set('file-upload', ['input[type="file"]']);
+    // Minimal patterns for critical fallback only
+    // These should only be used when AI detection is unavailable
+    patterns.set('button', ['button', 'input[type="submit"]']);
+    patterns.set('text-input', ['input[type="text"]']);
+    patterns.set('link', ['a[href]']);
+    patterns.set('checkbox', ['input[type="checkbox"]']);
+    patterns.set('radio', ['input[type="radio"]']);
+    patterns.set('select', ['select']);
 
     return patterns;
   }
@@ -396,6 +504,131 @@ export class AIElementDetector {
     }
 
     return this.inferElementType(tagName, attributes);
+  }
+
+  private async extractElementContext(element: ElementHandle): Promise<string | undefined> {
+    try {
+      const context = await element.evaluate((el) => {
+        const elem = el as Element;
+        const contextParts: string[] = [];
+
+        // Get parent form context
+        const form = elem.closest('form');
+        if (form) {
+          const formName = form.getAttribute('name') || form.getAttribute('id');
+          if (formName) {
+            contextParts.push(`Form: ${formName}`);
+          }
+        }
+
+        // Get fieldset context
+        const fieldset = elem.closest('fieldset');
+        if (fieldset) {
+          const legend = fieldset.querySelector('legend');
+          if (legend?.textContent) {
+            contextParts.push(`Fieldset: ${legend.textContent.trim()}`);
+          }
+        }
+
+        // Get section context
+        const section = elem.closest('section, article, [role="region"]');
+        if (section) {
+          const heading = section.querySelector('h1, h2, h3, h4, h5, h6');
+          if (heading?.textContent) {
+            contextParts.push(`Section: ${heading.textContent.trim()}`);
+          }
+        }
+
+        // Get navigation context
+        const nav = elem.closest('nav, [role="navigation"]');
+        if (nav) {
+          contextParts.push('Navigation area');
+        }
+
+        // Get modal/dialog context
+        const modal = elem.closest('[role="dialog"], [role="alertdialog"], .modal, .dialog');
+        if (modal) {
+          contextParts.push('Modal/Dialog');
+        }
+
+        // Get table context
+        const table = elem.closest('table');
+        if (table) {
+          const caption = table.querySelector('caption');
+          if (caption?.textContent) {
+            contextParts.push(`Table: ${caption.textContent.trim()}`);
+          }
+        }
+
+        // Get list context
+        const list = elem.closest('ul, ol, dl');
+        if (list) {
+          const listType = (list as Element).tagName.toLowerCase();
+          contextParts.push(`In ${listType === 'ul' ? 'unordered' : listType === 'ol' ? 'ordered' : 'description'} list`);
+        }
+
+        return contextParts.length > 0 ? contextParts.join(', ') : null;
+      });
+
+      return context || undefined;
+    } catch (error) {
+      logger.debug('Failed to extract element context', { error });
+      return undefined;
+    }
+  }
+
+  /**
+   * Attempt to re-detect a failed element using AI context
+   */
+  async adaptElement(
+    page: Page, 
+    failedElement: InteractiveElement
+  ): Promise<InteractiveElement | null> {
+    if (!this.stagehand) {
+      logger.warn('Cannot adapt element without Stagehand');
+      return null;
+    }
+
+    try {
+      // Build search instruction from element context
+      const context = failedElement.metadata?.context || '';
+      const text = failedElement.text || '';
+      const type = failedElement.type;
+      
+      const instruction = `Find a ${type.replace('-', ' ')} element${text ? ` with text "${text}"` : ''}${context ? ` in ${context}` : ''}`;
+      
+      logger.info('Attempting element adaptation', {
+        originalSelector: failedElement.selector,
+        instruction,
+      });
+
+      const result = await (this.stagehand as any).observe({ instruction });
+      
+      if (result && result.length > 0) {
+        const adaptedElement = await this.createElementFromObservation(page, result[0]);
+        if (adaptedElement) {
+          // Preserve original metadata and add adaptation info
+          adaptedElement.metadata = {
+            ...adaptedElement.metadata,
+            ...failedElement.metadata,
+            adaptedFrom: failedElement.selector,
+            adaptationTimestamp: new Date().toISOString(),
+          };
+          
+          logger.info('Element successfully adapted', {
+            originalSelector: failedElement.selector,
+            newSelector: adaptedElement.selector,
+          });
+          
+          return adaptedElement;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      logger.error('Element adaptation failed', { error });
+      return null;
+    }
   }
 
   async cleanup(): Promise<void> {

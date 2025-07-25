@@ -91,6 +91,9 @@ export interface InteractiveElement {
     iframeSrc?: string;
     aiDetected?: boolean;
     aiConfidence?: number;
+    adaptedFrom?: string;
+    adaptationReason?: string;
+    adaptationTimestamp?: string;
   };
   interactionType?: string[];
   state?: {
