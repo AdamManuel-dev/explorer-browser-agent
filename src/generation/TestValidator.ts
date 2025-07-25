@@ -91,7 +91,6 @@ export class TestValidator {
       const assertionErrors = this.validateAssertions(parseResult);
       errors.push(...assertionErrors);
 
-
       const isValid = errors.filter((e) => e.severity === 'error').length === 0;
 
       return {

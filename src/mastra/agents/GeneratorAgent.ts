@@ -1,6 +1,8 @@
 import { Agent } from '@mastra/core/agent';
+import { openai } from '@ai-sdk/openai';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
+import { EventEmitter } from 'events';
 import { logger } from '../../utils/logger';
 import { MonitoringService } from '../../monitoring';
 import { TestGenerator } from '../../generation/TestGenerator';
@@ -13,9 +15,12 @@ import {
   GeneratedFile,
   AgentCapabilities,
   AgentMetrics,
+  UserPath as MastraUserPath,
 } from '../types';
 import { TestFile, GenerationResult, TestFileType, TestFramework } from '../../types/generation';
-import { UserPath } from '../../types/recording';
+import { UserPath as RecordingUserPath, InteractionStep } from '../../types/recording';
+
+type AnyUserPath = RecordingUserPath | MastraUserPath;
 
 export interface GeneratorAgentConfig {
   monitoring?: MonitoringService;
@@ -57,6 +62,24 @@ export interface GenerationTemplate {
   customHandlers?: Record<string, Function>;
 }
 
+export interface GenerationEvent {
+  id: string;
+  type: 'generation_started' | 'analysis_completed' | 'file_generated' | 'validation_started' | 'validation_completed' | 'generation_completed' | 'error_occurred' | 'progress_update';
+  timestamp: Date;
+  data: any;
+  jobId?: string;
+  progress?: {
+    current: number;
+    total: number;
+    percentage: number;
+    message: string;
+  };
+}
+
+export interface GenerationEventCallback {
+  (event: GenerationEvent): void;
+}
+
 export class GeneratorAgent extends Agent {
   private monitoring?: MonitoringService;
 
@@ -78,12 +101,100 @@ export class GeneratorAgent extends Agent {
 
   private generationCache: Map<string, TestGenerationResult> = new Map();
 
+  private eventEmitter: EventEmitter = new EventEmitter();
+
+  private streamingCallbacks: Map<string, GenerationEventCallback> = new Map();
+
+  /**
+   * Helper function to safely get selector from a step
+   */
+  private getStepSelector(step: any): string {
+    if ('selector' in step && step.selector) {
+      return step.selector;
+    }
+    if ('element' in step && step.element?.selector) {
+      return step.element.selector;
+    }
+    return '';
+  }
+
+  /**
+   * Helper function to safely get URL from a userPath
+   */
+  private getPathUrl(userPath: AnyUserPath): string {
+    if ('url' in userPath && userPath.url) {
+      return userPath.url;
+    }
+    if ('startUrl' in userPath && userPath.startUrl) {
+      return userPath.startUrl;
+    }
+    return 'http://localhost'; // Default fallback URL
+  }
+
+  /**
+   * Adapter to convert MastraUserPath to RecordingUserPath for generator compatibility
+   */
+  private toRecordingUserPath(userPath: AnyUserPath): RecordingUserPath {
+    if ('startUrl' in userPath) {
+      // Already a RecordingUserPath
+      return userPath as RecordingUserPath;
+    }
+
+    // Convert MastraUserPath to RecordingUserPath
+    const mastraPath = userPath as MastraUserPath;
+    return {
+      id: mastraPath.id,
+      name: mastraPath.name,
+      description: `Converted from Mastra path: ${mastraPath.name}`,
+      startUrl: mastraPath.url,
+      endUrl: mastraPath.url,
+      steps: mastraPath.steps.map((step) => ({
+        id: step.id || '',
+        type: step.type as any,
+        element: step.elementInfo
+          ? {
+              id: step.selector || '',
+              type: 'unknown' as any,
+              selector: step.selector || '',
+              xpath: '',
+              text: step.elementInfo.text,
+              attributes: step.elementInfo.attributes as Record<string, string | boolean | number>,
+              isVisible: step.elementInfo.isVisible,
+              isEnabled: true,
+              boundingBox: step.elementInfo.boundingBox,
+            }
+          : undefined,
+        action: `${step.type}: ${step.selector || 'unknown'}`,
+        value: step.value,
+        timestamp: step.timestamp.getTime(),
+        duration: step.duration,
+        screenshot: step.screenshot,
+        networkActivity: [],
+        stateChanges: [],
+        error: step.error,
+        retries: 0,
+      })),
+      assertions: [],
+      duration: mastraPath.duration,
+      metadata: {
+        browser: 'chromium',
+        viewport: { width: 1280, height: 720 },
+        userAgent: 'Mastra-Generated',
+        recordedBy: 'GeneratorAgent',
+        purpose: 'Converted from Mastra path',
+        tags: ['mastra', 'converted'],
+      },
+      createdAt: new Date(),
+    };
+  }
+
   constructor(config: GeneratorAgentConfig) {
     super({
       id: 'generator-agent',
       name: 'GeneratorAgent',
       instructions: 'Intelligent test generation coordination and optimization agent',
-    } as any);
+      model: openai('gpt-4'),
+    });
 
     this.config = config;
     this.monitoring = config.monitoring;
@@ -148,6 +259,54 @@ export class GeneratorAgent extends Agent {
   }
 
   /**
+   * Subscribe to generation events for streaming updates
+   */
+  onGenerationEvent(callback: GenerationEventCallback): string {
+    const subscriptionId = uuidv4();
+    this.streamingCallbacks.set(subscriptionId, callback);
+    return subscriptionId;
+  }
+
+  /**
+   * Unsubscribe from generation events
+   */
+  offGenerationEvent(subscriptionId: string): void {
+    this.streamingCallbacks.delete(subscriptionId);
+  }
+
+  /**
+   * Emit generation event to all subscribers
+   */
+  private emitGenerationEvent(event: Omit<GenerationEvent, 'id' | 'timestamp'>): void {
+    const fullEvent: GenerationEvent = {
+      id: uuidv4(),
+      timestamp: new Date(),
+      ...event,
+    };
+
+    // Emit to event emitter
+    this.eventEmitter.emit('generation:event', fullEvent);
+
+    // Call all streaming callbacks
+    this.streamingCallbacks.forEach((callback) => {
+      try {
+        callback(fullEvent);
+      } catch (error) {
+        logger.warn('Error in generation streaming callback', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+
+    // Log the event
+    logger.debug('Generation event emitted', {
+      type: fullEvent.type,
+      id: fullEvent.id,
+      jobId: fullEvent.jobId,
+    });
+  }
+
+  /**
    * Generate tests from user paths with intelligent optimization
    */
   async generateTests(request: TestGenerationRequest): Promise<TestGenerationResult> {
@@ -193,14 +352,14 @@ export class GeneratorAgent extends Agent {
       }
 
       // Analyze user paths for optimization opportunities
-      const analysis = await this.analyzeUserPaths(request.userPaths as any);
+      const analysis = await this.analyzeUserPaths(request.userPaths);
       job.progress = 20;
 
       // Generate page objects if requested
       let pageObjects: GeneratedFile[] = [];
       if (request.options.generatePageObjects) {
         pageObjects = await this.generatePageObjects(
-          request.userPaths as any,
+          request.userPaths,
           request.framework,
           request.language
         );
@@ -210,7 +369,7 @@ export class GeneratorAgent extends Agent {
       // Generate test fixtures if requested
       let fixtures: GeneratedFile[] = [];
       if (request.options.generateFixtures) {
-        fixtures = await this.generateFixtures(request.userPaths as any, request.language);
+        fixtures = await this.generateFixtures(request.userPaths, request.language);
         job.progress = 60;
       }
 
@@ -218,7 +377,7 @@ export class GeneratorAgent extends Agent {
       let helpers: GeneratedFile[] = [];
       if (request.options.generateHelpers) {
         helpers = await this.generateHelpers(
-          request.userPaths as any,
+          request.userPaths,
           request.framework,
           request.language
         );
@@ -345,7 +504,7 @@ export class GeneratorAgent extends Agent {
   /**
    * Optimize test generation for better maintainability
    */
-  async optimizeGeneration(userPaths: UserPath[]): Promise<{
+  async optimizeGeneration(userPaths: AnyUserPath[]): Promise<{
     recommendations: string[];
     optimizations: {
       pageObjectConsolidation: string[];
@@ -451,19 +610,20 @@ export class GeneratorAgent extends Agent {
   /**
    * Analyze user paths to identify patterns and optimization opportunities
    */
-  private async analyzeUserPaths(userPaths: UserPath[]): Promise<{
+  private async analyzeUserPaths(userPaths: AnyUserPath[]): Promise<{
     commonElements: Map<string, number>;
     commonPatterns: Array<{ pattern: string; frequency: number }>;
-    pageGroups: Map<string, UserPath[]>;
+    pageGroups: Map<string, AnyUserPath[]>;
     complexityScore: number;
   }> {
     const commonElements = new Map<string, number>();
     const patternMap = new Map<string, number>();
-    const pageGroups = new Map<string, UserPath[]>();
+    const pageGroups = new Map<string, AnyUserPath[]>();
 
     for (const userPath of userPaths) {
       // Group by domain/page
-      const domain = new URL((userPath as any).url || (userPath as any).startUrl).hostname;
+      const pathUrl = this.getPathUrl(userPath);
+      const domain = new URL(pathUrl).hostname;
       if (!pageGroups.has(domain)) {
         pageGroups.set(domain, []);
       }
@@ -471,15 +631,15 @@ export class GeneratorAgent extends Agent {
 
       // Analyze steps for common elements and patterns
       for (const step of userPath.steps) {
-        if ((step as any).selector || (step as any).element?.selector) {
-          const selector = (step as any).selector || (step as any).element?.selector;
+        const selector = this.getStepSelector(step);
+        if (selector) {
           const count = commonElements.get(selector) || 0;
           commonElements.set(selector, count + 1);
         }
 
         // Create pattern signature
         const pattern = `${step.type}:${
-          ((step as any).selector || (step as any).element?.selector)
+          this.getStepSelector(step)
             ?.split(/[#.\s]/)
             .slice(0, 2)
             .join('|') || 'no-selector'
@@ -512,7 +672,7 @@ export class GeneratorAgent extends Agent {
    * Generate page object files
    */
   private async generatePageObjects(
-    userPaths: UserPath[],
+    userPaths: AnyUserPath[],
     framework: string,
     language: string
   ): Promise<GeneratedFile[]> {
@@ -523,7 +683,7 @@ export class GeneratorAgent extends Agent {
       try {
         // Generate page objects for all paths in this domain
         const generatedFiles = paths.flatMap((path) =>
-          this.pageObjectGenerator.generateFromPath(path)
+          this.pageObjectGenerator.generateFromPath(this.toRecordingUserPath(path))
         );
 
         // Convert TestFile[] to GeneratedFile[]
@@ -549,7 +709,7 @@ export class GeneratorAgent extends Agent {
    * Generate test fixture files
    */
   private async generateFixtures(
-    userPaths: UserPath[],
+    userPaths: AnyUserPath[],
     language: string
   ): Promise<GeneratedFile[]> {
     const fixtures: GeneratedFile[] = [];
@@ -585,7 +745,7 @@ export class GeneratorAgent extends Agent {
    * Generate helper utility files
    */
   private async generateHelpers(
-    userPaths: UserPath[],
+    userPaths: AnyUserPath[],
     framework: string,
     language: string
   ): Promise<GeneratedFile[]> {
@@ -635,7 +795,7 @@ export class GeneratorAgent extends Agent {
     analysis: {
       commonElements: Map<string, number>;
       commonPatterns: Array<{ pattern: string; frequency: number }>;
-      pageGroups: Map<string, UserPath[]>;
+      pageGroups: Map<string, AnyUserPath[]>;
       complexityScore: number;
     },
     pageObjects: GeneratedFile[]
@@ -643,13 +803,13 @@ export class GeneratorAgent extends Agent {
     const testFiles: GeneratedFile[] = [];
 
     // Group user paths by logical test suites
-    const testSuites = this.groupPathsIntoTestSuites(request.userPaths as any, analysis);
+    const testSuites = this.groupPathsIntoTestSuites(request.userPaths, analysis);
 
     for (const suite of testSuites) {
       try {
         // Generate tests for each path in the suite
         for (const path of suite.paths) {
-          const testResult = await this.testGenerator.generate(path);
+          const testResult = await this.testGenerator.generate(this.toRecordingUserPath(path));
 
           testFiles.push(
             ...testResult.files.map((file) => ({
@@ -722,7 +882,7 @@ export class GeneratorAgent extends Agent {
           type: file.type as TestFileType,
           metadata: {
             generatedAt: new Date(),
-            sourcePath: {} as UserPath,
+            sourcePath: {} as RecordingUserPath,
             framework: file.framework as TestFramework,
             language: file.language as 'typescript' | 'javascript',
             dependencies: [],
@@ -777,7 +937,7 @@ export class GeneratorAgent extends Agent {
         type: file.type as TestFileType,
         metadata: {
           generatedAt: new Date(),
-          sourcePath: {} as UserPath, // Placeholder since we don't have source path
+          sourcePath: {} as RecordingUserPath, // Placeholder since we don't have source path
           framework: file.framework as TestFramework,
           language: file.language as 'typescript' | 'javascript',
           dependencies: [],
@@ -877,12 +1037,13 @@ export class GeneratorAgent extends Agent {
   /**
    * Group paths by domain
    */
-  private groupPathsByDomain(userPaths: UserPath[]): Map<string, UserPath[]> {
-    const groups = new Map<string, UserPath[]>();
+  private groupPathsByDomain(userPaths: AnyUserPath[]): Map<string, AnyUserPath[]> {
+    const groups = new Map<string, AnyUserPath[]>();
 
     for (const userPath of userPaths) {
       try {
-        const domain = new URL((userPath as any).url || (userPath as any).startUrl).hostname;
+        const pathUrl = this.getPathUrl(userPath);
+        const domain = new URL(pathUrl).hostname;
         if (!groups.has(domain)) {
           groups.set(domain, []);
         }
@@ -920,7 +1081,7 @@ export class GeneratorAgent extends Agent {
   /**
    * Extract test data from user paths
    */
-  private extractTestData(userPaths: UserPath[]): {
+  private extractTestData(userPaths: AnyUserPath[]): {
     users: Array<{ email: string; username: string }>;
     forms: Array<unknown>;
     navigation: Array<unknown>;
@@ -938,7 +1099,7 @@ export class GeneratorAgent extends Agent {
     for (const userPath of userPaths) {
       for (const step of userPath.steps) {
         if (step.type === 'type' && step.value) {
-          const selector = (step as any).selector || (step as any).element?.selector || '';
+          const selector = this.getStepSelector(step);
           if (selector.includes('email') || selector.includes('username')) {
             testData.users.push({
               email: String(step.value),
@@ -976,7 +1137,7 @@ export class GeneratorAgent extends Agent {
   /**
    * Generate user fixtures
    */
-  private generateUserFixtures(_userPaths: UserPath[], _language: string): GeneratedFile[] {
+  private generateUserFixtures(_userPaths: AnyUserPath[], _language: string): GeneratedFile[] {
     // Implementation would generate user-specific fixture files
     return [];
   }
@@ -985,13 +1146,13 @@ export class GeneratorAgent extends Agent {
    * Find common operations in user paths
    */
   private findCommonOperations(
-    userPaths: UserPath[]
+    userPaths: AnyUserPath[]
   ): Array<{ name: string; frequency: number; pattern: string }> {
     const operations = new Map<string, number>();
 
     for (const userPath of userPaths) {
       for (const step of userPath.steps) {
-        const selector = (step as any).selector || (step as any).element?.selector || '';
+        const selector = this.getStepSelector(step);
         const operation = `${step.type}:${
           selector
             .split(/[#.\s]/)
@@ -1015,10 +1176,10 @@ export class GeneratorAgent extends Agent {
   /**
    * Check if authentication helper is needed
    */
-  private needsAuthHelper(userPaths: UserPath[]): boolean {
+  private needsAuthHelper(userPaths: AnyUserPath[]): boolean {
     return userPaths.some((userPath) =>
       userPath.steps.some((step) => {
-        const selector = (step as any).selector || (step as any).element?.selector || '';
+        const selector = this.getStepSelector(step);
         return (
           selector.includes('login') || selector.includes('password') || selector.includes('auth')
         );
@@ -1061,13 +1222,13 @@ export class GeneratorAgent extends Agent {
   /**
    * Check if form helper is needed
    */
-  private needsFormHelper(userPaths: UserPath[]): boolean {
+  private needsFormHelper(userPaths: AnyUserPath[]): boolean {
     return userPaths.some((userPath) =>
       userPath.steps.some(
         (step) =>
           step.type === 'type' ||
           step.type === 'select' ||
-          ((step as any).selector || (step as any).element?.selector || '').includes('form')
+          this.getStepSelector(step).includes('form')
       )
     );
   }
@@ -1131,15 +1292,15 @@ export class GeneratorAgent extends Agent {
    * Group paths into test suites
    */
   private groupPathsIntoTestSuites(
-    userPaths: UserPath[],
+    userPaths: AnyUserPath[],
     analysis: {
       commonElements: Map<string, number>;
       commonPatterns: Array<{ pattern: string; frequency: number }>;
-      pageGroups: Map<string, UserPath[]>;
+      pageGroups: Map<string, AnyUserPath[]>;
       complexityScore: number;
     }
-  ): Array<{ name: string; paths: UserPath[] }> {
-    const suites: Array<{ name: string; paths: UserPath[] }> = [];
+  ): Array<{ name: string; paths: AnyUserPath[] }> {
+    const suites: Array<{ name: string; paths: AnyUserPath[] }> = [];
 
     // Group by domain first
     for (const [domain, paths] of analysis.pageGroups.entries()) {
@@ -1156,16 +1317,13 @@ export class GeneratorAgent extends Agent {
    * Find duplicate patterns
    */
   private findDuplicatePatterns(
-    userPaths: UserPath[]
+    userPaths: AnyUserPath[]
   ): Array<{ description: string; count: number }> {
     const patterns = new Map<string, number>();
 
     for (const userPath of userPaths) {
       const signature = userPath.steps
-        .map(
-          (s) =>
-            `${s.type}:${((s as any).selector || (s as any).element?.selector || '').split(/[#.\s]/)[0] || 'none'}`
-        )
+        .map((s) => `${s.type}:${this.getStepSelector(s).split(/[#.\s]/)[0] || 'none'}`)
         .join('->');
       patterns.set(signature, (patterns.get(signature) || 0) + 1);
     }

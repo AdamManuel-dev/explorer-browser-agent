@@ -362,9 +362,7 @@ export class ResourceManager extends EventEmitter {
 
   private findAvailableBrowser(): BrowserPoolItem | null {
     for (const browserItem of this.browserPools.values()) {
-      if (
-        browserItem.contexts.length < this.config.browserPool.maxContextsPerBrowser
-      ) {
+      if (browserItem.contexts.length < this.config.browserPool.maxContextsPerBrowser) {
         return browserItem;
       }
     }
@@ -373,9 +371,7 @@ export class ResourceManager extends EventEmitter {
 
   private findAvailableContext(browserItem: BrowserPoolItem): ContextPoolItem | null {
     for (const contextItem of browserItem.contexts) {
-      if (
-        contextItem.pages.length < this.config.browserPool.maxPagesPerContext
-      ) {
+      if (contextItem.pages.length < this.config.browserPool.maxPagesPerContext) {
         return contextItem;
       }
     }

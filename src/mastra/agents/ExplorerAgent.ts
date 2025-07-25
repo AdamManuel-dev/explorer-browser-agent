@@ -1,8 +1,12 @@
 import { Agent } from '@mastra/core/agent';
+import { openai } from '@ai-sdk/openai';
+import { stagehandTools } from '../../tools/stagehand';
 import { Stagehand } from '@browserbasehq/stagehand';
 import { Browserbase } from '@browserbasehq/sdk';
 import { Page, BrowserContext } from 'playwright';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import { EventEmitter } from 'events';
 import { logger } from '../../utils/logger';
 import { MonitoringService } from '../../monitoring';
 import { StealthMode } from '../../stealth';
@@ -19,6 +23,59 @@ import {
   AgentCapabilities,
   AgentMetrics,
 } from '../types';
+
+interface StagehandResult {
+  success: boolean;
+  message: string;
+  action: string;
+}
+
+interface StagehandElement {
+  selector: string;
+  description: string;
+  backendNodeId?: number;
+  method?: string;
+  arguments?: string[];
+}
+
+interface BrowserbaseSession {
+  id: string;
+  createdAt: string;
+  startedAt: string;
+  endedAt?: string;
+  expiresAt: string;
+  projectId: string;
+  status: 'RUNNING' | 'COMPLETED' | 'ERROR' | 'TIMED_OUT';
+  proxyBytes?: number;
+  keepAlive: boolean;
+  contextId?: string;
+}
+
+export interface ExplorationEvent {
+  id: string;
+  type: 'session_created' | 'navigation_started' | 'navigation_completed' | 'page_analyzed' | 'interaction_started' | 'interaction_completed' | 'elements_extracted' | 'command_executed' | 'exploration_completed' | 'error_occurred' | 'progress_update';
+  timestamp: Date;
+  data: any;
+  sessionId?: string;
+  url?: string;
+  progress?: {
+    current: number;
+    total: number;
+    percentage: number;
+    message: string;
+  };
+}
+
+export interface StreamingOptions {
+  enableProgress?: boolean;
+  enableRealTimeUpdates?: boolean;
+  enableScreenshots?: boolean;
+  progressInterval?: number;
+}
+
+export interface ExplorationEventCallback {
+  (event: ExplorationEvent): void;
+}
 
 export interface ExplorerAgentConfig {
   browserbase: BrowserbaseConfig;
@@ -45,7 +102,7 @@ export class ExplorerAgent extends Agent {
 
   private authManager?: MultiStrategyAuthManager;
 
-  private sessions: Map<string, BrowserContext> = new Map();
+  private sessions: Map<string, BrowserbaseSession> = new Map();
 
   private activePaths: Map<string, UserPath> = new Map();
 
@@ -53,12 +110,19 @@ export class ExplorerAgent extends Agent {
 
   private metrics: AgentMetrics;
 
+  private eventEmitter: EventEmitter = new EventEmitter();
+
+  private streamingCallbacks: Map<string, ExplorationEventCallback> = new Map();
+
   constructor(config: ExplorerAgentConfig) {
     super({
       id: 'explorer-agent',
       name: 'ExplorerAgent',
-      instructions: 'AI-powered web exploration agent using Browserbase and Stagehand',
-    } as any);
+      instructions:
+        'AI-powered web exploration agent using Browserbase and Stagehand. Use the stagehand tools to interact with web pages: stagehand-act for performing actions, stagehand-observe for finding elements, and stagehand-extract for extracting data.',
+      model: openai('gpt-4'),
+      tools: stagehandTools,
+    });
 
     this.config = config;
     this.browserbase = new Browserbase({
@@ -67,7 +131,7 @@ export class ExplorerAgent extends Agent {
     this.stagehand = new Stagehand({
       ...config.stagehand,
       env: 'LOCAL',
-    } as any);
+    });
     this.monitoring = config.monitoring;
     this.stealth = config.stealth;
     this.captchaHandler = config.captchaHandler;
@@ -111,6 +175,546 @@ export class ExplorerAgent extends Agent {
   }
 
   /**
+   * Subscribe to exploration events for streaming updates
+   */
+  onExplorationEvent(callback: ExplorationEventCallback): string {
+    const subscriptionId = uuidv4();
+    this.streamingCallbacks.set(subscriptionId, callback);
+    return subscriptionId;
+  }
+
+  /**
+   * Unsubscribe from exploration events
+   */
+  offExplorationEvent(subscriptionId: string): void {
+    this.streamingCallbacks.delete(subscriptionId);
+  }
+
+  /**
+   * Emit exploration event to all subscribers
+   */
+  private emitExplorationEvent(event: Omit<ExplorationEvent, 'id' | 'timestamp'>): void {
+    const fullEvent: ExplorationEvent = {
+      id: uuidv4(),
+      timestamp: new Date(),
+      ...event,
+    };
+
+    // Emit to event emitter
+    this.eventEmitter.emit('exploration:event', fullEvent);
+
+    // Call all streaming callbacks
+    this.streamingCallbacks.forEach((callback) => {
+      try {
+        callback(fullEvent);
+      } catch (error) {
+        logger.warn('Error in streaming callback', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+
+    // Log the event
+    logger.debug('Exploration event emitted', {
+      type: fullEvent.type,
+      id: fullEvent.id,
+      url: fullEvent.url,
+    });
+  }
+
+  /**
+   * Explore using natural language goals and instructions
+   */
+  async exploreWithNaturalLanguage(
+    target: ExplorationTarget,
+    goal: string,
+    instructions?: string[]
+  ): Promise<ExplorationResult> {
+    const startTime = new Date();
+    const explorationId = uuidv4();
+    const spanId = this.monitoring?.startSpan('explorer_nl_explore', undefined);
+
+    try {
+      logger.info(`Starting natural language exploration`, {
+        explorationId,
+        target: target.url,
+        goal,
+        instructions: instructions?.length || 0,
+      });
+
+      // Create Browserbase session
+      const session = await this.createBrowserbaseSession();
+      const page = await this.initializeStagehand(session);
+
+      // Apply stealth mode if configured
+      if (this.stealth) {
+        await this.stealth.applyPageStealthMeasures(page);
+      }
+
+      // Handle authentication if required
+      if (target.requireAuth && this.authManager) {
+        await this.handleAuthentication(page, target);
+      }
+
+      // Navigate to target
+      const navStep = await this.navigateToUrl(page, target.url);
+
+      // Start with initial path
+      const initialPath: UserPath = {
+        id: uuidv4(),
+        name: `Natural Language Exploration: ${goal}`,
+        url: target.url,
+        steps: [navStep],
+        duration: 0,
+        success: false,
+        screenshots: [],
+        metadata: { goal, naturalLanguage: true },
+      };
+
+      const userPaths: UserPath[] = [initialPath];
+
+      // Execute natural language instructions
+      if (instructions && instructions.length > 0) {
+        for (const instruction of instructions) {
+          try {
+            const commandSteps = await this.executeNaturalLanguageCommand(page, instruction, {
+              goal,
+              previousSteps: initialPath.steps,
+            });
+
+            initialPath.steps.push(...commandSteps);
+
+            // Check if we navigated to new pages and create new paths
+            const currentUrl = page.url();
+            if (currentUrl !== target.url && !userPaths.some((p) => p.url === currentUrl)) {
+              const newPath: UserPath = {
+                id: uuidv4(),
+                name: `Navigation result: ${instruction}`,
+                url: currentUrl,
+                steps: commandSteps.filter((s) => s.url === currentUrl),
+                duration: 0,
+                success: commandSteps.some((s) => s.success),
+                screenshots: commandSteps.map((s) => s.screenshot).filter(Boolean) as string[],
+                metadata: {
+                  goal,
+                  naturalLanguage: true,
+                  parentPath: initialPath.id,
+                  instruction,
+                },
+              };
+              userPaths.push(newPath);
+            }
+          } catch (error) {
+            logger.warn('Failed to execute natural language instruction', {
+              instruction,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      } else {
+        // Auto-explore based on goal if no specific instructions
+        const autoExploreSteps = await this.executeNaturalLanguageCommand(
+          page,
+          `Explore this website to achieve the goal: ${goal}. Look for relevant buttons, links, forms, and content.`,
+          { goal }
+        );
+        initialPath.steps.push(...autoExploreSteps);
+      }
+
+      // Finalize metrics
+      const endTime = new Date();
+      initialPath.duration = initialPath.steps.reduce((sum, step) => sum + step.duration, 0);
+      initialPath.success = initialPath.steps.some((step) => step.success);
+      initialPath.screenshots = initialPath.steps
+        .map((step) => step.screenshot)
+        .filter(Boolean) as string[];
+
+      const result: ExplorationResult = {
+        id: explorationId,
+        target,
+        startTime,
+        endTime,
+        pagesExplored: userPaths.length,
+        elementsFound: userPaths.reduce(
+          (sum, path) => sum + path.steps.filter((s) => s.elementInfo).length,
+          0
+        ),
+        interactionsRecorded: userPaths.reduce((sum, path) => sum + path.steps.length, 0),
+        screenshotsTaken: userPaths.reduce((sum, path) => sum + path.screenshots.length, 0),
+        userPaths,
+        errors: userPaths.flatMap((path) =>
+          path.steps
+            .filter((s) => !s.success && s.error)
+            .map((s) => ({
+              id: uuidv4(),
+              type: 'interaction' as const,
+              message: s.error!,
+              url: s.url,
+              selector: s.selector,
+              timestamp: s.timestamp,
+              recoverable: true,
+            }))
+        ),
+        metadata: {
+          browserbaseSessionId: session.id,
+          explorationDuration: endTime.getTime() - startTime.getTime(),
+          goal,
+          naturalLanguageMode: true,
+          instructionsProvided: instructions?.length || 0,
+          userAgent: await page.evaluate(() => navigator.userAgent),
+        },
+      };
+
+      // Clean up session
+      await this.cleanupSession(session.id);
+
+      this.updateMetrics(true, endTime.getTime() - startTime.getTime());
+      this.monitoring?.recordCounter('nl_explorations_completed', 1, { status: 'success' });
+
+      logger.info(`Completed natural language exploration`, {
+        explorationId,
+        goal,
+        pagesExplored: result.pagesExplored,
+        interactionsRecorded: result.interactionsRecorded,
+      });
+
+      return result;
+    } catch (error) {
+      this.updateMetrics(false, Date.now() - startTime.getTime());
+      this.monitoring?.recordCounter('nl_explorations_completed', 1, { status: 'error' });
+
+      logger.error(`Failed natural language exploration`, {
+        explorationId,
+        goal,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      throw error;
+    } finally {
+      if (spanId) {
+        this.monitoring?.endSpan(spanId);
+      }
+    }
+  }
+
+  /**
+   * Streaming version of natural language exploration with real-time updates
+   */
+  async* exploreWithNaturalLanguageStream(
+    target: ExplorationTarget,
+    goal: string,
+    instructions?: string[],
+    options: StreamingOptions = {}
+  ): AsyncGenerator<ExplorationEvent, ExplorationResult> {
+    const startTime = new Date();
+    const explorationId = uuidv4();
+    const spanId = this.monitoring?.startSpan('explorer_nl_explore_stream', undefined);
+
+    try {
+      this.emitExplorationEvent({
+        type: 'progress_update',
+        data: { message: 'Starting natural language exploration' },
+        progress: { current: 0, total: 10, percentage: 0, message: 'Initializing...' },
+      });
+
+      // Create Browserbase session
+      const session = await this.createBrowserbaseSession();
+      
+      yield {
+        id: uuidv4(),
+        type: 'session_created',
+        timestamp: new Date(),
+        data: { sessionId: session.id },
+        sessionId: session.id,
+      };
+
+      this.emitExplorationEvent({
+        type: 'progress_update',
+        data: { message: 'Browser session created' },
+        progress: { current: 1, total: 10, percentage: 10, message: 'Initializing browser...' },
+      });
+
+      const page = await this.initializeStagehand(session);
+
+      // Apply stealth mode if configured
+      if (this.stealth) {
+        await this.stealth.applyPageStealthMeasures(page);
+      }
+
+      // Handle authentication if required
+      if (target.requireAuth && this.authManager) {
+        this.emitExplorationEvent({
+          type: 'progress_update',
+          data: { message: 'Handling authentication' },
+          progress: { current: 2, total: 10, percentage: 20, message: 'Authenticating...' },
+        });
+        await this.handleAuthentication(page, target);
+      }
+
+      // Navigate to target
+      yield {
+        id: uuidv4(),
+        type: 'navigation_started',
+        timestamp: new Date(),
+        data: { url: target.url },
+        url: target.url,
+      };
+
+      const navStep = await this.navigateToUrl(page, target.url);
+      
+      yield {
+        id: uuidv4(),
+        type: 'navigation_completed',
+        timestamp: new Date(),
+        data: { step: navStep },
+        url: target.url,
+      };
+
+      this.emitExplorationEvent({
+        type: 'progress_update',
+        data: { message: 'Navigation completed' },
+        progress: { current: 3, total: 10, percentage: 30, message: 'Analyzing page...' },
+      });
+
+      // Start with initial path
+      const initialPath: UserPath = {
+        id: uuidv4(),
+        name: `Natural Language Exploration: ${goal}`,
+        url: target.url,
+        steps: [navStep],
+        duration: 0,
+        success: false,
+        screenshots: [],
+        metadata: { goal, naturalLanguage: true },
+      };
+
+      const userPaths: UserPath[] = [initialPath];
+
+      // Execute natural language instructions with streaming
+      if (instructions && instructions.length > 0) {
+        this.emitExplorationEvent({
+          type: 'progress_update',
+          data: { message: 'Executing instructions' },
+          progress: { current: 4, total: 10, percentage: 40, message: 'Processing instructions...' },
+        });
+
+        for (let i = 0; i < instructions.length; i++) {
+          const instruction = instructions[i];
+          
+          yield {
+            id: uuidv4(),
+            type: 'command_executed',
+            timestamp: new Date(),
+            data: { instruction, index: i, total: instructions.length },
+            url: page.url(),
+          };
+
+          try {
+            const commandSteps = await this.executeNaturalLanguageCommand(page, instruction, {
+              goal,
+              previousSteps: initialPath.steps,
+            });
+            
+            initialPath.steps.push(...commandSteps);
+            
+            // Emit interaction events for each step
+            for (const step of commandSteps) {
+              yield {
+                id: uuidv4(),
+                type: 'interaction_completed',
+                timestamp: new Date(),
+                data: { step },
+                url: step.url,
+              };
+            }
+
+            // Check if we navigated to new pages and create new paths
+            const currentUrl = page.url();
+            if (currentUrl !== target.url && !userPaths.some((p) => p.url === currentUrl)) {
+              const newPath: UserPath = {
+                id: uuidv4(),
+                name: `Navigation result: ${instruction}`,
+                url: currentUrl,
+                steps: commandSteps.filter((s) => s.url === currentUrl),
+                duration: 0,
+                success: commandSteps.some((s) => s.success),
+                screenshots: commandSteps.map((s) => s.screenshot).filter(Boolean) as string[],
+                metadata: { 
+                  goal, 
+                  naturalLanguage: true, 
+                  parentPath: initialPath.id,
+                  instruction 
+                },
+              };
+              userPaths.push(newPath);
+            }
+
+            // Update progress
+            const progressPercentage = 40 + ((i + 1) / instructions.length) * 40;
+            this.emitExplorationEvent({
+              type: 'progress_update',
+              data: { message: `Completed instruction ${i + 1}/${instructions.length}` },
+              progress: { 
+                current: 4 + i + 1, 
+                total: 10, 
+                percentage: progressPercentage, 
+                message: `Instruction ${i + 1}/${instructions.length} completed` 
+              },
+            });
+
+          } catch (error) {
+            yield {
+              id: uuidv4(),
+              type: 'error_occurred',
+              timestamp: new Date(),
+              data: { 
+                error: error instanceof Error ? error.message : String(error),
+                instruction,
+                index: i 
+              },
+              url: page.url(),
+            };
+
+            logger.warn('Failed to execute natural language instruction', {
+              instruction,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      } else {
+        // Auto-explore based on goal if no specific instructions
+        this.emitExplorationEvent({
+          type: 'progress_update',
+          data: { message: 'Auto-exploring based on goal' },
+          progress: { current: 5, total: 10, percentage: 50, message: 'Auto-exploring...' },
+        });
+
+        const autoExploreSteps = await this.executeNaturalLanguageCommand(
+          page, 
+          `Explore this website to achieve the goal: ${goal}. Look for relevant buttons, links, forms, and content.`,
+          { goal }
+        );
+        initialPath.steps.push(...autoExploreSteps);
+
+        // Emit interaction events
+        for (const step of autoExploreSteps) {
+          yield {
+            id: uuidv4(),
+            type: 'interaction_completed',
+            timestamp: new Date(),
+            data: { step },
+            url: step.url,
+          };
+        }
+      }
+
+      // Finalize metrics
+      this.emitExplorationEvent({
+        type: 'progress_update',
+        data: { message: 'Finalizing exploration results' },
+        progress: { current: 8, total: 10, percentage: 80, message: 'Processing results...' },
+      });
+
+      const endTime = new Date();
+      initialPath.duration = initialPath.steps.reduce((sum, step) => sum + step.duration, 0);
+      initialPath.success = initialPath.steps.some((step) => step.success);
+      initialPath.screenshots = initialPath.steps
+        .map((step) => step.screenshot)
+        .filter(Boolean) as string[];
+
+      const result: ExplorationResult = {
+        id: explorationId,
+        target,
+        startTime,
+        endTime,
+        pagesExplored: userPaths.length,
+        elementsFound: userPaths.reduce(
+          (sum, path) => sum + path.steps.filter((s) => s.elementInfo).length,
+          0
+        ),
+        interactionsRecorded: userPaths.reduce((sum, path) => sum + path.steps.length, 0),
+        screenshotsTaken: userPaths.reduce((sum, path) => sum + path.screenshots.length, 0),
+        userPaths,
+        errors: userPaths.flatMap((path) =>
+          path.steps
+            .filter((s) => !s.success && s.error)
+            .map((s) => ({
+              id: uuidv4(),
+              type: 'interaction' as const,
+              message: s.error!,
+              url: s.url,
+              selector: s.selector,
+              timestamp: s.timestamp,
+              recoverable: true,
+            }))
+        ),
+        metadata: {
+          browserbaseSessionId: session.id,
+          explorationDuration: endTime.getTime() - startTime.getTime(),
+          goal,
+          naturalLanguageMode: true,
+          instructionsProvided: instructions?.length || 0,
+          userAgent: await page.evaluate(() => navigator.userAgent),
+        },
+      };
+
+      // Clean up session
+      await this.cleanupSession(session.id);
+
+      this.emitExplorationEvent({
+        type: 'progress_update',
+        data: { message: 'Exploration completed successfully' },
+        progress: { current: 10, total: 10, percentage: 100, message: 'Complete!' },
+      });
+
+      yield {
+        id: uuidv4(),
+        type: 'exploration_completed',
+        timestamp: new Date(),
+        data: { result },
+        sessionId: session.id,
+      };
+
+      this.updateMetrics(true, endTime.getTime() - startTime.getTime());
+      this.monitoring?.recordCounter('nl_explorations_completed', 1, { status: 'success' });
+
+      logger.info(`Completed streaming natural language exploration`, {
+        explorationId,
+        goal,
+        pagesExplored: result.pagesExplored,
+        interactionsRecorded: result.interactionsRecorded,
+      });
+
+      return result;
+    } catch (error) {
+      this.updateMetrics(false, Date.now() - startTime.getTime());
+      this.monitoring?.recordCounter('nl_explorations_completed', 1, { status: 'error' });
+
+      yield {
+        id: uuidv4(),
+        type: 'error_occurred',
+        timestamp: new Date(),
+        data: { 
+          error: error instanceof Error ? error.message : String(error),
+          goal 
+        },
+      };
+
+      logger.error(`Failed streaming natural language exploration`, {
+        explorationId,
+        goal,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      throw error;
+    } finally {
+      if (spanId) {
+        this.monitoring?.endSpan(spanId);
+      }
+    }
+  }
+
+  /**
    * Explore a target website using AI-guided navigation
    */
   async explore(target: ExplorationTarget): Promise<ExplorationResult> {
@@ -134,7 +738,7 @@ export class ExplorerAgent extends Agent {
 
       // Apply stealth mode if configured
       if (this.stealth) {
-        await (this.stealth as any).applyPageStealthMeasures(page);
+        await this.stealth.applyPageStealthMeasures(page);
       }
 
       // Handle authentication if required
@@ -164,14 +768,14 @@ export class ExplorerAgent extends Agent {
         userPaths,
         errors: [],
         metadata: {
-          browserbaseSessionId: (session as any).id,
+          browserbaseSessionId: session.id,
           explorationDuration: endTime.getTime() - startTime.getTime(),
           userAgent: await page.evaluate(() => navigator.userAgent),
         },
       };
 
       // Clean up session
-      await this.cleanupSession((session as any).id);
+      await this.cleanupSession(session.id);
 
       this.updateMetrics(true, endTime.getTime() - startTime.getTime());
       this.monitoring?.recordCounter('explorations_completed', 1, { status: 'success' });
@@ -212,35 +816,106 @@ export class ExplorerAgent extends Agent {
         selectors: selectors?.length || 'all',
       });
 
-      // Use Stagehand's AI-powered element detection
-      const elements = await this.stagehand.observe({
-        instruction: selectors?.length
-          ? `Find elements matching these selectors: ${selectors.join(', ')}`
-          : 'Find all interactive elements on the page including buttons, links, forms, and inputs',
+      // Use Stagehand's AI-powered element detection and extraction
+      const extractionInstruction = selectors?.length
+        ? `Find and analyze all elements matching these patterns: ${selectors.join(', ')}. Extract their tag names, text content, attributes, visibility status, clickability, and form field properties.`
+        : 'Find and analyze all interactive elements on the page including buttons, links, forms, inputs, and other actionable elements. Extract their properties including tag names, text content, visibility, clickability, and form field status.';
+
+      const extractionResult = await this.stagehand.extract({
+        instruction: extractionInstruction,
+        schema: z.object({
+          elements: z.array(
+            z.object({
+              selector: z.string(),
+              tagName: z.string(),
+              text: z.string().optional(),
+              attributes: z.record(z.string()),
+              isVisible: z.boolean(),
+              isClickable: z.boolean(),
+              isFormField: z.boolean(),
+              boundingBox: z
+                .object({
+                  x: z.number(),
+                  y: z.number(),
+                  width: z.number(),
+                  height: z.number(),
+                })
+                .optional(),
+            })
+          ),
+        }),
       });
 
-      // Convert Stagehand results to our ElementInfo format
+      // Convert Stagehand extraction results to our ElementInfo format
       const elementInfos: ElementInfo[] = [];
 
-      for (const element of elements) {
-        try {
-          const elementInfo = await this.analyzeElement(page, element.selector);
-          if (elementInfo) {
-            elementInfos.push(elementInfo);
+      if (extractionResult?.elements && Array.isArray(extractionResult.elements)) {
+        for (const elementData of extractionResult.elements) {
+          try {
+            // Only include visible elements
+            if (elementData.isVisible) {
+              const elementInfo: ElementInfo = {
+                tagName: elementData.tagName?.toLowerCase() || 'unknown',
+                text: elementData.text || undefined,
+                attributes: elementData.attributes || {},
+                boundingBox:
+                  elementData.boundingBox &&
+                  elementData.boundingBox.x !== undefined &&
+                  elementData.boundingBox.y !== undefined &&
+                  elementData.boundingBox.width !== undefined &&
+                  elementData.boundingBox.height !== undefined
+                    ? (elementData.boundingBox as {
+                        x: number;
+                        y: number;
+                        width: number;
+                        height: number;
+                      })
+                    : undefined,
+                isVisible: elementData.isVisible,
+                isClickable: elementData.isClickable || false,
+                isFormField: elementData.isFormField || false,
+              };
+              elementInfos.push(elementInfo);
+            }
+          } catch (error) {
+            logger.warn(`Failed to process element data`, {
+              element: elementData.selector || 'unknown',
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
-        } catch (error) {
-          logger.warn(`Failed to analyze element ${element.selector}`, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+        }
+      }
+
+      // Fallback to observe API if extraction didn't return structured data
+      if (elementInfos.length === 0) {
+        logger.debug('Extraction returned no elements, falling back to observe API');
+
+        const elements = await this.stagehand.observe({
+          instruction: selectors?.length
+            ? `Find elements matching these selectors: ${selectors.join(', ')}`
+            : 'Find all interactive elements on the page including buttons, links, forms, and inputs',
+        });
+
+        for (const element of elements) {
+          try {
+            const elementInfo = await this.analyzeElement(page, element.selector);
+            if (elementInfo) {
+              elementInfos.push(elementInfo);
+            }
+          } catch (error) {
+            logger.warn(`Failed to analyze element ${element.selector}`, {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
 
       this.monitoring?.recordGauge('elements_extracted', elementInfos.length);
 
-      logger.debug(`Extracted ${elementInfos.length} elements from page`);
+      logger.debug(`Extracted ${elementInfos.length} elements from page using AI`);
       return elementInfos;
     } catch (error) {
-      logger.error('Failed to extract elements', {
+      logger.error('Failed to extract elements with Stagehand', {
         url: page.url(),
         error: error instanceof Error ? error.message : String(error),
       });
@@ -249,6 +924,176 @@ export class ExplorerAgent extends Agent {
       if (spanId) {
         this.monitoring?.endSpan(spanId);
       }
+    }
+  }
+
+  /**
+   * Execute natural language browser commands
+   */
+  async executeNaturalLanguageCommand(
+    page: Page,
+    command: string,
+    context?: { goal?: string; previousSteps?: ExplorationStep[] }
+  ): Promise<ExplorationStep[]> {
+    const stepId = uuidv4();
+    const startTime = new Date();
+    const spanId = this.monitoring?.startSpan('explorer_nl_command');
+
+    try {
+      logger.info('Executing natural language command', {
+        command,
+        goal: context?.goal,
+        url: page.url(),
+      });
+
+      // Break down complex commands into steps using AI
+      const planningResult = await this.stagehand.extract({
+        instruction: `Break down this natural language browser command into specific actionable steps: "${command}". ${context?.goal ? `The overall goal is: ${context.goal}.` : ''} Return a list of specific actions that need to be performed.`,
+        schema: z.object({
+          steps: z.array(
+            z.object({
+              action: z.string(),
+              description: z.string(),
+              type: z.enum([
+                'navigate',
+                'click',
+                'fill',
+                'select',
+                'wait',
+                'extract',
+                'scroll',
+                'hover',
+              ]),
+            })
+          ),
+        }),
+      });
+
+      const steps: ExplorationStep[] = [];
+
+      if (planningResult?.steps && Array.isArray(planningResult.steps)) {
+        // Execute each planned step
+        for (const plannedStep of planningResult.steps) {
+          try {
+            const stepResult = await this.performAIGuidedAction(
+              page,
+              plannedStep.action,
+              plannedStep.type
+            );
+            steps.push(stepResult);
+
+            // Wait between steps to appear human-like
+            await page.waitForTimeout(500 + Math.random() * 1000);
+          } catch (error) {
+            logger.warn('Failed to execute planned step', {
+              step: plannedStep.action,
+              error: error instanceof Error ? error.message : String(error),
+            });
+
+            // Add failed step to results
+            steps.push({
+              id: uuidv4(),
+              type: (plannedStep.type as ExplorationStep['type']) || 'click',
+              timestamp: new Date(),
+              duration: 0,
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+              url: page.url(),
+            });
+          }
+        }
+      } else {
+        // Fallback: execute as single action if planning failed
+        const singleStep = await this.performAIGuidedAction(page, command);
+        steps.push(singleStep);
+      }
+
+      this.monitoring?.recordHistogram('nl_command_duration', Date.now() - startTime.getTime());
+      this.monitoring?.recordGauge('nl_command_steps', steps.length);
+
+      logger.info('Completed natural language command', {
+        command,
+        stepsExecuted: steps.length,
+        successfulSteps: steps.filter((s) => s.success).length,
+      });
+
+      return steps;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      logger.error('Failed to execute natural language command', {
+        command,
+        error: errorMessage,
+      });
+
+      return [
+        {
+          id: stepId,
+          type: 'click', // Default fallback
+          timestamp: startTime,
+          duration: Date.now() - startTime.getTime(),
+          success: false,
+          error: errorMessage,
+          url: page.url(),
+        },
+      ];
+    } finally {
+      if (spanId) {
+        this.monitoring?.endSpan(spanId);
+      }
+    }
+  }
+
+  /**
+   * Perform a single AI-guided action
+   */
+  private async performAIGuidedAction(
+    page: Page,
+    action: string,
+    expectedType?: string
+  ): Promise<ExplorationStep> {
+    const stepId = uuidv4();
+    const startTime = new Date();
+
+    try {
+      // Take screenshot before action
+      const beforeScreenshot = await this.takeScreenshot(page);
+
+      // Use Stagehand to perform the action
+      const result = await this.stagehand.act({
+        action,
+      });
+
+      // Take screenshot after action
+      const afterScreenshot = await this.takeScreenshot(page);
+
+      const endTime = new Date();
+      const step: ExplorationStep = {
+        id: stepId,
+        type: expectedType ? (expectedType as ExplorationStep['type']) : this.inferStepType(action),
+        selector: undefined, // Stagehand doesn't expose specific selectors
+        value: undefined,
+        url: page.url(),
+        timestamp: startTime,
+        duration: endTime.getTime() - startTime.getTime(),
+        success: result.success || false,
+        screenshot: afterScreenshot,
+        elementInfo: undefined,
+      };
+
+      return step;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      return {
+        id: stepId,
+        type: expectedType ? (expectedType as ExplorationStep['type']) : this.inferStepType(action),
+        timestamp: startTime,
+        duration: Date.now() - startTime.getTime(),
+        success: false,
+        error: errorMessage,
+        url: page.url(),
+      };
     }
   }
 
@@ -281,16 +1126,14 @@ export class ExplorerAgent extends Agent {
       const step: ExplorationStep = {
         id: stepId,
         type: this.inferStepType(instruction),
-        selector: (result as any).selector || undefined,
-        value: (result as any).value || undefined,
+        selector: undefined, // Stagehand doesn't return specific selector in act result
+        value: undefined, // Stagehand doesn't return value in act result
         url: page.url(),
         timestamp: startTime,
         duration: endTime.getTime() - startTime.getTime(),
         success: result.success || false,
         screenshot: afterScreenshot,
-        elementInfo: (result as any).selector
-          ? await this.analyzeElement(page, (result as any).selector)
-          : undefined,
+        elementInfo: undefined, // Would need separate element detection
       };
 
       this.monitoring?.recordHistogram('interaction_duration', step.duration);
@@ -405,9 +1248,9 @@ export class ExplorerAgent extends Agent {
   /**
    * Create a new Browserbase session
    */
-  private async createBrowserbaseSession(): Promise<unknown> {
+  private async createBrowserbaseSession(): Promise<BrowserbaseSession> {
     try {
-      const session = await (this.browserbase as any).sessions.create({
+      const session = await this.browserbase.createSession({
         projectId: this.config.browserbase.projectId,
         browserSettings: {
           viewport: { width: 1280, height: 720 },
@@ -418,7 +1261,7 @@ export class ExplorerAgent extends Agent {
       this.sessions.set(session.id, session);
 
       logger.debug('Created Browserbase session', {
-        sessionId: (session as any).id,
+        sessionId: session.id,
         projectId: this.config.browserbase.projectId,
       });
 
@@ -434,9 +1277,17 @@ export class ExplorerAgent extends Agent {
   /**
    * Initialize Stagehand with a Browserbase session
    */
-  private async initializeStagehand(session: unknown): Promise<Page> {
+  private async initializeStagehand(session: BrowserbaseSession): Promise<Page> {
     try {
-      // Connect Stagehand to the Browserbase session
+      // Stagehand should be initialized with browserbaseSessionID
+      if (session.id) {
+        this.stagehand.browserbaseSessionID = session.id;
+      }
+
+      // Initialize Stagehand
+      await this.stagehand.init();
+
+      // Get the page from Stagehand
       const page = await this.stagehand.page;
 
       if (!page) {
@@ -447,13 +1298,13 @@ export class ExplorerAgent extends Agent {
       await page.setViewportSize({ width: 1280, height: 720 });
 
       logger.debug('Initialized Stagehand with Browserbase session', {
-        sessionId: (session as any).id,
+        sessionId: session.id,
       });
 
       return page;
     } catch (error) {
       logger.error('Failed to initialize Stagehand', {
-        sessionId: (session as any).id,
+        sessionId: session.id,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -499,7 +1350,7 @@ export class ExplorerAgent extends Agent {
           });
 
           // Filter observations based on target patterns
-          const relevantElements = this.filterElementsByPatterns(observations as any[], target);
+          const relevantElements = this.filterElementsByPatterns(observations, target);
 
           // Interact with promising elements
           for (const element of relevantElements.slice(0, 3)) {
@@ -507,7 +1358,7 @@ export class ExplorerAgent extends Agent {
             try {
               const interactionStep = await this.interactWithElement(
                 page,
-                `Click on the element: ${(element as any).selector}`
+                `Click on the element: ${element.selector}`
               );
 
               initialPath.steps.push(interactionStep);
@@ -536,7 +1387,7 @@ export class ExplorerAgent extends Agent {
               await page.waitForTimeout(1000 + Math.random() * 2000);
             } catch (error) {
               logger.warn('Failed interaction during exploration', {
-                element: (element as any).selector,
+                element: element.selector,
                 error: error instanceof Error ? error.message : String(error),
               });
             }
@@ -619,59 +1470,90 @@ export class ExplorerAgent extends Agent {
   }
 
   /**
-   * Analyze an element to extract detailed information
+   * Analyze an element using Stagehand AI-powered extraction
    */
   private async analyzeElement(page: Page, selector: string): Promise<ElementInfo | null> {
     try {
-      const element = page.locator(selector).first();
+      // Use Stagehand to extract detailed element information
+      const elementData = await this.stagehand.extract({
+        instruction: `Analyze the element with selector "${selector}" and extract its tag name, text content, attributes, visibility, whether it's clickable, and whether it's a form field`,
+        schema: z.object({
+          tagName: z.string(),
+          text: z.string().optional(),
+          attributes: z.record(z.string()),
+          isVisible: z.boolean(),
+          isClickable: z.boolean(),
+          isFormField: z.boolean(),
+          boundingBox: z
+            .object({
+              x: z.number(),
+              y: z.number(),
+              width: z.number(),
+              height: z.number(),
+            })
+            .optional(),
+        }),
+      });
 
-      if (!(await element.isVisible())) {
+      if (!elementData || !elementData.isVisible) {
         return null;
       }
 
-      const [tagName, text, boundingBox, attributes] = await Promise.all([
-        element.evaluate((el) => el.tagName.toLowerCase()),
-        element.textContent(),
-        element.boundingBox(),
-        element.evaluate((el) => {
-          const attrs: Record<string, string> = {};
-          for (let i = 0; i < el.attributes.length; i++) {
-            const attr = el.attributes[i];
-            attrs[attr.name] = attr.value;
-          }
-          return attrs;
-        }),
-      ]);
-
-      const [isClickable, isFormField] = await Promise.all([
-        element.evaluate((el) => {
-          const clickableTypes = ['button', 'a', 'input', 'select', 'textarea'];
-          return (
-            clickableTypes.includes(el.tagName.toLowerCase()) ||
-            el.getAttribute('onclick') !== null ||
-            el.getAttribute('role') === 'button'
-          );
-        }),
-        element.evaluate((el) => {
-          const formTypes = ['input', 'select', 'textarea'];
-          return formTypes.includes(el.tagName.toLowerCase());
-        }),
-      ]);
-
       return {
-        tagName,
-        text: text || undefined,
-        attributes,
-        boundingBox: boundingBox || undefined,
-        isVisible: true,
-        isClickable,
-        isFormField,
+        tagName: elementData.tagName?.toLowerCase() || 'unknown',
+        text: elementData.text || undefined,
+        attributes: elementData.attributes || {},
+        boundingBox:
+          elementData.boundingBox &&
+          elementData.boundingBox.x !== undefined &&
+          elementData.boundingBox.y !== undefined &&
+          elementData.boundingBox.width !== undefined &&
+          elementData.boundingBox.height !== undefined
+            ? (elementData.boundingBox as { x: number; y: number; width: number; height: number })
+            : undefined,
+        isVisible: elementData.isVisible,
+        isClickable: elementData.isClickable || false,
+        isFormField: elementData.isFormField || false,
       };
     } catch (error) {
-      logger.debug(`Failed to analyze element ${selector}`, {
+      logger.debug(`Failed to analyze element ${selector} with Stagehand`, {
         error: error instanceof Error ? error.message : String(error),
       });
-      return null;
+
+      // Fallback to basic Playwright analysis if Stagehand fails
+      try {
+        const element = page.locator(selector).first();
+        if (!(await element.isVisible())) {
+          return null;
+        }
+
+        const [tagName, text, isClickable] = await Promise.all([
+          element.evaluate((el) => el.tagName.toLowerCase()),
+          element.textContent(),
+          element.evaluate((el) => {
+            const clickableTypes = ['button', 'a', 'input', 'select', 'textarea'];
+            return (
+              clickableTypes.includes(el.tagName.toLowerCase()) ||
+              el.getAttribute('onclick') !== null ||
+              el.getAttribute('role') === 'button'
+            );
+          }),
+        ]);
+
+        return {
+          tagName,
+          text: text || undefined,
+          attributes: {},
+          isVisible: true,
+          isClickable,
+          isFormField: ['input', 'select', 'textarea'].includes(tagName),
+        };
+      } catch (fallbackError) {
+        logger.warn(`Fallback element analysis also failed for ${selector}`, {
+          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        });
+        return null;
+      }
     }
   }
 
@@ -700,16 +1582,16 @@ export class ExplorerAgent extends Agent {
    * Filter elements based on target patterns
    */
   private filterElementsByPatterns(
-    elements: ElementInfo[],
+    elements: StagehandElement[],
     target: ExplorationTarget
-  ): ElementInfo[] {
+  ): StagehandElement[] {
     if (!target.patterns && !target.excludePatterns) {
       return elements;
     }
 
     return elements.filter((element) => {
-      const text = (element as any).text?.toLowerCase() || '';
-      const selector = (element as any).selector?.toLowerCase() || '';
+      const text = element.description?.toLowerCase() || '';
+      const selector = element.selector?.toLowerCase() || '';
 
       // Check include patterns
       if (target.patterns) {

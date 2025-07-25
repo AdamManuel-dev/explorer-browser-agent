@@ -445,7 +445,7 @@ export class StealthMode {
     });
   }
 
-  private async applyPageStealthMeasures(page: Page): Promise<void> {
+  async applyPageStealthMeasures(page: Page): Promise<void> {
     // Set random viewport if enabled
     if (this.config.viewport.randomize) {
       const viewport = this.getRandomViewport();

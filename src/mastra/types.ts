@@ -7,11 +7,39 @@ export interface BrowserbaseConfig {
 }
 
 export interface StagehandConfig {
-  modelName?: string;
+  modelName?:
+    | 'gpt-4o'
+    | 'gpt-4o-mini'
+    | 'gpt-4o-2024-08-06'
+    | 'gpt-4.5-preview'
+    | 'claude-3-5-sonnet-latest'
+    | 'claude-3-5-sonnet-20241022'
+    | 'claude-3-5-sonnet-20240620'
+    | 'claude-3-7-sonnet-latest'
+    | 'claude-3-7-sonnet-20250219'
+    | 'o1-mini'
+    | 'o1-preview'
+    | 'o3-mini'
+    | 'cerebras-llama-3.3-70b'
+    | 'cerebras-llama-3.1-8b'
+    | 'groq-llama-3.3-70b-versatile'
+    | 'groq-llama-3.3-70b-specdec';
   modelClientOptions?: Record<string, unknown>;
   enableCaching?: boolean;
   headless?: boolean;
-  logger?: (message: string, level?: string) => void;
+  logger?: (message: {
+    id?: string;
+    category?: string;
+    message: string;
+    level?: 0 | 1 | 2;
+    timestamp?: string;
+    auxiliary?: {
+      [key: string]: {
+        value: string;
+        type: 'object' | 'string' | 'html' | 'integer' | 'float' | 'boolean';
+      };
+    };
+  }) => void | Promise<void>;
 }
 
 export interface ExplorationTarget {

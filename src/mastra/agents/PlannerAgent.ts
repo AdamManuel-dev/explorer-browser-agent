@@ -1,5 +1,7 @@
 import { Agent } from '@mastra/core/agent';
+import { openai } from '@ai-sdk/openai';
 import { v4 as uuidv4 } from 'uuid';
+import { EventEmitter } from 'events';
 import { logger } from '../../utils/logger';
 import { MonitoringService } from '../../monitoring';
 import { ConfigManager } from '../../config';
@@ -47,6 +49,23 @@ export interface PlanOptimization {
   };
 }
 
+export interface PlanningEvent {
+  id: string;
+  type: 'planning_started' | 'targets_analyzed' | 'strategy_selected' | 'optimization_applied' | 'plan_generated' | 'planning_completed' | 'error_occurred' | 'progress_update';
+  timestamp: Date;
+  data: any;
+  progress?: {
+    current: number;
+    total: number;
+    percentage: number;
+    message: string;
+  };
+}
+
+export interface PlanningEventCallback {
+  (event: PlanningEvent): void;
+}
+
 export class PlannerAgent extends Agent {
   private monitoring?: MonitoringService;
 
@@ -60,12 +79,17 @@ export class PlannerAgent extends Agent {
 
   private planningHistory: Map<string, PlanningContext> = new Map();
 
+  private eventEmitter: EventEmitter = new EventEmitter();
+
+  private streamingCallbacks: Map<string, PlanningEventCallback> = new Map();
+
   constructor(config: PlannerAgentConfig) {
     super({
       id: 'planner-agent',
       name: 'PlannerAgent',
       instructions: 'Intelligent crawl strategy planning and optimization agent',
-    } as any);
+      model: openai('gpt-4'),
+    });
 
     this.config = config;
     this.monitoring = config.monitoring;
@@ -106,6 +130,53 @@ export class PlannerAgent extends Agent {
    */
   getMetrics(): AgentMetrics {
     return { ...this.metrics };
+  }
+
+  /**
+   * Subscribe to planning events for streaming updates
+   */
+  onPlanningEvent(callback: PlanningEventCallback): string {
+    const subscriptionId = uuidv4();
+    this.streamingCallbacks.set(subscriptionId, callback);
+    return subscriptionId;
+  }
+
+  /**
+   * Unsubscribe from planning events
+   */
+  offPlanningEvent(subscriptionId: string): void {
+    this.streamingCallbacks.delete(subscriptionId);
+  }
+
+  /**
+   * Emit planning event to all subscribers
+   */
+  private emitPlanningEvent(event: Omit<PlanningEvent, 'id' | 'timestamp'>): void {
+    const fullEvent: PlanningEvent = {
+      id: uuidv4(),
+      timestamp: new Date(),
+      ...event,
+    };
+
+    // Emit to event emitter
+    this.eventEmitter.emit('planning:event', fullEvent);
+
+    // Call all streaming callbacks
+    this.streamingCallbacks.forEach((callback) => {
+      try {
+        callback(fullEvent);
+      } catch (error) {
+        logger.warn('Error in planning streaming callback', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+
+    // Log the event
+    logger.debug('Planning event emitted', {
+      type: fullEvent.type,
+      id: fullEvent.id,
+    });
   }
 
   /**
@@ -176,6 +247,165 @@ export class PlannerAgent extends Agent {
       this.monitoring?.recordCounter('plan_creation_errors', 1);
 
       logger.error('Failed to create crawl plan', {
+        planId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      throw error;
+    } finally {
+      if (spanId) {
+        this.monitoring?.endSpan(spanId);
+      }
+    }
+  }
+
+  /**
+   * Streaming version of plan creation with real-time updates
+   */
+  async* createPlanStream(
+    targets: ExplorationTarget[],
+    context: PlanningContext,
+    optimization?: PlanOptimization
+  ): AsyncGenerator<PlanningEvent, CrawlPlan> {
+    const startTime = new Date();
+    const planId = uuidv4();
+    const spanId = this.monitoring?.startSpan('planner_create_plan_stream');
+
+    try {
+      yield {
+        id: uuidv4(),
+        type: 'planning_started',
+        timestamp: new Date(),
+        data: { planId, targetCount: targets.length, domain: context.domain },
+        progress: { current: 0, total: 5, percentage: 0, message: 'Starting plan creation...' },
+      };
+
+      this.emitPlanningEvent({
+        type: 'progress_update',
+        data: { message: 'Analyzing targets' },
+        progress: { current: 1, total: 5, percentage: 20, message: 'Analyzing targets...' },
+      });
+
+      // Analyze targets and determine optimal strategy
+      const strategy = await this.determineOptimalStrategy(targets, context);
+      
+      yield {
+        id: uuidv4(),
+        type: 'strategy_selected',
+        timestamp: new Date(),
+        data: { strategy, planId },
+        progress: { current: 2, total: 5, percentage: 40, message: 'Strategy selected' },
+      };
+
+      this.emitPlanningEvent({
+        type: 'progress_update',
+        data: { message: 'Calculating resource requirements' },
+        progress: { current: 2, total: 5, percentage: 40, message: 'Calculating resources...' },
+      });
+
+      // Calculate resource requirements
+      const resources = await this.calculateResourceRequirements(targets, strategy, optimization);
+
+      this.emitPlanningEvent({
+        type: 'progress_update',
+        data: { message: 'Optimizing target order' },
+        progress: { current: 3, total: 5, percentage: 60, message: 'Optimizing targets...' },
+      });
+
+      // Optimize target order and grouping
+      const optimizedTargets = await this.optimizeTargetOrder(targets, context, strategy);
+
+      yield {
+        id: uuidv4(),
+        type: 'targets_analyzed',
+        timestamp: new Date(),
+        data: { 
+          originalCount: targets.length,
+          optimizedCount: optimizedTargets.length,
+          strategy,
+          resources 
+        },
+        progress: { current: 4, total: 5, percentage: 80, message: 'Generating plan...' },
+      };
+
+      // Apply optimization if provided
+      if (optimization) {
+        this.emitPlanningEvent({
+          type: 'optimization_applied',
+          data: { optimization },
+        });
+      }
+
+      // Create the crawl plan
+      const plan: CrawlPlan = {
+        id: planId,
+        name: `Crawl Plan for ${context.domain}`,
+        targets: optimizedTargets,
+        strategy,
+        priority: this.calculatePlanPriority(context),
+        resources,
+        notifications: {
+          onComplete: [`${context.domain}@notifications`],
+          onError: [`${context.domain}@alerts`],
+        },
+      };
+
+      // Store plan and context for future optimization
+      this.activePlans.set(planId, plan);
+      this.planningHistory.set(planId, context);
+
+      yield {
+        id: uuidv4(),
+        type: 'plan_generated',
+        timestamp: new Date(),
+        data: { plan },
+        progress: { current: 5, total: 5, percentage: 100, message: 'Plan completed!' },
+      };
+
+      const endTime = new Date();
+      const duration = endTime.getTime() - startTime.getTime();
+
+      this.updateMetrics(true, duration);
+      this.monitoring?.recordHistogram('plan_creation_duration', duration);
+      this.monitoring?.recordGauge('active_plans', this.activePlans.size);
+
+      yield {
+        id: uuidv4(),
+        type: 'planning_completed',
+        timestamp: new Date(),
+        data: { 
+          planId,
+          duration,
+          targetCount: plan.targets.length,
+          strategy,
+          resources 
+        },
+      };
+
+      logger.info('Created crawl plan successfully via streaming', {
+        planId,
+        strategy,
+        targetCount: plan.targets.length,
+        estimatedDuration: resources.timeout,
+        maxConcurrency: resources.maxConcurrency,
+      });
+
+      return plan;
+    } catch (error) {
+      this.updateMetrics(false, Date.now() - startTime.getTime());
+      this.monitoring?.recordCounter('plan_creation_errors', 1);
+
+      yield {
+        id: uuidv4(),
+        type: 'error_occurred',
+        timestamp: new Date(),
+        data: { 
+          error: error instanceof Error ? error.message : String(error),
+          planId 
+        },
+      };
+
+      logger.error('Failed to create crawl plan via streaming', {
         planId,
         error: error instanceof Error ? error.message : String(error),
       });
