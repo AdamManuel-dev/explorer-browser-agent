@@ -72,7 +72,7 @@ describe('ButtonStrategy', () => {
         testData: {
           value: 'test',
           type: 'click',
-          generated: new Date(),
+          generated: true,
         },
         options: {},
       };

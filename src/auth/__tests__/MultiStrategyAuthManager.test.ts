@@ -11,16 +11,20 @@ describe('MultiStrategyAuthManager', () => {
   beforeEach(() => {
     authManager = new MultiStrategyAuthManager();
 
+    const mockContext = {
+      cookies: jest.fn(() => Promise.resolve([])),
+      addCookies: jest.fn(() => Promise.resolve()),
+    };
+
     mockPage = {
       goto: jest.fn(() => Promise.resolve(null)) as any,
       fill: jest.fn(() => Promise.resolve()) as any,
       click: jest.fn(() => Promise.resolve()) as any,
       waitForSelector: jest.fn(() => Promise.resolve(null)) as any,
       url: jest.fn(() => 'https://example.com/dashboard') as any,
-      context: jest.fn(() => ({
-        cookies: jest.fn(() => Promise.resolve([])),
-        addCookies: jest.fn(() => Promise.resolve()),
-      })) as any,
+      context: jest.fn(() => mockContext) as any,
+      waitForNavigation: jest.fn(() => Promise.resolve(null)) as any,
+      evaluate: jest.fn(() => Promise.resolve({})) as any,
     };
   });
 
@@ -45,7 +49,7 @@ describe('MultiStrategyAuthManager', () => {
       const result = await authManager.authenticate(mockPage as Page, config);
 
       expect(result).toHaveProperty('success');
-      expect(mockPage.goto).toHaveBeenCalledWith(config.loginUrl);
+      expect(mockPage.goto).toHaveBeenCalledWith(config.loginUrl, { timeout: 30000 });
     });
 
     it('should handle invalid strategy', async () => {

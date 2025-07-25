@@ -52,7 +52,7 @@ describe('MultiStrategyAuthManager', () => {
         sessionPersistence: false,
       };
 
-      (mockPage.waitForSelector as jest.Mock).mockResolvedValue(undefined);
+      (mockPage.waitForSelector as jest.Mock).mockImplementation(() => Promise.resolve(null));
       (mockPage.url as jest.Mock).mockReturnValue('https://example.com/dashboard');
 
       const result = await authManager.authenticate(mockPage as Page, config);

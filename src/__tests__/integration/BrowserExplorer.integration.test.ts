@@ -528,9 +528,22 @@ generation:
     }, 15000);
 
     it('should handle missing configuration files', async () => {
+      // Mock fs.readFile to reject for non-existent files
+      const fs = require('fs/promises');
+      const originalReadFile = fs.readFile;
+      fs.readFile.mockImplementation((path: string) => {
+        if (path === '/non-existent/config.yaml') {
+          return Promise.reject(new Error('ENOENT: no such file or directory'));
+        }
+        return originalReadFile(path);
+      });
+      
       const explorer = new BrowserExplorer();
 
       await expect(explorer.initialize('/non-existent/config.yaml')).rejects.toThrow();
+      
+      // Restore original mock
+      fs.readFile.mockImplementation(originalReadFile);
     });
 
     it('should require initialization before exploration', async () => {

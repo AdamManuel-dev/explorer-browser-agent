@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeEach, jest } from '@jest/globals';
 import { ConfigManager } from '../ConfigManager';
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, access } from 'fs/promises';
 
 jest.mock('fs/promises');
 jest.mock('../../utils/logger');
@@ -21,7 +21,8 @@ describe('ConfigManager Basic Tests', () => {
 
   describe('loadConfig', () => {
     it('should load default config when no file exists', async () => {
-      (readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
+      (access as jest.MockedFunction<typeof access>).mockRejectedValue(new Error('File not found'));
+      (readFile as jest.MockedFunction<typeof readFile>).mockRejectedValue(new Error('File not found'));
 
       const config = await configManager.loadConfig();
 
@@ -38,7 +39,8 @@ describe('ConfigManager Basic Tests', () => {
     });
 
     it('should return config after loading', async () => {
-      (readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
+      (access as jest.MockedFunction<typeof access>).mockRejectedValue(new Error('File not found'));
+      (readFile as jest.MockedFunction<typeof readFile>).mockRejectedValue(new Error('File not found'));
 
       await configManager.loadConfig();
       const config = configManager.getConfig();
@@ -49,7 +51,8 @@ describe('ConfigManager Basic Tests', () => {
 
   describe('updateConfig', () => {
     it('should update existing config', async () => {
-      (readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
+      (access as jest.MockedFunction<typeof access>).mockRejectedValue(new Error('File not found'));
+      (readFile as jest.MockedFunction<typeof readFile>).mockRejectedValue(new Error('File not found'));
 
       await configManager.loadConfig();
 

@@ -468,4 +468,13 @@ export class ConfigManager {
     await this.saveConfig(sampleConfig, filePath);
     logger.info('Sample configuration created', { path: filePath });
   }
+
+  isJsonFile(filePath: string): boolean {
+    return path.extname(filePath).toLowerCase() === '.json';
+  }
+
+  isYamlFile(filePath: string): boolean {
+    const ext = path.extname(filePath).toLowerCase();
+    return ext === '.yaml' || ext === '.yml';
+  }
 }

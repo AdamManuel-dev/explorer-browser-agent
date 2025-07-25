@@ -777,11 +777,11 @@ describe('Authentication and Security Workflow Integration Tests', () => {
         expect(protectedPages.length).toBe(0);
 
         // Should have found public pages
-        const publicPages = crawlResults.crawledUrls.filter(
-          (p) =>
-            p.url === `http://localhost:${testPort}/` ||
-            p.url.includes('/about') ||
-            p.url.includes('/login')
+        const publicPages = crawlResults.urls.filter(
+          (url) =>
+            url === `http://localhost:${testPort}/` ||
+            url.includes('/about') ||
+            url.includes('/login')
         );
         expect(publicPages.length).toBeGreaterThan(0);
 

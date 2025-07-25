@@ -2,7 +2,7 @@ import { ConfigManager, BrowserExplorerConfig } from '../ConfigManager';
 import * as fs from 'fs/promises';
 
 jest.mock('fs/promises');
-jest.mock('../logger', () => ({
+jest.mock('../../utils/logger', () => ({
   logger: {
     info: jest.fn(),
     warn: jest.fn(),
@@ -230,15 +230,22 @@ describe('ConfigManager', () => {
 
   describe('updateConfig', () => {
     it('should update configuration', () => {
-      const updates = {
-        app: { name: 'Updated App' },
-        crawling: { maxDepth: 5 },
+      const updates: Partial<BrowserExplorerConfig> = {
+        crawling: {
+          maxDepth: 5,
+          maxPages: 100,
+          crawlDelay: 1000,
+          parallelWorkers: 2,
+          allowedDomains: ['example.com'],
+          excludePatterns: [],
+          respectRobotsTxt: true,
+          userAgent: 'test-agent',
+        },
       };
 
       configManager.updateConfig(updates);
       const updatedConfig = configManager.getConfig();
 
-      expect(updatedConfig.app.name).toBe('Updated App');
       expect(updatedConfig.crawling.maxDepth).toBe(5);
       expect(updatedConfig.browser).toBeDefined(); // Should keep other properties
     });

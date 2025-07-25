@@ -7,12 +7,7 @@ describe('AIElementDetector Basic Tests', () => {
   let detector: AIElementDetector;
 
   beforeEach(() => {
-    detector = new AIElementDetector({
-      enableAI: false,
-      enableTraditional: true,
-      timeout: 5000,
-      retryAttempts: 3,
-    });
+    detector = new AIElementDetector();
   });
 
   describe('constructor', () => {
@@ -22,19 +17,20 @@ describe('AIElementDetector Basic Tests', () => {
   });
 
   describe('basic functionality', () => {
-    it('should have detectElements method', () => {
-      expect(typeof detector.detectElements).toBe('function');
+    it('should have detectInteractiveElements method', () => {
+      expect(typeof detector.detectInteractiveElements).toBe('function');
     });
 
     it('should handle empty page', async () => {
       const mockPage = {
-        $: jest.fn().mockResolvedValue(null),
-        $$: jest.fn().mockResolvedValue([]),
-        evaluate: jest.fn().mockResolvedValue([]),
+        $: jest.fn<() => Promise<null>>().mockResolvedValue(null),
+        $$: jest.fn<() => Promise<any[]>>().mockResolvedValue([]),
+        evaluate: jest.fn<() => Promise<any[]>>().mockResolvedValue([]),
       } as any;
 
-      const result = await detector.detectElements(mockPage);
-      expect(Array.isArray(result)).toBe(true);
+      const result = await detector.detectInteractiveElements(mockPage);
+      expect(result).toHaveProperty('elements');
+      expect(Array.isArray(result.elements)).toBe(true);
     });
   });
 });

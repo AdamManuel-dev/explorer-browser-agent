@@ -23,7 +23,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(p-queue|normalize-url|robots-parser|eventemitter3|yocto-queue)/)',
+    'node_modules/(?!(p-queue|normalize-url|robots-parser|eventemitter3|yocto-queue|get-port)/)',
   ],
   extensionsToTreatAsEsm: ['.ts'],
 };

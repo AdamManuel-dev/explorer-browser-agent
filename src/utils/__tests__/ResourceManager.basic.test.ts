@@ -15,20 +15,23 @@ describe('ResourceManager Basic Tests', () => {
     mockPage = {
       close: jest.fn(),
       isClosed: jest.fn().mockReturnValue(false),
+      on: jest.fn(),
+      url: jest.fn().mockReturnValue('https://example.com'),
     } as any;
 
     mockContext = {
-      newPage: jest.fn().mockResolvedValue(mockPage),
+      newPage: jest.fn<() => Promise<Page>>().mockResolvedValue(mockPage as Page),
       close: jest.fn(),
     } as any;
 
     mockBrowser = {
-      newContext: jest.fn().mockResolvedValue(mockContext),
+      newContext: jest.fn<() => Promise<BrowserContext>>().mockResolvedValue(mockContext as BrowserContext),
       close: jest.fn(),
       isConnected: jest.fn().mockReturnValue(true),
+      on: jest.fn(),
     } as any;
 
-    (chromium.launch as jest.Mock).mockResolvedValue(mockBrowser);
+    (chromium.launch as jest.Mock<() => Promise<Browser>>).mockResolvedValue(mockBrowser as Browser);
 
     resourceManager = new ResourceManager();
   });
@@ -60,7 +63,7 @@ describe('ResourceManager Basic Tests', () => {
   describe('cleanup', () => {
     it('should clean up all resources', async () => {
       await resourceManager.allocateResources();
-      await resourceManager.cleanup();
+      await resourceManager.cleanup(true);
 
       expect(mockBrowser.close).toHaveBeenCalled();
     });

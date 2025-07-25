@@ -479,9 +479,12 @@ describe('Crawler Workflow Integration Tests', () => {
       // });
 
       const stealth = new StealthMode({
-        enabled: true,
-        fingerprintSpoofing: { canvas: true, webgl: true, audio: true },
-        behaviorSimulation: { humanLikeDelays: true, randomizedTiming: true },
+        userAgents: { enabled: true, rotateOnNewPage: true },
+        viewport: { randomize: true, commonSizes: [{ width: 1920, height: 1080 }] },
+        timing: { humanLikeDelays: true, minDelay: 100, maxDelay: 500, typingSpeed: { min: 50, max: 150 } },
+        fingerprinting: { spoofWebGL: true, spoofCanvas: true, spoofAudio: true, spoofTimezone: true, spoofLanguages: true },
+        navigation: { randomScrolling: true, mouseMoves: true, refererSpoofing: true },
+        headers: { acceptLanguage: ['en-US', 'en'], acceptEncoding: ['gzip', 'deflate', 'br'], customHeaders: {} },
       });
 
       const crawler = new BreadthFirstCrawler({
@@ -496,8 +499,10 @@ describe('Crawler Workflow Integration Tests', () => {
       });
       const recorder = new UserPathRecorder({
         captureScreenshots: true,
-        captureNetworkActivity: true,
-        captureConsoleMessages: true,
+        captureNetwork: true,
+        captureConsole: true,
+        generateAssertions: true,
+        assertionTypes: ['visible', 'text', 'url'],
       });
 
       const testGenerator = new TestGenerator({
@@ -506,6 +511,11 @@ describe('Crawler Workflow Integration Tests', () => {
         outputDirectory: testOutputDir,
         generatePageObjects: true,
         generateFixtures: true,
+        generateHelpers: true,
+        useAAAPattern: true,
+        addComments: true,
+        groupRelatedTests: true,
+        testNamingConvention: 'describe-it',
       });
 
       try {
@@ -520,9 +530,9 @@ describe('Crawler Workflow Integration Tests', () => {
         // Step 2: Record user interactions
         monitoring.recordCounter('workflow_steps', 1, { step: 'recording' });
         const page = await browser.newPage();
-        await stealth.setupPage(page);
+        await stealth.setupStealthPage(page);
 
-        recorder.startRecording(page, 'e-commerce-workflow');
+        await recorder.startRecording(page, { purpose: 'e-commerce-workflow' });
 
         await page.goto(`http://localhost:${testPort}`);
         await page.click('[data-testid="products-link"]');
@@ -575,12 +585,14 @@ describe('Crawler Workflow Integration Tests', () => {
       const page = await browser.newPage();
       const detector = new AIElementDetector();
       const executor = new InteractionExecutor();
+      executor.setPage(page);
 
       try {
         await page.goto(`http://localhost:${testPort}/checkout`);
 
         // Detect all form elements
-        const elements = await detector.detectElements(page);
+        const elementResult = await detector.detectInteractiveElements(page);
+        const elements = elementResult.elements;
         const formElements = elements.filter(
           (el) => el.type === 'input' || el.type === 'form' || el.type === 'button'
         );
@@ -591,11 +603,8 @@ describe('Crawler Workflow Integration Tests', () => {
         const interactions = [];
         for (const element of formElements) {
           if (element.selector && element.type === 'input') {
-            const result = await executor.executeInteraction(page, {
-              type: 'fill',
-              selector: element.selector,
-              value: generateTestData(element.selector),
-              options: { delay: 50 },
+            const result = await executor.executeInteraction(element, {
+              delay: 50,
             });
             interactions.push(result);
           }
