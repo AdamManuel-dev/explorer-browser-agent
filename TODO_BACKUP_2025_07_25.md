@@ -19,17 +19,17 @@
 - [x] Implement natural language browser control ✅ 2025-07-25
 
 ### 3. Workflow System Integration
-- [x] Refactor ExplorationWorkflow to use Mastra's workflow system ✅ 2025-07-25
-- [x] Implement proper workflow step definitions with AI agents ✅ 2025-07-25
-- [x] Add workflow context management and state persistence ✅ 2025-07-25
-- [x] Enable workflow error handling and recovery ✅ 2025-07-25
-- [x] Connect workflows to Mastra agent tools ✅ 2025-07-25
+- [ ] Refactor ExplorationWorkflow to use Mastra's workflow system
+- [ ] Implement proper workflow step definitions with AI agents
+- [ ] Add workflow context management and state persistence
+- [ ] Enable workflow error handling and recovery
+- [ ] Connect workflows to Mastra agent tools
 
 ## 🟡 P1 - High Priority Gaps (Core AI Features)
 
 ### 4. AI-Powered Element Detection
-- [x] Replace selector-based detection with Stagehand observe API ✅ 2025-07-25
-- [x] Implement natural language element queries (e.g., "Find all login buttons") ✅ 2025-07-25
+- [ ] Replace selector-based detection with Stagehand observe API
+- [ ] Implement natural language element queries (e.g., "Find all login buttons")
 - [ ] Add context-aware element identification
 - [ ] Enable self-adapting element detection for UI changes
 - [ ] Remove hardcoded CSS selectors from AIElementDetector

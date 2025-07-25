@@ -5,6 +5,7 @@ import { MonitoringService } from '../monitoring';
 import { ConfigManager } from '../config';
 import { PlannerAgent } from './agents/PlannerAgent';
 import { ExplorationWorkflow } from './workflows/ExplorationWorkflow';
+import { ExplorationWorkflowV2 } from './workflows/ExplorationWorkflowV2';
 import { WorkflowEngine } from './WorkflowEngine';
 import {
   BrowserbaseConfig,
@@ -25,6 +26,7 @@ export interface MastraOrchestratorConfig {
   enableTestGeneration?: boolean;
   retryAttempts?: number;
   defaultTimeout?: number;
+  useV2Workflow?: boolean;
 }
 
 export interface ExplorationRequest {
@@ -81,6 +83,8 @@ export class MastraOrchestrator {
 
   private explorationWorkflow: ExplorationWorkflow;
 
+  private explorationWorkflowV2: ExplorationWorkflowV2;
+
   private monitoring?: MonitoringService;
 
   private configManager?: ConfigManager;
@@ -114,6 +118,17 @@ export class MastraOrchestrator {
       maxConcurrentExplorations: config.maxConcurrentWorkflows || 5,
       defaultTimeout: config.defaultTimeout || 30000,
       enableTestGeneration: config.enableTestGeneration || true,
+      outputDirectory: config.outputDirectory || './generated-tests',
+    });
+
+    // Initialize V2 workflow with improved architecture
+    this.explorationWorkflowV2 = new ExplorationWorkflowV2({
+      browserbase: config.browserbase,
+      stagehand: config.stagehand,
+      monitoring: config.monitoring,
+      maxConcurrentExplorations: config.maxConcurrentWorkflows || 5,
+      defaultTimeout: config.defaultTimeout || 30000,
+      enableTestGeneration: config.enableTestGeneration !== false,
       outputDirectory: config.outputDirectory || './generated-tests',
     });
 
@@ -425,8 +440,10 @@ export class MastraOrchestrator {
         testGenerationOptions: session.request.testGenerationOptions,
       };
 
-      // Execute workflow
-      const result = await this.explorationWorkflow.execute(workflowInput);
+      // Execute workflow (use V2 if enabled)
+      const result = this.config.useV2Workflow
+        ? await this.explorationWorkflowV2.execute(workflowInput)
+        : await this.explorationWorkflow.execute(workflowInput);
 
       // Update session with results
       session.status = 'completed';
