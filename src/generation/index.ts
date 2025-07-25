@@ -3,6 +3,7 @@ export { PageObjectGenerator } from './PageObjectGenerator';
 export { TestFileWriter } from './TestFileWriter';
 export { TestValidator } from './TestValidator';
 export { TestReporter } from './TestReporter';
+export { NaturalLanguageTestProcessor } from './NaturalLanguageTestProcessor';
 export type {
   TestFile,
   TestFileType,
@@ -36,3 +37,9 @@ export type {
   PerformanceSummary,
   ScreenshotSummary,
 } from './TestReporter';
+export type {
+  NaturalLanguageTestSpec,
+  ProcessedTestSpec,
+  ProcessedTestStep,
+  ProcessedTestAssertion,
+} from './NaturalLanguageTestProcessor';

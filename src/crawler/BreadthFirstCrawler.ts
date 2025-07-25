@@ -4,6 +4,7 @@ import normalizeUrl from 'normalize-url';
 import robotsParser from 'robots-parser';
 import { URL } from 'url';
 import { logger } from '../utils/logger';
+import { BrowserAgent } from '../agents/BrowserAgent';
 
 export interface CrawlNode {
   url: string;
@@ -63,6 +64,8 @@ export class BreadthFirstCrawler {
 
   private startTime: number = 0;
 
+  private browserAgent: BrowserAgent | null = null;
+
   constructor(private config: CrawlConfiguration) {
     this.crawlResult = {
       pagesVisited: 0,
@@ -77,6 +80,10 @@ export class BreadthFirstCrawler {
       interval: config.crawlDelay,
       intervalCap: 1,
     });
+  }
+
+  setBrowserAgent(browserAgent: BrowserAgent): void {
+    this.browserAgent = browserAgent;
   }
 
   async crawl(): Promise<CrawlResult> {
@@ -179,10 +186,42 @@ export class BreadthFirstCrawler {
     }
   }
 
-  private async crawlPage(_url: string): Promise<string[]> {
-    // This is a placeholder - will be implemented with actual page crawling
-    // Will be integrated with BrowserAgent
-    return [];
+  private async crawlPage(url: string): Promise<string[]> {
+    if (!this.browserAgent) {
+      logger.warn('No browser agent available for crawling, returning empty results');
+      return [];
+    }
+
+    try {
+      logger.debug(`Crawling page: ${url}`);
+      
+      // Navigate to the URL using the browser agent
+      await this.browserAgent.navigate(url);
+      
+      // Get the page instance
+      const page = this.browserAgent.getPage();
+      if (!page) {
+        throw new Error('Browser page not available');
+      }
+
+      // Extract URLs from the page using the existing method
+      const extractedUrls = await this.extractUrls(page, url);
+      
+      logger.debug(`Extracted ${extractedUrls.length} URLs from ${url}`);
+      return extractedUrls;
+      
+    } catch (error) {
+      logger.error(`Failed to crawl page ${url}:`, error);
+      
+      // Add error to crawl results
+      this.crawlResult.errors.push({
+        url,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date(),
+      });
+      
+      return [];
+    }
   }
 
   private normalizeUrl(url: string): string {

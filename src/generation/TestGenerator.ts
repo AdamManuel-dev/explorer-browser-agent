@@ -14,14 +14,22 @@ import {
 } from '../types/generation';
 import { logger } from '../utils/logger';
 import { PathOptimizer } from '../recording/PathOptimizer';
+import { 
+  NaturalLanguageTestProcessor, 
+  NaturalLanguageTestSpec, 
+  ProcessedTestSpec,
+  ProcessedTestStep,
+  ProcessedTestAssertion
+} from './NaturalLanguageTestProcessor';
 
 export class TestGenerator {
   private optimizer: PathOptimizer;
-
+  private nlProcessor: NaturalLanguageTestProcessor;
   private formatting: CodeFormatting;
 
   constructor(private options: GenerationOptions) {
     this.optimizer = new PathOptimizer();
+    this.nlProcessor = new NaturalLanguageTestProcessor();
     this.formatting = options.formatting || {
       indent: '  ',
       quotes: 'single',
@@ -536,6 +544,491 @@ export class TestGenerator {
         return ['puppeteer'];
       default:
         return [];
+    }
+  }
+
+  // Natural language test generation methods
+
+  async generateFromNaturalLanguage(nlSpecs: NaturalLanguageTestSpec[]): Promise<GenerationResult> {
+    logger.info('Generating tests from natural language specifications', {
+      specsCount: nlSpecs.length,
+      framework: this.options.framework,
+    });
+
+    const errors: GenerationError[] = [];
+    const files: TestFile[] = [];
+
+    try {
+      // Process natural language specs into structured test specs
+      const processedSpecs = await this.nlProcessor.processMultipleSpecs(nlSpecs);
+
+      // Generate test file from processed specs
+      for (const processedSpec of processedSpecs) {
+        const testFile = await this.generateTestFileFromProcessedSpec(processedSpec);
+        files.push(testFile);
+      }
+
+      // Generate page objects if enabled
+      if (this.options.generatePageObjects) {
+        const pageObjects = await this.generatePageObjectsFromSpecs(processedSpecs);
+        files.push(...pageObjects);
+      }
+
+      // Generate fixtures if enabled
+      if (this.options.generateFixtures) {
+        const fixtures = await this.generateFixturesFromSpecs(processedSpecs);
+        files.push(...fixtures);
+      }
+
+      // Generate helpers if enabled
+      if (this.options.generateHelpers) {
+        const helpers = await this.generateHelpersFromSpecs(processedSpecs);
+        files.push(...helpers);
+      }
+
+      // Calculate summary
+      const summary = this.calculateSummaryFromFiles(files);
+
+      return {
+        files,
+        summary,
+        errors,
+      };
+    } catch (error) {
+      logger.error('Natural language test generation failed', error);
+      errors.push({
+        error: error instanceof Error ? error.message : String(error),
+        severity: 'error',
+      });
+
+      return {
+        files,
+        summary: this.calculateSummaryFromFiles(files),
+        errors,
+      };
+    }
+  }
+
+  private async generateTestFileFromProcessedSpec(processedSpec: ProcessedTestSpec): Promise<TestFile> {
+    const testCase: TestCase = {
+      name: processedSpec.name,
+      description: processedSpec.description,
+      tags: processedSpec.metadata.tags,
+      steps: this.convertProcessedStepsToTestSteps(processedSpec.steps),
+      assertions: this.convertProcessedAssertionsToTestAssertions(processedSpec.assertions),
+      timeout: processedSpec.metadata.estimatedTime * 60 * 1000, // Convert minutes to milliseconds
+    };
+
+    const structure: TestStructure = {
+      imports: this.generateImportsForFramework(),
+      setup: {
+        type: 'beforeEach',
+        code: processedSpec.setup ? 
+          processedSpec.setup.map(step => this.convertProcessedStepToCode(step)) : 
+          this.generateDefaultSetup(),
+      },
+      tests: [testCase],
+      teardown: processedSpec.cleanup ? {
+        type: 'afterEach',
+        code: processedSpec.cleanup.map(step => this.convertProcessedStepToCode(step)),
+      } : undefined,
+    };
+
+    const content = this.renderTestFileFromStructure(structure);
+
+    return {
+      filename: this.generateTestFileNameFromSpec(processedSpec),
+      path: `${this.options.outputDirectory}/tests`,
+      content,
+      type: 'test',
+      metadata: {
+        generatedAt: new Date(),
+        sourcePath: processedSpec as any, // Cast to satisfy type
+        framework: this.options.framework,
+        language: this.options.language || 'typescript',
+        dependencies: this.getRequiredDependencies(),
+        tags: processedSpec.metadata.tags,
+      },
+    };
+  }
+
+  private convertProcessedStepsToTestSteps(processedSteps: ProcessedTestStep[]): TestStep[] {
+    return processedSteps.map(step => ({
+      description: step.description,
+      code: this.convertProcessedStepToCode(step),
+      waitBefore: step.options?.timeout,
+      waitAfter: step.options?.timeout,
+    }));
+  }
+
+  private convertProcessedAssertionsToTestAssertions(processedAssertions: ProcessedTestAssertion[]): TestAssertion[] {
+    return processedAssertions.map(assertion => ({
+      type: assertion.type,
+      target: assertion.target?.selector || assertion.target?.text || '',
+      expected: assertion.expected,
+      message: assertion.message,
+    }));
+  }
+
+  private convertProcessedStepToCode(step: ProcessedTestStep): string {
+    switch (this.options.framework) {
+      case 'playwright':
+        return this.generatePlaywrightStepFromProcessed(step);
+      case 'cypress':
+        return this.generateCypressStepFromProcessed(step);
+      case 'puppeteer':
+        return this.generatePuppeteerStepFromProcessed(step);
+      default:
+        return `// ${step.description}`;
+    }
+  }
+
+  private generatePlaywrightStepFromProcessed(step: ProcessedTestStep): string {
+    switch (step.type) {
+      case 'navigate':
+        return `await page.goto('${String(step.data)}');`;
+      case 'click':
+        return `await page.click('${step.target.selector}');`;
+      case 'type':
+        return `await page.fill('${step.target.selector}', '${String(step.data)}');`;
+      case 'select':
+        return `await page.selectOption('${step.target.selector}', '${String(step.data)}');`;
+      case 'wait':
+        return `await page.waitForTimeout(${Number(step.data) || 0});`;
+      case 'scroll':
+        return `await page.evaluate(() => window.scrollTo(0, ${Number(step.data) || 0}));`;
+      case 'hover':
+        return `await page.hover('${step.target.selector}');`;
+      case 'drag':
+        return `await page.dragAndDrop('${step.target.selector}', '${step.data}');`;
+      default:
+        return `// TODO: ${step.description}`;
+    }
+  }
+
+  private generateCypressStepFromProcessed(step: ProcessedTestStep): string {
+    switch (step.type) {
+      case 'navigate':
+        return `cy.visit('${String(step.data)}');`;
+      case 'click':
+        return `cy.get('${step.target.selector}').click();`;
+      case 'type':
+        return `cy.get('${step.target.selector}').type('${String(step.data)}');`;
+      case 'select':
+        return `cy.get('${step.target.selector}').select('${String(step.data)}');`;
+      case 'wait':
+        return `cy.wait(${Number(step.data) || 0});`;
+      case 'scroll':
+        return `cy.scrollTo(0, ${Number(step.data) || 0});`;
+      case 'hover':
+        return `cy.get('${step.target.selector}').trigger('mouseover');`;
+      default:
+        return `// TODO: ${step.description}`;
+    }
+  }
+
+  private generatePuppeteerStepFromProcessed(step: ProcessedTestStep): string {
+    switch (step.type) {
+      case 'navigate':
+        return `await page.goto('${String(step.data)}');`;
+      case 'click':
+        return `await page.click('${step.target.selector}');`;
+      case 'type':
+        return `await page.type('${step.target.selector}', '${String(step.data)}');`;
+      case 'select':
+        return `await page.select('${step.target.selector}', '${String(step.data)}');`;
+      case 'wait':
+        return `await page.waitForTimeout(${Number(step.data) || 0});`;
+      case 'scroll':
+        return `await page.evaluate(() => window.scrollTo(0, ${Number(step.data) || 0}));`;
+      case 'hover':
+        return `await page.hover('${step.target.selector}');`;
+      default:
+        return `// TODO: ${step.description}`;
+    }
+  }
+
+  private async generatePageObjectsFromSpecs(specs: ProcessedTestSpec[]): Promise<TestFile[]> {
+    // Extract unique pages from all specs
+    const pages = new Set<string>();
+    specs.forEach(spec => {
+      spec.steps.forEach(step => {
+        if (step.type === 'navigate' && step.data) {
+          pages.add(String(step.data));
+        }
+      });
+    });
+
+    const files: TestFile[] = [];
+    
+    for (const pageUrl of pages) {
+      const pageName = this.extractPageNameFromUrl(pageUrl);
+      const selectors = this.extractSelectorsFromSpecs(specs);
+      const pageObject = this.generatePageObjectForUrl(pageUrl, pageName, selectors);
+      files.push(pageObject);
+    }
+
+    return files;
+  }
+
+  private extractSelectorsFromSpecs(specs: ProcessedTestSpec[]): Record<string, string> {
+    const selectors: Record<string, string> = {};
+    
+    specs.forEach(spec => {
+      spec.steps.forEach(step => {
+        if (step.target.selector) {
+          const elementName = step.target.text || `element_${Object.keys(selectors).length}`;
+          selectors[elementName] = step.target.selector;
+        }
+      });
+    });
+
+    return selectors;
+  }
+
+  private generatePageObjectForUrl(url: string, pageName: string, selectors: Record<string, string>): TestFile {
+    const className = `${pageName.charAt(0).toUpperCase() + pageName.slice(1)}Page`;
+    
+    const content = `export class ${className} {
+  constructor(private page: Page) {}
+
+  async navigate(): Promise<void> {
+    await this.page.goto('${url}');
+  }
+
+${Object.entries(selectors).map(([name, selector]) => 
+  `  get ${name}() {
+    return this.page.locator('${selector}');
+  }`
+).join('\n\n')}
+}`;
+
+    return {
+      filename: `${pageName}.page.ts`,
+      path: `${this.options.outputDirectory}/pages`,
+      content,
+      type: 'page-object',
+      metadata: {
+        generatedAt: new Date(),
+        sourcePath: { url } as any,
+        framework: this.options.framework,
+        language: this.options.language || 'typescript',
+        dependencies: this.getRequiredDependencies(),
+      },
+    };
+  }
+
+  private async generateFixturesFromSpecs(specs: ProcessedTestSpec[]): Promise<TestFile[]> {
+    const testData = {
+      formData: {},
+      urls: [],
+    };
+
+    specs.forEach(spec => {
+      spec.steps.forEach(step => {
+        if (step.type === 'type' && step.data) {
+          const fieldName = step.target.text || 'field';
+          testData.formData[fieldName] = step.data;
+        }
+        if (step.type === 'navigate' && step.data) {
+          testData.urls.push(step.data);
+        }
+      });
+    });
+
+    const content = `export const testData = ${JSON.stringify(testData, null, 2)};`;
+
+    return [{
+      filename: 'test-data.ts',
+      path: `${this.options.outputDirectory}/fixtures`,
+      content,
+      type: 'fixture',
+      metadata: {
+        generatedAt: new Date(),
+        sourcePath: specs as any,
+        framework: this.options.framework,
+        language: this.options.language || 'typescript',
+        dependencies: [],
+      },
+    }];
+  }
+
+  private async generateHelpersFromSpecs(specs: ProcessedTestSpec[]): Promise<TestFile[]> {
+    const content = `import { Page } from '@playwright/test';
+
+export class TestHelpers {
+  constructor(private page: Page) {}
+
+  async fillForm(formData: Record<string, string>): Promise<void> {
+    for (const [field, value] of Object.entries(formData)) {
+      await this.page.fill(\`[name="\${field}"], [id="\${field}"], [placeholder*="\${field}" i]\`, value);
+    }
+  }
+
+  async waitForPageLoad(): Promise<void> {
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  async takeScreenshot(name: string): Promise<void> {
+    await this.page.screenshot({ path: \`screenshots/\${name}.png\` });
+  }
+}`;
+
+    return [{
+      filename: 'helpers.ts',
+      path: `${this.options.outputDirectory}/helpers`,
+      content,
+      type: 'helper',
+      metadata: {
+        generatedAt: new Date(),
+        sourcePath: specs as any,
+        framework: this.options.framework,
+        language: this.options.language || 'typescript',
+        dependencies: this.getRequiredDependencies(),
+      },
+    }];
+  }
+
+  private generateImportsForFramework(): ImportStatement[] {
+    switch (this.options.framework) {
+      case 'playwright':
+        return [
+          { named: ['test', 'expect'], from: '@playwright/test' },
+          { named: ['Page'], from: '@playwright/test' },
+        ];
+      case 'cypress':
+        return [];
+      case 'puppeteer':
+        return [
+          { default: 'puppeteer', from: 'puppeteer' },
+        ];
+      default:
+        return [];
+    }
+  }
+
+  private generateDefaultSetup(): string[] {
+    switch (this.options.framework) {
+      case 'playwright':
+        return ['// Browser and page setup handled by Playwright'];
+      case 'cypress':
+        return ['// Browser setup handled by Cypress'];
+      case 'puppeteer':
+        return [
+          'const browser = await puppeteer.launch();',
+          'const page = await browser.newPage();',
+        ];
+      default:
+        return [];
+    }
+  }
+
+  private renderTestFileFromStructure(structure: TestStructure): string {
+    const parts: string[] = [];
+
+    // Add imports
+    structure.imports.forEach(importStmt => {
+      if (importStmt.default && importStmt.named) {
+        parts.push(`import ${importStmt.default}, { ${importStmt.named.join(', ')} } from '${importStmt.from}';`);
+      } else if (importStmt.default) {
+        parts.push(`import ${importStmt.default} from '${importStmt.from}';`);
+      } else if (importStmt.named) {
+        parts.push(`import { ${importStmt.named.join(', ')} } from '${importStmt.from}';`);
+      }
+    });
+
+    parts.push('');
+
+    // Add test suite
+    parts.push(`test.describe('Generated Tests', () => {`);
+
+    // Add setup
+    if (structure.setup) {
+      parts.push(`  test.${structure.setup.type}(async ({ page }) => {`);
+      structure.setup.code.forEach(line => parts.push(`    ${line}`));
+      parts.push('  });');
+      parts.push('');
+    }
+
+    // Add tests
+    structure.tests.forEach(testCase => {
+      parts.push(`  test('${testCase.name}', async ({ page }) => {`);
+      if (testCase.description) {
+        parts.push(`    // ${testCase.description}`);
+      }
+      
+      testCase.steps.forEach(step => {
+        if (step.description && step.description !== step.code) {
+          parts.push(`    // ${step.description}`);
+        }
+        parts.push(`    ${step.code}`);
+      });
+
+      testCase.assertions.forEach(assertion => {
+        parts.push(`    ${this.generatePlaywrightAssertion(assertion)}`);
+      });
+
+      parts.push('  });');
+      parts.push('');
+    });
+
+    // Add teardown
+    if (structure.teardown) {
+      parts.push(`  test.${structure.teardown.type}(async ({ page }) => {`);
+      structure.teardown.code.forEach(line => parts.push(`    ${line}`));
+      parts.push('  });');
+    }
+
+    parts.push('});');
+
+    return parts.join('\n');
+  }
+
+  private generateTestFileNameFromSpec(spec: ProcessedTestSpec): string {
+    const name = spec.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    return `${name}.spec.ts`;
+  }
+
+  private calculateSummaryFromFiles(files: TestFile[]): GenerationSummary {
+    const testFiles = files.filter(f => f.type === 'test');
+    const pageObjects = files.filter(f => f.type === 'page-object');
+    const fixtures = files.filter(f => f.type === 'fixture');
+    const helpers = files.filter(f => f.type === 'helper');
+
+    // Count tests and assertions from test files
+    let totalTests = 0;
+    let totalAssertions = 0;
+    
+    testFiles.forEach(file => {
+      // Simple heuristic: count test( patterns and expect( patterns
+      const testMatches = file.content.match(/test\(/g);
+      const assertionMatches = file.content.match(/expect\(/g);
+      totalTests += testMatches ? testMatches.length : 0;
+      totalAssertions += assertionMatches ? assertionMatches.length : 0;
+    });
+
+    return {
+      totalFiles: files.length,
+      testFiles: testFiles.length,
+      pageObjects: pageObjects.length,
+      fixtures: fixtures.length,
+      helpers: helpers.length,
+      totalTests,
+      totalAssertions,
+      estimatedDuration: totalTests * 2, // 2 minutes per test estimate
+    };
+  }
+
+  private extractPageNameFromUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname.replace(/^\/|\/$/g, '');
+      return path || 'home';
+    } catch {
+      return 'page';
     }
   }
 }

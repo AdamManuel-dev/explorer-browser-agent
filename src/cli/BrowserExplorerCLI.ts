@@ -9,6 +9,9 @@ import { TestGenerator, TestFileWriter, GenerationOptions } from '../generation'
 import { TestFramework } from '../types/generation';
 import { UserPath } from '../types/recording';
 import { logger } from '../utils/logger';
+import { BrowserExplorerServer } from '../server/BrowserExplorerServer';
+import { MultiStrategyAuthManager, AuthConfig, AuthStrategy } from '../auth/MultiStrategyAuthManager';
+import { SessionManager } from '../auth/SessionManager';
 
 interface CrawlOptions {
   maxDepth: string;
@@ -330,12 +333,38 @@ npm test
 
   async serve(options: ServeOptions): Promise<void> {
     try {
-      logger.info(`🚀 Starting Browser Explorer server on port ${options.port}...`);
-      logger.info('❌ Server mode not yet implemented');
-      logger.info('This feature will provide a REST API for Browser Explorer functionality');
+      const serverOptions = {
+        port: parseInt(options.port, 10),
+        config: options.config,
+        cors: options.cors
+      };
 
-      // TODO: Implement server mode
-      process.exit(1);
+      const server = new BrowserExplorerServer(serverOptions);
+      
+      // Handle graceful shutdown
+      process.on('SIGINT', async () => {
+        logger.info('🛑 Shutting down server...');
+        try {
+          await server.stop();
+          process.exit(0);
+        } catch (error) {
+          logger.error('Error during shutdown:', error);
+          process.exit(1);
+        }
+      });
+
+      process.on('SIGTERM', async () => {
+        logger.info('🛑 Shutting down server...');
+        try {
+          await server.stop();
+          process.exit(0);
+        } catch (error) {
+          logger.error('Error during shutdown:', error);
+          process.exit(1);
+        }
+      });
+
+      await server.start();
     } catch (error) {
       logger.error('Serve command failed', error);
       logger.error('❌ Server failed to start:', error instanceof Error ? error.message : error);
@@ -411,11 +440,86 @@ npm test
   }
 
   private async setupAuthentication(
-    _crawlerService: CrawlerService,
-    _auth: BrowserExplorerConfig['authentication']
+    crawlerService: CrawlerService,
+    auth: BrowserExplorerConfig['authentication']
   ): Promise<void> {
-    // TODO: Implement authentication setup
-    logger.info('🔐 Authentication setup (not yet implemented)');
+    if (!auth?.enabled) {
+      logger.debug('Authentication disabled, skipping setup');
+      return;
+    }
+
+    logger.info('🔐 Setting up authentication', { 
+      strategy: auth.strategy,
+      loginUrl: auth.loginUrl 
+    });
+
+    try {
+      // Initialize authentication manager
+      const authManager = new MultiStrategyAuthManager();
+      
+      // Initialize session manager if persistence is enabled
+      const sessionManager = auth.sessionPersistence 
+        ? new SessionManager({
+            storage: { type: 'file', options: { filePath: './sessions' } },
+            encryption: { enabled: false },
+            cleanup: { enabled: true, interval: 3600000, maxAge: 86400000 }
+          })
+        : null;
+
+      // Create authentication configuration
+      const authConfig: AuthConfig = {
+        strategy: auth.strategy as AuthStrategy,
+        loginUrl: auth.loginUrl,
+        credentials: {
+          username: auth.credentials?.username,
+          password: auth.credentials?.password,
+          apiKey: auth.credentials?.apiKey,
+        },
+        sessionPersistence: auth.sessionPersistence,
+        cookieFile: auth.cookieFile,
+        timeout: 30000,
+        selectors: {
+          usernameField: 'input[name="username"], input[name="email"], input[type="email"]',
+          passwordField: 'input[name="password"], input[type="password"]',
+          submitButton: 'button[type="submit"], input[type="submit"]',
+          successIndicator: '.dashboard, .welcome, [data-testid="dashboard"]',
+          errorIndicator: '.error, .alert-danger, .invalid-feedback',
+        },
+      };
+
+      // Attach authentication to crawler service
+      await this.attachAuthenticationToCrawler(crawlerService, authManager, authConfig, sessionManager);
+
+      logger.info('✅ Authentication setup completed', { 
+        strategy: auth.strategy,
+        sessionPersistence: auth.sessionPersistence 
+      });
+
+    } catch (error) {
+      logger.error('❌ Authentication setup failed', error);
+      throw new Error(`Authentication setup failed: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
+  private async attachAuthenticationToCrawler(
+    crawlerService: CrawlerService,
+    authManager: MultiStrategyAuthManager,
+    authConfig: AuthConfig,
+    sessionManager?: SessionManager | null
+  ): Promise<void> {
+    logger.debug('Attaching authentication to crawler service');
+    
+    // Store auth components for use during crawling
+    // This extends the crawler service with authentication capabilities
+    (crawlerService as any)._authManager = authManager;
+    (crawlerService as any)._authConfig = authConfig;
+    (crawlerService as any)._sessionManager = sessionManager;
+
+    logger.debug('Authentication components attached to crawler service', {
+      hasAuthManager: !!authManager,
+      hasSessionManager: !!sessionManager,
+      strategy: authConfig.strategy
+    });
   }
 
   private createSampleUserPath(url: string, _crawlResult: CrawlResult): UserPath {
