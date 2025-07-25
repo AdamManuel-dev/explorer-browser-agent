@@ -23,7 +23,9 @@ describe('ResourceManager', () => {
     } as any;
 
     mockBrowser = {
-      newContext: jest.fn<() => Promise<BrowserContext>>().mockResolvedValue(mockContext as BrowserContext),
+      newContext: jest
+        .fn<() => Promise<BrowserContext>>()
+        .mockResolvedValue(mockContext as BrowserContext),
       close: jest.fn(),
       isConnected: jest.fn().mockReturnValue(true),
     } as any;
@@ -77,7 +79,7 @@ describe('ResourceManager', () => {
     it('should release allocated resources', async () => {
       const allocation = await resourceManager.allocateResources();
       const allocationId = 'test-allocation-id';
-      
+
       // Mock the internal allocatedResources map
       (resourceManager as any).allocatedResources.set(allocationId, allocation);
 
@@ -108,7 +110,7 @@ describe('ResourceManager', () => {
   describe('metrics and monitoring', () => {
     it('should track resource allocation metrics', async () => {
       const allocation = await resourceManager.allocateResources();
-      
+
       expect(allocation).toHaveProperty('browserId');
       expect(allocation).toHaveProperty('contextId');
       expect(allocation).toHaveProperty('pageId');
@@ -117,7 +119,7 @@ describe('ResourceManager', () => {
 
     it('should provide resource status information', () => {
       const status = resourceManager.getResourceStatus();
-      
+
       expect(status).toHaveProperty('totalBrowsers');
       expect(status).toHaveProperty('totalContexts');
       expect(status).toHaveProperty('totalPages');
@@ -135,7 +137,9 @@ describe('ResourceManager', () => {
     it('should prevent resource allocation during shutdown', async () => {
       await resourceManager.cleanup();
 
-      await expect(resourceManager.allocateResources()).rejects.toThrow('ResourceManager is shutting down');
+      await expect(resourceManager.allocateResources()).rejects.toThrow(
+        'ResourceManager is shutting down'
+      );
     });
   });
 });

@@ -9,7 +9,7 @@ jest.mock('../utils/logger');
 jest.mock('normalize-url', () => {
   return {
     __esModule: true,
-    default: (url: string) => url.toLowerCase().replace(/\/$/, '').replace(/#.*$/, '')
+    default: (url: string) => url.toLowerCase().replace(/\/$/, '').replace(/#.*$/, ''),
   };
 });
 
@@ -17,8 +17,8 @@ jest.mock('robots-parser', () => {
   return {
     __esModule: true,
     default: () => ({
-      isAllowed: () => true
-    })
+      isAllowed: () => true,
+    }),
   };
 });
 
@@ -41,7 +41,7 @@ jest.mock('p-queue', () => {
       async onIdle(): Promise<void> {
         return Promise.resolve();
       }
-    }
+    },
   };
 });
 

@@ -584,5 +584,4 @@ browser:
       expect(configManager.isJsonFile('./config.yml')).toBe(false);
     });
   });
-
 });

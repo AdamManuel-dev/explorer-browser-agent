@@ -39,6 +39,7 @@ out/
 .serverless/
 .fusebox/
 *.dll
+docs/
 
 # -----------------------------------------------------------------------------
 # Test Coverage & Reports

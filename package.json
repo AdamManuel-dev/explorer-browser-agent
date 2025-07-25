@@ -34,7 +34,9 @@
     "prepare": "husky install || true",
     "prepack": "npm run build",
     "postinstall": "npx playwright install chromium || true",
-    "vibe": "claude --dangerously-skip-permissions"
+    "vibe": "claude --dangerously-skip-permissions",
+    "redis:start": "redis-server",
+    "redis:bg": "brew services start redis"
   },
   "keywords": [
     "browser",

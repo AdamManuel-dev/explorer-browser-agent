@@ -182,7 +182,7 @@ describe('MonitoringService', () => {
       expect(activeSpans[0]?.status).toBe('active');
 
       // Add small delay to ensure duration > 0
-      await new Promise(resolve => setTimeout(resolve, 1));
+      await new Promise((resolve) => setTimeout(resolve, 1));
 
       monitoringService.finishSpan(spanId, { result: 'success' });
 

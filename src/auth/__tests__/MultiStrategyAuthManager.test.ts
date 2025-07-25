@@ -10,7 +10,7 @@ describe('MultiStrategyAuthManager', () => {
 
   beforeEach(() => {
     authManager = new MultiStrategyAuthManager();
-    
+
     mockPage = {
       goto: jest.fn(() => Promise.resolve(null)) as any,
       fill: jest.fn(() => Promise.resolve()) as any,

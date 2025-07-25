@@ -39,7 +39,7 @@ describe('ConfigManager Basic Tests', () => {
 
     it('should return config after loading', async () => {
       (readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
-      
+
       await configManager.loadConfig();
       const config = configManager.getConfig();
 
@@ -50,9 +50,9 @@ describe('ConfigManager Basic Tests', () => {
   describe('updateConfig', () => {
     it('should update existing config', async () => {
       (readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
-      
+
       await configManager.loadConfig();
-      
+
       configManager.updateConfig({
         browser: {
           headless: false,

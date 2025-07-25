@@ -631,16 +631,19 @@ describe('Crawler Workflow Integration Tests', () => {
 
       try {
         // Run multiple crawlers concurrently
-        const crawlers = [1, 2, 3].map(() => new BreadthFirstCrawler({
-          startUrl: `http://localhost:${testPort}`,
-          maxDepth: 1,
-          maxPages: 3,
-          crawlDelay: 200,
-          parallelWorkers: 1,
-          allowedDomains: ['localhost'],
-          respectRobotsTxt: false,
-          userAgent: 'test-crawler',
-        }));
+        const crawlers = [1, 2, 3].map(
+          () =>
+            new BreadthFirstCrawler({
+              startUrl: `http://localhost:${testPort}`,
+              maxDepth: 1,
+              maxPages: 3,
+              crawlDelay: 200,
+              parallelWorkers: 1,
+              allowedDomains: ['localhost'],
+              respectRobotsTxt: false,
+              userAgent: 'test-crawler',
+            })
+        );
 
         const crawlPromises = crawlers.map(async (crawler, _index) => {
           return crawler.crawl();
@@ -693,11 +696,9 @@ describe('Crawler Workflow Integration Tests', () => {
       try {
         const startTime = Date.now();
 
-        const result = await monitoring.timeFunction(
-          'full_crawl_workflow',
-          () => crawler.crawl(),
-          { workflow: 'performance_test' }
-        );
+        const result = await monitoring.timeFunction('full_crawl_workflow', () => crawler.crawl(), {
+          workflow: 'performance_test',
+        });
 
         const totalTime = Date.now() - startTime;
 
