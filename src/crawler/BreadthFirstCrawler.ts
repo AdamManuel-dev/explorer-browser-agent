@@ -67,6 +67,8 @@ export class BreadthFirstCrawler {
   private browserAgent: BrowserAgent | null = null;
 
   constructor(private config: CrawlConfiguration) {
+    this.validateConfiguration(config);
+    
     this.crawlResult = {
       pagesVisited: 0,
       urls: [],
@@ -80,6 +82,34 @@ export class BreadthFirstCrawler {
       interval: config.crawlDelay,
       intervalCap: 1,
     });
+  }
+
+  private validateConfiguration(config: CrawlConfiguration): void {
+    if (!config.startUrl) {
+      throw new Error('startUrl is required');
+    }
+
+    try {
+      new URL(config.startUrl);
+    } catch {
+      throw new Error('startUrl must be a valid URL');
+    }
+
+    if (config.maxDepth < 0) {
+      throw new Error('maxDepth must be non-negative');
+    }
+
+    if (config.maxPages <= 0) {
+      throw new Error('maxPages must be positive');
+    }
+
+    if (config.crawlDelay < 0) {
+      throw new Error('crawlDelay must be non-negative');
+    }
+
+    if (config.parallelWorkers && config.parallelWorkers <= 0) {
+      throw new Error('parallelWorkers must be positive');
+    }
   }
 
   setBrowserAgent(browserAgent: BrowserAgent): void {

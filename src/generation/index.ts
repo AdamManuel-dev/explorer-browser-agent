@@ -4,6 +4,7 @@ export { TestFileWriter } from './TestFileWriter';
 export { TestValidator } from './TestValidator';
 export { TestReporter } from './TestReporter';
 export { NaturalLanguageTestProcessor } from './NaturalLanguageTestProcessor';
+export { AIAssertionGenerator } from './AIAssertionGenerator';
 export type {
   TestFile,
   TestFileType,
@@ -43,3 +44,7 @@ export type {
   ProcessedTestStep,
   ProcessedTestAssertion,
 } from './NaturalLanguageTestProcessor';
+export type {
+  AssertionContext,
+  SmartAssertion,
+} from './AIAssertionGenerator';

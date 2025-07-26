@@ -21,15 +21,22 @@ import {
   ProcessedTestStep,
   ProcessedTestAssertion
 } from './NaturalLanguageTestProcessor';
+import { 
+  AIAssertionGenerator,
+  AssertionContext,
+  SmartAssertion
+} from './AIAssertionGenerator';
 
 export class TestGenerator {
   private optimizer: PathOptimizer;
   private nlProcessor: NaturalLanguageTestProcessor;
+  private aiAssertionGenerator: AIAssertionGenerator;
   private formatting: CodeFormatting;
 
   constructor(private options: GenerationOptions) {
     this.optimizer = new PathOptimizer();
     this.nlProcessor = new NaturalLanguageTestProcessor();
+    this.aiAssertionGenerator = new AIAssertionGenerator();
     this.formatting = options.formatting || {
       indent: '  ',
       quotes: 'single',
@@ -610,12 +617,29 @@ export class TestGenerator {
   }
 
   private async generateTestFileFromProcessedSpec(processedSpec: ProcessedTestSpec): Promise<TestFile> {
+    // Generate AI-enhanced assertions in addition to specified ones
+    let enhancedAssertions = processedSpec.assertions;
+    
+    try {
+      // Generate smart assertions for the test steps
+      const smartAssertions = await this.generateSmartAssertions(
+        null, // No page context available during generation
+        processedSpec.steps,
+        processedSpec.assertions
+      );
+      
+      enhancedAssertions = smartAssertions;
+      logger.info(`Enhanced test with ${smartAssertions.length} AI-generated assertions`);
+    } catch (error) {
+      logger.warn('Failed to generate AI assertions, using original assertions:', error);
+    }
+
     const testCase: TestCase = {
       name: processedSpec.name,
       description: processedSpec.description,
       tags: processedSpec.metadata.tags,
       steps: this.convertProcessedStepsToTestSteps(processedSpec.steps),
-      assertions: this.convertProcessedAssertionsToTestAssertions(processedSpec.assertions),
+      assertions: this.convertProcessedAssertionsToTestAssertions(enhancedAssertions),
       timeout: processedSpec.metadata.estimatedTime * 60 * 1000, // Convert minutes to milliseconds
     };
 
@@ -1030,5 +1054,183 @@ export class TestHelpers {
     } catch {
       return 'page';
     }
+  }
+
+  // AI-Enhanced Assertion Generation Methods
+
+  async generateSmartAssertions(
+    page: any, 
+    testSteps: ProcessedTestStep[], 
+    existingAssertions: ProcessedTestAssertion[] = []
+  ): Promise<ProcessedTestAssertion[]> {
+    logger.info('Generating AI-enhanced assertions for test steps');
+
+    const smartAssertions: ProcessedTestAssertion[] = [];
+    const pageState = {
+      url: page ? await page.url() : '',
+      title: page ? await page.title() : '',
+      timestamp: Date.now(),
+    };
+
+    // Generate assertions for each test step
+    for (let i = 0; i < testSteps.length; i++) {
+      const step = testSteps[i];
+      const context: AssertionContext = {
+        action: step.description,
+        element: step.target.selector ? {
+          selector: step.target.selector,
+          type: step.type,
+          text: step.target.text,
+        } : undefined,
+        pageState,
+        previousAssertions: this.convertToSmartAssertions(smartAssertions),
+      };
+
+      try {
+        // Generate AI-driven assertions for this step
+        const aiAssertions = page 
+          ? await this.aiAssertionGenerator.generateAssertions(page, context)
+          : this.generateContextualFallbackAssertions(step);
+
+        // Convert AI assertions to ProcessedTestAssertion format
+        const processedAssertions = this.convertSmartAssertionsToProcessed(aiAssertions, step);
+        smartAssertions.push(...processedAssertions);
+
+      } catch (error) {
+        logger.warn(`Failed to generate AI assertions for step ${i}:`, error);
+        // Fall back to rule-based assertion generation
+        const fallbackAssertions = this.generateRuleBasedAssertions(step);
+        smartAssertions.push(...fallbackAssertions);
+      }
+    }
+
+    // Combine with existing assertions and optimize
+    const allAssertions = [...existingAssertions, ...smartAssertions];
+    return this.optimizeAssertionSet(allAssertions);
+  }
+
+  private convertToSmartAssertions(processedAssertions: ProcessedTestAssertion[]): SmartAssertion[] {
+    return processedAssertions.map(assertion => ({
+      type: assertion.type as any,
+      target: assertion.target?.selector || assertion.target?.text || '',
+      expected: assertion.expected,
+      confidence: 0.7, // Default confidence for existing assertions
+      reasoning: assertion.naturalLanguage || 'Existing assertion',
+      priority: 'medium' as const,
+      category: 'functional' as const,
+    }));
+  }
+
+  private convertSmartAssertionsToProcessed(
+    smartAssertions: SmartAssertion[], 
+    relatedStep: ProcessedTestStep
+  ): ProcessedTestAssertion[] {
+    return smartAssertions.map(assertion => ({
+      type: assertion.type,
+      description: `AI: ${assertion.reasoning}`,
+      target: {
+        selector: assertion.target,
+        text: assertion.target,
+        type: relatedStep.target.type,
+      },
+      expected: assertion.expected,
+      message: `${assertion.reasoning} (confidence: ${Math.round(assertion.confidence * 100)}%)`,
+      naturalLanguage: assertion.reasoning,
+    }));
+  }
+
+  private generateContextualFallbackAssertions(step: ProcessedTestStep): SmartAssertion[] {
+    const assertions: SmartAssertion[] = [];
+
+    // Generate assertions based on step type
+    switch (step.type) {
+      case 'click':
+        assertions.push({
+          type: 'visible',
+          target: step.target.selector || 'body',
+          expected: true,
+          confidence: 0.6,
+          reasoning: 'Verify page responds to click action',
+          priority: 'medium',
+          category: 'functional',
+        });
+        break;
+
+      case 'type':
+        if (step.target.selector) {
+          assertions.push({
+            type: 'equals',
+            target: step.target.selector,
+            expected: step.data,
+            confidence: 0.8,
+            reasoning: 'Verify input value was set correctly',
+            priority: 'high',
+            category: 'functional',
+          });
+        }
+        break;
+
+      case 'navigate':
+        assertions.push({
+          type: 'url',
+          target: '',
+          expected: step.data,
+          confidence: 0.9,
+          reasoning: 'Verify navigation completed successfully',
+          priority: 'high',
+          category: 'functional',
+        });
+        break;
+    }
+
+    return assertions;
+  }
+
+  private generateRuleBasedAssertions(step: ProcessedTestStep): ProcessedTestAssertion[] {
+    const assertions: ProcessedTestAssertion[] = [];
+
+    // Rule-based fallback when AI fails
+    if (step.type === 'navigate' && step.data) {
+      assertions.push({
+        type: 'url',
+        description: 'Verify page navigation',
+        target: { selector: '', text: '', type: step.target.type },
+        expected: step.data,
+        message: 'Page should navigate to expected URL',
+        naturalLanguage: `Page URL should be ${step.data}`,
+      });
+    }
+
+    if (step.target.selector) {
+      assertions.push({
+        type: 'visible',
+        description: 'Verify element visibility',
+        target: step.target,
+        expected: true,
+        message: 'Element should be visible after interaction',
+        naturalLanguage: `Element ${step.target.selector} should be visible`,
+      });
+    }
+
+    return assertions;
+  }
+
+  private optimizeAssertionSet(assertions: ProcessedTestAssertion[]): ProcessedTestAssertion[] {
+    // Remove duplicate assertions
+    const uniqueAssertions = assertions.filter((assertion, index) => {
+      const key = `${assertion.type}-${assertion.target?.selector}-${assertion.expected}`;
+      return assertions.findIndex(a => 
+        `${a.type}-${a.target?.selector}-${a.expected}` === key
+      ) === index;
+    });
+
+    // Limit total assertions to prevent test bloat
+    const maxAssertions = 12;
+    return uniqueAssertions.slice(0, maxAssertions);
+  }
+
+  async cleanup(): Promise<void> {
+    // Cleanup AI assertion generator resources
+    await this.aiAssertionGenerator.close();
   }
 }

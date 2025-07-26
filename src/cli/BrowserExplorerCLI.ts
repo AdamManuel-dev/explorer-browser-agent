@@ -1,17 +1,19 @@
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ConfigManager, BrowserExplorerConfig } from '../config';
 import { CrawlerService } from '../crawler/CrawlerService';
-import { CrawlResult } from '../crawler/BreadthFirstCrawler';
-// import { AIElementDetector } from '../detectors';
+import { CrawlResult, BreadthFirstCrawler } from '../crawler/BreadthFirstCrawler';
+import { AIElementDetector } from '../detectors';
 // import { InteractionExecutor } from '../interactions/InteractionExecutor';
 // import { UserPathRecorder } from '../recording';
-import { TestGenerator, TestFileWriter, GenerationOptions } from '../generation';
+import { TestGenerator, TestFileWriter, GenerationOptions, NaturalLanguageTestSpec } from '../generation';
 import { TestFramework } from '../types/generation';
-import { UserPath } from '../types/recording';
+import { UserPath, StepType } from '../types/recording';
 import { logger } from '../utils/logger';
 import { BrowserExplorerServer } from '../server/BrowserExplorerServer';
 import { MultiStrategyAuthManager, AuthConfig, AuthStrategy } from '../auth/MultiStrategyAuthManager';
 import { SessionManager } from '../auth/SessionManager';
+import { chromium, Browser, BrowserContext, Page } from 'playwright';
 
 interface CrawlOptions {
   maxDepth: string;
@@ -218,7 +220,7 @@ export class BrowserExplorerCLI {
       const directories = ['config', 'generated-tests', 'screenshots', 'reports'];
 
       for (const dir of directories) {
-        await fs.mkdir(dir, { recursive: true });
+        await fs.promises.mkdir(dir, { recursive: true });
         logger.info(`📁 Created directory: ${dir}`);
       }
 
@@ -243,7 +245,7 @@ reports/
 .env
 browser-explorer.config.local.*
 `;
-        await fs.writeFile('.gitignore', gitignoreContent);
+        await fs.promises.writeFile('.gitignore', gitignoreContent);
         logger.info('📝 Created .gitignore');
 
         // Create README
@@ -275,7 +277,7 @@ cd generated-tests && npm install
 npm test
 \`\`\`
 `;
-        await fs.writeFile('README.md', readmeContent);
+        await fs.promises.writeFile('README.md', readmeContent);
         logger.info('📚 Created README.md');
       }
 
@@ -561,25 +563,256 @@ npm test
 
   private async fileExists(filePath: string): Promise<boolean> {
     try {
-      await fs.access(filePath);
+      await fs.promises.access(filePath);
       return true;
     } catch {
       return false;
     }
   }
 
-  private async debugCrawler(_url: string, _options: DebugOptions): Promise<void> {
+  private async debugCrawler(url: string, options: DebugOptions): Promise<void> {
     logger.info('🕷️  Running crawler debug...');
-    // TODO: Implement crawler debugging
+    
+    try {
+      // Create browser instance using Playwright directly
+      const browser = await chromium.launch({ headless: true });
+      const context = await browser.newContext();
+      const page = await context.newPage();
+
+      logger.info('Starting crawl from:', url);
+
+      // Track crawl progress
+      const visitedUrls: string[] = [];
+      const discoveredUrls: string[] = [];
+
+      // Navigate to initial page
+      await page.goto(url);
+      visitedUrls.push(url);
+
+      // Extract links from the page
+      const links = await page.evaluate(() => {
+        const anchors = document.querySelectorAll('a[href]');
+        return Array.from(anchors).map(a => ({
+          href: (a as HTMLAnchorElement).href,
+          text: (a as HTMLAnchorElement).textContent?.trim() || '',
+        }));
+      });
+
+      logger.info(`Found ${links.length} links on ${url}`);
+      links.forEach(link => {
+        logger.debug(`  - ${link.text || 'No text'}: ${link.href}`);
+        discoveredUrls.push(link.href);
+      });
+
+      // Generate debug report
+      const report = {
+        startUrl: url,
+        visitedUrls,
+        discoveredUrls: discoveredUrls.slice(0, 20), // Limit output
+        stats: {
+          pagesVisited: visitedUrls.length,
+          linksDiscovered: discoveredUrls.length,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      // Write debug output
+      const outputPath = path.resolve(options.output, 'crawler-debug.json');
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, JSON.stringify(report, null, 2));
+
+      logger.info(`Crawler debug complete! Report saved to: ${outputPath}`);
+      logger.info('Summary:', report.stats);
+
+      await browser.close();
+    } catch (error) {
+      logger.error('Crawler debug failed:', error);
+      throw error;
+    }
   }
 
-  private async debugDetector(_url: string, _options: DebugOptions): Promise<void> {
+  private async debugDetector(url: string, options: DebugOptions): Promise<void> {
     logger.info('🔍 Running detector debug...');
-    // TODO: Implement detector debugging
+    
+    try {
+      // Create browser instance
+      const browser = await chromium.launch({ headless: true });
+      const context = await browser.newContext();
+      const page = await context.newPage();
+
+      // Navigate to the URL
+      logger.info(`Navigating to: ${url}`);
+      await page.goto(url, { waitUntil: 'networkidle' });
+
+      // Initialize AI detector
+      const aiDetector = new AIElementDetector();
+      await aiDetector.initialize(page);
+
+      logger.info('Running AI element detection...');
+      const detectionResult = await aiDetector.detectInteractiveElements(page);
+
+      // Convert result to array format
+      const elements = Array.isArray(detectionResult) ? detectionResult : [detectionResult];
+
+      // Generate comprehensive report
+      const report = {
+        url,
+        timestamp: new Date().toISOString(),
+        pageTitle: await page.title(),
+        detection: {
+          elementsFound: elements.length,
+          elements: elements.slice(0, 10).map(elem => ({
+            type: elem.type,
+            selector: elem.selector,
+            text: elem.text,
+            confidence: elem.confidence,
+            attributes: elem.attributes,
+          })),
+        },
+        summary: {
+          totalElements: elements.length,
+          elementTypes: this.countElementTypes(elements),
+          highConfidenceElements: elements.filter(e => e.confidence > 0.8).length,
+        },
+      };
+
+      // Write debug output
+      const outputPath = path.resolve(options.output, 'detector-debug.json');
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, JSON.stringify(report, null, 2));
+
+      // Save screenshot
+      const screenshotPath = path.resolve(options.output, 'detector-debug.png');
+      await page.screenshot({ fullPage: true, path: screenshotPath });
+
+      logger.info(`Detector debug complete! Report saved to: ${outputPath}`);
+      logger.info('Summary:', report.summary);
+      logger.info(`Screenshot saved to: ${screenshotPath}`);
+
+      await browser.close();
+    } catch (error) {
+      logger.error('Detector debug failed:', error);
+      throw error;
+    }
   }
 
-  private async debugGenerator(_url: string, _options: DebugOptions): Promise<void> {
+  private countElementTypes(elements: any[]): Record<string, number> {
+    const counts: Record<string, number> = {};
+    elements.forEach(elem => {
+      counts[elem.type] = (counts[elem.type] || 0) + 1;
+    });
+    return counts;
+  }
+
+  private async debugGenerator(url: string, options: DebugOptions): Promise<void> {
     logger.info('⚙️  Running generator debug...');
-    // TODO: Implement generator debugging
+    
+    try {
+      // Create browser instance
+      const browser = await chromium.launch({ headless: true });
+      const context = await browser.newContext();
+      const page = await context.newPage();
+
+      // Navigate to the URL
+      logger.info(`Navigating to: ${url}`);
+      await page.goto(url, { waitUntil: 'networkidle' });
+
+      // Initialize AI detector to find elements
+      const detector = new AIElementDetector();
+      await detector.initialize(page);
+      const detectionResult = await detector.detectInteractiveElements(page);
+      
+      const elements = Array.isArray(detectionResult) ? detectionResult : [detectionResult];
+      logger.info(`Found ${elements.length} interactive elements`);
+
+      // Test natural language generation with AI assertions
+      logger.info('Testing natural language generation with AI-enhanced assertions...');
+      const nlSpec: NaturalLanguageTestSpec = {
+        description: 'Sample test for debugging with AI assertions',
+        actions: [
+          `Navigate to ${url}`,
+          'Click on the first button',
+          'Type "test" into the first input field',
+        ],
+        assertions: [
+          'Page should load successfully',
+          'Title should be visible',
+        ],
+        tags: ['debug', 'ai-assertions'],
+        priority: 'medium',
+      };
+
+      // Create a basic generator configuration
+      const generator = new TestGenerator({
+        framework: 'playwright',
+        outputDirectory: options.output,
+        language: 'typescript',
+        generatePageObjects: false,
+        generateFixtures: false,
+        generateHelpers: false,
+        useAAAPattern: true,
+        addComments: true,
+        groupRelatedTests: false,
+        testNamingConvention: 'describe-it',
+        formatting: {
+          indent: '  ',
+          quotes: 'single',
+          semicolons: true,
+          trailingComma: true,
+          lineWidth: 120,
+        },
+      });
+
+      let generationResult = null;
+      try {
+        generationResult = await generator.generateFromNaturalLanguage([nlSpec]);
+        logger.info('Natural language generation successful');
+      } catch (error) {
+        logger.error('Natural language generation failed:', error);
+      }
+
+      // Generate comprehensive report
+      const report = {
+        url,
+        timestamp: new Date().toISOString(),
+        pageInfo: {
+          title: await page.title(),
+          elementsFound: elements.length,
+          elementTypes: this.countElementTypes(elements),
+        },
+        generationResults: {
+          naturalLanguage: generationResult ? {
+            success: true,
+            filesGenerated: generationResult.files.length,
+            summary: generationResult.summary,
+          } : {
+            success: false,
+            error: 'Generation failed',
+          },
+        },
+      };
+
+      // Write debug report
+      const reportPath = path.resolve(options.output, 'generator-debug.json');
+      fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+      fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+      // Write any generated test files
+      if (generationResult) {
+        for (const file of generationResult.files) {
+          const filePath = path.resolve(options.output, 'generated-tests', file.filename);
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+          fs.writeFileSync(filePath, file.content);
+        }
+      }
+
+      logger.info(`Generator debug complete! Report saved to: ${reportPath}`);
+      logger.info('Test files saved to:', path.resolve(options.output, 'generated-tests'));
+
+      await browser.close();
+    } catch (error) {
+      logger.error('Generator debug failed:', error);
+      throw error;
+    }
   }
 }

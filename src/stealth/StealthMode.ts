@@ -399,7 +399,7 @@ export class StealthMode {
           originalQuery(parameters)
       );
 
-      console.log('Stealth mode activated');
+      // Stealth mode activated (logging handled by browser console)
     })();
     `;
   }

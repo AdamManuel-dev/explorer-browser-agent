@@ -89,9 +89,8 @@ describe('BreadthFirstCrawler', () => {
       expect(crawler).toBeDefined();
     });
 
-    test.skip('should validate crawl options', async () => {
-      // TODO: This test is skipped because the BreadthFirstCrawler doesn't currently
-      // validate configuration parameters. Need to implement validation in the crawler.
+    test('should validate crawl options', async () => {
+      // Test that the BreadthFirstCrawler validates configuration parameters
       const invalidConfig: CrawlConfiguration = {
         startUrl: 'invalid-url',
         maxDepth: -1,
@@ -102,8 +101,7 @@ describe('BreadthFirstCrawler', () => {
         userAgent: 'test-crawler',
       };
 
-      const invalidCrawler = new BreadthFirstCrawler(invalidConfig);
-      await expect(invalidCrawler.crawl()).rejects.toThrow();
+      expect(() => new BreadthFirstCrawler(invalidConfig)).toThrow('startUrl must be a valid URL');
     });
   });
 
